@@ -14,7 +14,7 @@ def create_sample_data():
         
         print("正在创建示例数据...")
         
-        # 创建示例宠物 - 不要包含 owner_id！
+        # 创建示例宠物
         pets = [
             Pet(name='咪咪', species='猫', breed='英国短毛猫', avatar_url=''),
             Pet(name='旺财', species='狗', breed='金毛犬', avatar_url=''),
