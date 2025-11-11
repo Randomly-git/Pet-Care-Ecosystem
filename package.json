@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@vueuse/core": "^14.0.0",
+    "axios": "^1.13.2",
+    "dayjs": "^1.11.19",
+    "element-plus": "^2.11.7"
+  }
+}
