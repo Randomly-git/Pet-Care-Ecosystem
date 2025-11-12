@@ -31,4 +31,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
 
     // 根据宠物和活动种类查找活动
     List<Activity> findByPetAndActivityKind(Pet pet, ActivityKind activityKind);
+
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.pet.petId = :petId")
+    Long countByPetPetId(@Param("petId") Long petId);
 }

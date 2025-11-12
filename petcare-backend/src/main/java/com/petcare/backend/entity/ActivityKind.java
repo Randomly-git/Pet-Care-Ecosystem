@@ -1,7 +1,7 @@
 package com.petcare.backend.entity;
 
 import lombok.Data;
-import javax.persistence.*;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "activity_kind")

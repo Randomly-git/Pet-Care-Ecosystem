@@ -56,4 +56,7 @@ public interface StatusRecordRepository extends JpaRepository<StatusRecord, Long
     // 查找最新的状态记录（按开始日期倒序）
     @Query("SELECT sr FROM StatusRecord sr WHERE sr.pet.petId = :petId ORDER BY sr.startDate DESC, sr.statusRecordId DESC")
     List<StatusRecord> findRecentStatusRecordsByPetId(@Param("petId") Long petId);
+
+    @Query("SELECT COUNT(sr) FROM StatusRecord sr WHERE sr.pet.petId = :petId")
+    Long countByPetPetId(@Param("petId") Long petId);
 }

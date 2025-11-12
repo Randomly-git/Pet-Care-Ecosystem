@@ -41,4 +41,7 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
 
     // 查找包含特定描述的活动记录
     List<ActivityRecord> findByActivityDescriptionContaining(String keyword);
+
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.pet.petId = :petId")
+    Long countByPetPetId(@Param("petId") Long petId);
 }
