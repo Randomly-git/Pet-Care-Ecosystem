@@ -1,1 +1,0 @@
-CREATE DATABASE IF NOT EXISTS pet_space_db;

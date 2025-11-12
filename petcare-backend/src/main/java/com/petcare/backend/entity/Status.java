@@ -1,0 +1,21 @@
+package com.petcare.backend.entity;
+
+import lombok.Data;
+import javax.persistence.*;
+
+@Entity
+@Table(name = "status")
+@Data
+public class Status {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "status_id")
+    private Long statusId;
+
+    @Column(name = "status_name", length = 100)
+    private String statusName;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pet_id", referencedColumnName = "pet_id")
+    private Pet pet;
+}
