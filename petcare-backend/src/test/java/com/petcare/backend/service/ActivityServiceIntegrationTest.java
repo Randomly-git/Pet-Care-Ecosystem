@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("dev")
-// @Transactional  // 注释掉以便在数据库中看到数据
+@Transactional  // 注释掉以便在数据库中看到数据
 class ActivityServiceIntegrationTest {
 
     @Autowired

@@ -18,4 +18,7 @@ public class Status {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pet_id", referencedColumnName = "pet_id")
     private Pet pet;
+
+    @Column(name = "state")
+    private Integer state = 1; // 1表示有效，0表示已删除
 }
