@@ -12,8 +12,12 @@ import java.util.Optional;
 
 public interface ActivityService {
 
-    // 根据宠物ID获取所有有效活动信息
+    // 根据宠物ID和活动种类ID获取
+    List<ActivityDTO> getActivitiesByPetId(Long petId, Long activityKindId);
+
+    // 根据宠物ID获取（不带种类筛选）
     List<ActivityDTO> getActivitiesByPetId(Long petId);
+
 
     // 根据活动ID获取有效活动信息
     Optional<ActivityDTO> getActivityById(Long activityId);

@@ -269,6 +269,64 @@ class ActivityServiceIntegrationTest {
     }
 
     @Test
+    void testGetActivitiesByPetId_WithActivityKindFilter() {
+        System.out.println("\n=== 开始执行 testGetActivitiesByPetId_WithActivityKindFilter() ===");
+
+        // 准备 - 创建不同种类的测试活动
+        Activity activity1 = createTestActivity("散步活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity activity2 = createTestActivity("喂食活动", testPet.getPetId(), existingActivityKind2.getActivityKindId());
+        Activity activity3 = createTestActivity("另一个散步", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        activityRepository.flush();
+
+        System.out.println("创建了3个测试活动:");
+        System.out.println("  - " + activity1.getActivityName() + " (种类: " + existingActivityKind1.getActivityKindName() + ")");
+        System.out.println("  - " + activity2.getActivityName() + " (种类: " + existingActivityKind2.getActivityKindName() + ")");
+        System.out.println("  - " + activity3.getActivityName() + " (种类: " + existingActivityKind1.getActivityKindName() + ")");
+
+        // 测试1: 按宠物ID和活动种类1筛选
+        System.out.println("\n测试1: 按宠物ID和活动种类1筛选");
+        List<ActivityDTO> result1 = activityService.getActivitiesByPetId(testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        System.out.println("筛选结果数量: " + result1.size());
+
+        assertNotNull(result1);
+        assertEquals(2, result1.size(), "应该返回2个种类1的活动");
+
+        for (ActivityDTO dto : result1) {
+            System.out.println("  - " + dto.getActivityName() + " (种类: " + dto.getActivityKindName() + ")");
+            assertEquals(existingActivityKind1.getActivityKindId(), dto.getActivityKindId());
+            assertEquals(existingActivityKind1.getActivityKindName(), dto.getActivityKindName());
+        }
+
+        // 测试2: 按宠物ID和活动种类2筛选
+        System.out.println("\n测试2: 按宠物ID和活动种类2筛选");
+        List<ActivityDTO> result2 = activityService.getActivitiesByPetId(testPet.getPetId(), existingActivityKind2.getActivityKindId());
+        System.out.println("筛选结果数量: " + result2.size());
+
+        assertNotNull(result2);
+        assertEquals(1, result2.size(), "应该返回1个种类2的活动");
+        assertEquals("喂食活动", result2.get(0).getActivityName());
+        assertEquals(existingActivityKind2.getActivityKindId(), result2.get(0).getActivityKindId());
+
+        // 测试3: 按宠物ID和不存在活动种类筛选
+        System.out.println("\n测试3: 按宠物ID和不存在活动种类筛选");
+        List<ActivityDTO> result3 = activityService.getActivitiesByPetId(testPet.getPetId(), 999L);
+        System.out.println("筛选结果数量: " + result3.size());
+
+        assertNotNull(result3);
+        assertTrue(result3.isEmpty(), "应该返回空列表");
+
+        // 测试4: 验证向后兼容性 - 不提供活动种类ID
+        System.out.println("\n测试4: 验证向后兼容性 - 不提供活动种类ID");
+        List<ActivityDTO> result4 = activityService.getActivitiesByPetId(testPet.getPetId());
+        System.out.println("结果数量: " + result4.size());
+
+        assertNotNull(result4);
+        assertEquals(3, result4.size(), "应该返回所有3个活动");
+
+        System.out.println("=== testGetActivitiesByPetId_WithActivityKindFilter() 执行完成 ===\n");
+    }
+
+    @Test
     void testGetActivityById_WithInvalidId() {
         System.out.println("\n=== 开始执行 testGetActivityById_WithInvalidId() ===");
 

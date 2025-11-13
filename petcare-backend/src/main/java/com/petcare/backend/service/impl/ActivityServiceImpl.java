@@ -32,15 +32,33 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ActivityDTO> getActivitiesByPetId(Long petId) {
-        log.info("获取宠物ID为 {} 的所有有效活动信息", petId);
+    public List<ActivityDTO> getActivitiesByPetId(Long petId, Long activityKindId) {
+        log.info("获取宠物ID为 {} 的活动信息，活动种类ID: {}", petId, activityKindId);
 
-        List<Activity> activities = activityRepository.findByPetPetIdAndState(petId, 1);
+        List<Activity> activities;
+
+        if (activityKindId != null) {
+            // 如果提供了活动种类ID，则按宠物ID和活动种类ID筛选
+            activities = activityRepository.findByPetPetIdAndActivityKindActivityKindIdAndState(petId, activityKindId, 1);
+            log.debug("按宠物ID和活动种类ID查询，结果数量: {}", activities.size());
+        } else {
+            // 如果未提供活动种类ID，则只按宠物ID查询
+            activities = activityRepository.findByPetPetIdAndState(petId, 1);
+            log.debug("按宠物ID查询，结果数量: {}", activities.size());
+        }
 
         return activities.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActivityDTO> getActivitiesByPetId(Long petId) {
+        // 调用带两个参数的版本，事务仍然生效
+        return getActivitiesByPetId(petId, null);
+    }
+
 
     @Override
     @Transactional(readOnly = true)
