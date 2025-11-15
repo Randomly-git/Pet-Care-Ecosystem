@@ -31,8 +31,6 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     @Query("SELECT DISTINCT a.activityName FROM Activity a WHERE a.pet.petId = :petId AND a.state = 1")
     List<String> findDistinctActivityNamesByPetId(@Param("petId") Long petId);
 
-    // 根据宠物和活动种类查找有效活动
-    List<Activity> findByPetAndActivityKindAndState(Pet pet, ActivityKind activityKind, Integer state);
 
     // 查找所有有效活动
     List<Activity> findByState(Integer state);

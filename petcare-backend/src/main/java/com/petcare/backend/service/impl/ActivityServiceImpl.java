@@ -3,12 +3,15 @@ package com.petcare.backend.service.impl;
 
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityKind;
+import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.entity.Pet;
 import com.petcare.backend.dto.response.ActivityDTO;
+import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.dto.response.CreateActivityDTO;
 import com.petcare.backend.dto.response.UpdateActivityDTO;
 import com.petcare.backend.dto.response.ActivityKindDTO;
 import com.petcare.backend.repository.ActivityRepository;
+import com.petcare.backend.repository.ActivityRecordRepository;
 import com.petcare.backend.repository.ActivityKindRepository;
 import com.petcare.backend.repository.PetRepository;
 import com.petcare.backend.service.ActivityService;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +31,7 @@ import java.util.stream.Collectors;
 public class ActivityServiceImpl implements ActivityService {
 
     private final ActivityRepository activityRepository;
+    private final ActivityRecordRepository activityRecordRepository;
     private final ActivityKindRepository activityKindRepository;
     private final PetRepository petRepository;
 
@@ -154,6 +159,105 @@ public class ActivityServiceImpl implements ActivityService {
                     return dto;
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 1. 根据 pet_id 搜索活动记录，支持日期范围 & activity_kind_id 可选过滤
+     */
+    @Override
+    public List<ActivityRecordDTO> searchActivityRecords(Long petId,
+                                                         LocalDateTime startDate,
+                                                         LocalDateTime endDate,
+                                                         Long activityKindId) {
+        return activityRecordRepository.findActivityRecordsWithDetails(petId, startDate, endDate, activityKindId);
+    }
+
+    /**
+     * 2. 删除活动记录（硬删除）
+     */
+    @Override
+    @Transactional
+    public void deleteActivityRecord(Long recordId) {
+        ActivityRecord record = activityRecordRepository.findById(recordId)
+                .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
+
+        activityRecordRepository.delete(record);
+        log.info("已删除活动记录 ID={}", recordId);
+    }
+
+    /**
+     * 3. 插入新的 ActivityRecord
+     */
+    @Override
+    @Transactional
+    public ActivityRecord createActivityRecord(Long petId,
+                                               Long activityId,
+                                               String description,
+                                               LocalDateTime date) {
+
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new RuntimeException("宠物不存在 ID=" + petId));
+
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("活动不存在 ID=" + activityId));
+
+        ActivityRecord record = new ActivityRecord();
+        record.setPet(pet);
+        record.setActivity(activity);
+        record.setActivityDescription(description);
+        record.setActivityDate(date != null ? date : LocalDateTime.now());
+
+        return activityRecordRepository.save(record);
+    }
+
+    /**
+     * 4. 修改活动记录
+     */
+    @Override
+    @Transactional
+    public ActivityRecord updateActivityRecord(Long recordId,
+                                               Long newActivityId,
+                                               String description,
+                                               LocalDateTime date) {
+
+        ActivityRecord record = activityRecordRepository.findById(recordId)
+                .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
+
+        if (newActivityId != null) {
+            Activity activity = activityRepository.findById(newActivityId)
+                    .orElseThrow(() -> new RuntimeException("活动不存在 ID=" + newActivityId));
+            record.setActivity(activity);
+        }
+
+        if (description != null) {
+            record.setActivityDescription(description);
+        }
+
+        if (date != null) {
+            record.setActivityDate(date);
+        }
+
+        return activityRecordRepository.save(record);
+    }
+
+    /**
+     * 5. 完全删除一个 Activity（先删记录，再删 Activity）
+     */
+    @Override
+    @Transactional
+    public void deleteActivityCompletely(Long activityId) {
+
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("活动不存在 ID=" + activityId));
+
+        // 删除所有相关 record
+        List<ActivityRecord> records = activityRecordRepository.findByActivityActivityId(activityId);
+        activityRecordRepository.deleteAll(records);
+
+        // 再删除 activity
+        activityRepository.delete(activity);
+
+        log.info("彻底删除 activity={}, 以及所有 {} 条记录", activityId, records.size());
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.petcare.backend.repository;
 
+import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.entity.Pet;
@@ -44,4 +45,22 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
 
     @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.pet.petId = :petId")
     Long countByPetPetId(@Param("petId") Long petId);
+
+    @Query("SELECT new com.petcare.backend.dto.response.ActivityRecordDTO(" +
+            "ar.activityRecordId, a.activityId, a.activityName, " +
+            "ak.activityKindId, ak.activityKindName, p.petId, " +
+            "ar.activityDescription, ar.activityDate) " +
+            "FROM ActivityRecord ar " +
+            "JOIN ar.activity a " +
+            "JOIN a.activityKind ak " +
+            "JOIN ar.pet p " +
+            "WHERE p.petId = :petId " +
+            "AND (:startDate IS NULL OR ar.activityDate >= :startDate) " +
+            "AND (:endDate IS NULL OR ar.activityDate <= :endDate) " +
+            "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId) " +
+            "ORDER BY ar.activityDate DESC")
+    List<ActivityRecordDTO> findActivityRecordsWithDetails(@Param("petId") Long petId,
+                                                           @Param("startDate") LocalDateTime startDate,
+                                                           @Param("endDate") LocalDateTime endDate,
+                                                           @Param("activityKindId") Long activityKindId);
 }
