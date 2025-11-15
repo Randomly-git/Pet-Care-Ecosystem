@@ -44,11 +44,6 @@ public class UserServiceImpl implements UserService {
         Pet pet = new Pet();
         BeanUtils.copyProperties(createPetRequest, pet);
 
-        // avatarUrl 可以为空，使用默认值或null
-        if (createPetRequest.getAvatarUrl() == null || createPetRequest.getAvatarUrl().trim().isEmpty()) {
-            pet.setAvatarUrl(null); // 或者设置默认头像URL
-        }
-
         Pet savedPet = petRepository.save(pet);
         log.info("宠物创建成功, ID: {}", savedPet.getPetId());
 

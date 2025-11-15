@@ -11,7 +11,6 @@ public class PetResponse {
     private String species;
     private String breed;
     private LocalDate birthday;
-    private String avatarUrl;
     private LocalDateTime createdAt;
 
     // 可以添加统计信息

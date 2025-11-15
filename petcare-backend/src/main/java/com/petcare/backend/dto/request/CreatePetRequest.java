@@ -19,7 +19,4 @@ public class CreatePetRequest {
     private String breed;
 
     private LocalDate birthday;
-
-    @Size(max = 255, message = "头像URL长度不能超过255个字符")
-    private String avatarUrl;
 }

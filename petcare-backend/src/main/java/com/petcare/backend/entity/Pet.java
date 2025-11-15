@@ -26,9 +26,6 @@ public class Pet {
     @Column(name = "birthday")
     private LocalDate birthday;
 
-    @Column(name = "avatar_url", length = 255)
-    private String avatarUrl;
-
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

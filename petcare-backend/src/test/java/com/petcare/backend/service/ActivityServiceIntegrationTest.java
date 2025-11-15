@@ -61,7 +61,6 @@ class ActivityServiceIntegrationTest {
         testPet.setSpecies("狗");
         testPet.setBreed("金毛");
         testPet.setBirthday(LocalDate.of(2020, 1, 1));
-        testPet.setAvatarUrl("http://example.com/avatar.jpg");
         testPet = petRepository.save(testPet);
         System.out.println("创建测试宠物: ID=" + testPet.getPetId() + ", 名称=" + testPet.getName());
 

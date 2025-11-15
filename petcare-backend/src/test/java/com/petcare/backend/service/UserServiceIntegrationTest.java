@@ -52,7 +52,6 @@ class UserServiceIntegrationTest {
         request.setSpecies("猫");
         request.setBreed("测试品种");
         request.setBirthday(LocalDate.of(2021, 6, 1));
-        request.setAvatarUrl(null); // 测试空头像
 
         // 执行
         Pet createdPet = userService.createPet(request);
@@ -64,34 +63,12 @@ class UserServiceIntegrationTest {
         assertEquals("猫", createdPet.getSpecies());
         assertEquals("测试品种", createdPet.getBreed());
         assertEquals(LocalDate.of(2021, 6, 1), createdPet.getBirthday());
-        assertNull(createdPet.getAvatarUrl(), "头像URL应为null");
         assertNotNull(createdPet.getCreatedAt(), "创建时间应自动设置");
 
         // 保存测试宠物ID供其他测试使用
         this.testPetId = createdPet.getPetId();
 
         System.out.println("创建宠物成功，ID: " + createdPet.getPetId());
-    }
-
-    @Test
-    @DisplayName("创建宠物 - 带头像URL")
-    void testCreatePet_WithAvatarUrl() {
-        // 准备
-        CreatePetRequest request = new CreatePetRequest();
-        request.setName("带头像的测试宠物");
-        request.setSpecies("狗");
-        request.setBreed("金毛");
-        request.setBirthday(LocalDate.of(2020, 3, 15));
-        request.setAvatarUrl("https://example.com/test-avatar.jpg");
-
-        // 执行
-        Pet createdPet = userService.createPet(request);
-
-        // 验证
-        assertNotNull(createdPet);
-        assertEquals("https://example.com/test-avatar.jpg", createdPet.getAvatarUrl());
-
-        System.out.println("创建带头像宠物成功，ID: " + createdPet.getPetId());
     }
 
     @Test
