@@ -3,8 +3,8 @@ package com.petcare.backend.service;
 
 import com.petcare.backend.dto.response.ActivityDTO;
 import com.petcare.backend.dto.response.ActivityKindDTO;
-import com.petcare.backend.dto.response.CreateActivityDTO;
-import com.petcare.backend.dto.response.UpdateActivityDTO;
+import com.petcare.backend.dto.request.CreateActivityDTO;
+import com.petcare.backend.dto.request.UpdateActivityDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityKind;
 import com.petcare.backend.entity.Pet;

@@ -1,6 +1,12 @@
 package com.petcare.backend.service;
 
+import com.petcare.backend.dto.request.CreateStatusRecordDTO;
+import com.petcare.backend.dto.request.UpdateStatusRecordDTO;
+import com.petcare.backend.dto.response.StatusRecordDTO;
 import com.petcare.backend.entity.Status;
+import com.petcare.backend.entity.StatusRecord;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +23,22 @@ public interface StatusService {
 
     // 4️⃣ 新增状态
     Status createStatus(Long petId, String statusName);
+
+    // 查找某一天未结束的状态记录
+    List<StatusRecordDTO> getActiveStatusRecordsByPetIdAndDate(Long petId, LocalDate targetDate);
+
+    // 创建状态记录（只插入start_date）
+    StatusRecord createStatusRecord(CreateStatusRecordDTO createStatusRecordDTO);
+
+    // 停止状态记录（插入end_date）
+    StatusRecord stopStatusRecord(Long statusRecordId, LocalDate endDate);
+
+    // 删除状态记录
+    void deleteStatusRecord(Long statusRecordId);
+
+    // 删除状态及其相关记录
+    void deleteStatusAndRecords(Long statusId);
+
+    // 修改状态记录
+    StatusRecord updateStatusRecord(UpdateStatusRecordDTO updateStatusRecordDTO);
 }

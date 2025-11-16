@@ -5,8 +5,8 @@ import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.dto.response.ActivityDTO;
 import com.petcare.backend.dto.response.ActivityRecordDTO;
-import com.petcare.backend.dto.response.CreateActivityDTO;
-import com.petcare.backend.dto.response.UpdateActivityDTO;
+import com.petcare.backend.dto.request.CreateActivityDTO;
+import com.petcare.backend.dto.request.UpdateActivityDTO;
 import com.petcare.backend.dto.response.ActivityKindDTO;
 import java.time.LocalDateTime;
 

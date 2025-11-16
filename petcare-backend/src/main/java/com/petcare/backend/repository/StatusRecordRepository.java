@@ -1,5 +1,6 @@
 package com.petcare.backend.repository;
 
+import com.petcare.backend.dto.response.StatusRecordDTO;
 import com.petcare.backend.entity.Pet;
 import com.petcare.backend.entity.Status;
 import com.petcare.backend.entity.StatusRecord;
@@ -59,4 +60,17 @@ public interface StatusRecordRepository extends JpaRepository<StatusRecord, Long
 
     @Query("SELECT COUNT(sr) FROM StatusRecord sr WHERE sr.pet.petId = :petId")
     Long countByPetPetId(@Param("petId") Long petId);
+
+    // 在 StatusRecordRepository.java 中添加以下方法
+    @Query("SELECT new com.petcare.backend.dto.response.StatusRecordDTO(" +
+            "sr.statusRecordId, s.statusId, s.statusName, " +
+            "p.petId, sr.startDate, sr.endDate, sr.statusDescription) " +
+            "FROM StatusRecord sr " +
+            "JOIN sr.status s " +
+            "JOIN sr.pet p " +
+            "WHERE p.petId = :petId " +
+            "AND (:targetDate IS NULL OR (sr.startDate <= :targetDate AND (sr.endDate IS NULL OR sr.endDate >= :targetDate))) " +
+            "ORDER BY sr.startDate DESC, sr.statusRecordId DESC")
+    List<StatusRecordDTO> findActiveStatusRecordsByPetIdAndDate(@Param("petId") Long petId,
+                                                                @Param("targetDate") LocalDate targetDate);
 }

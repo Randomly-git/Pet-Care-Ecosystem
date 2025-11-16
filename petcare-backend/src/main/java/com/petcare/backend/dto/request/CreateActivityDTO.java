@@ -1,5 +1,5 @@
 // CreateActivityDTO.java
-package com.petcare.backend.dto.response;
+package com.petcare.backend.dto.request;
 
 import lombok.Data;
 
