@@ -2,6 +2,7 @@ package com.petcare.backend.dto.request;
 
 import lombok.Data;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
@@ -19,4 +20,7 @@ public class CreatePetRequest {
     private String breed;
 
     private LocalDate birthday;
+
+    @NotNull(message = "用户ID不能为空")
+    private Long userId;
 }

@@ -13,6 +13,10 @@ public class PetResponse {
     private LocalDate birthday;
     private LocalDateTime createdAt;
 
+    // 用户信息
+    private Long userId;
+    private String userName;
+
     // 可以添加统计信息
     private Long statusCount;
     private Long activityCount;

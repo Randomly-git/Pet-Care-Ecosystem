@@ -29,6 +29,10 @@ public class Pet {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", referencedColumnName = "user_id")
+    private User user;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

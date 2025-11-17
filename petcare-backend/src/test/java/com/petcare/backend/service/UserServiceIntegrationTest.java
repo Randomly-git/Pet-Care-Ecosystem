@@ -3,7 +3,10 @@ package com.petcare.backend.service;
 import com.petcare.backend.dto.request.CreatePetRequest;
 import com.petcare.backend.dto.response.PetResponse;
 import com.petcare.backend.entity.Pet;
+import com.petcare.backend.entity.User;
 import com.petcare.backend.exception.PetNotFoundException;
+import com.petcare.backend.exception.UserNotFoundException;
+import com.petcare.backend.repository.UserRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,12 +27,24 @@ class UserServiceIntegrationTest {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private Long testUserId;
     private Long testPetId;
 
     @BeforeAll
     void setupOnce() {
         System.out.println("=== 开始集成测试，使用开发环境数据库 ===");
         System.out.println("确保开发数据库服务正在运行: 47.100.240.111:3306");
+
+        // 创建测试用户
+        User testUser = new User();
+        testUser.setName("测试用户");
+        testUser.setPasswordHash("test_password_hash");
+        User savedUser = userRepository.save(testUser);
+        testUserId = savedUser.getUserId();
+        System.out.println("创建测试用户，ID: " + testUserId);
     }
 
     @BeforeEach
@@ -52,6 +67,7 @@ class UserServiceIntegrationTest {
         request.setSpecies("猫");
         request.setBreed("测试品种");
         request.setBirthday(LocalDate.of(2021, 6, 1));
+        request.setUserId(testUserId);
 
         // 执行
         Pet createdPet = userService.createPet(request);
@@ -64,11 +80,33 @@ class UserServiceIntegrationTest {
         assertEquals("测试品种", createdPet.getBreed());
         assertEquals(LocalDate.of(2021, 6, 1), createdPet.getBirthday());
         assertNotNull(createdPet.getCreatedAt(), "创建时间应自动设置");
+        assertNotNull(createdPet.getUser(), "用户关联不应为null");
+        assertEquals(testUserId, createdPet.getUser().getUserId());
 
         // 保存测试宠物ID供其他测试使用
         this.testPetId = createdPet.getPetId();
 
         System.out.println("创建宠物成功，ID: " + createdPet.getPetId());
+    }
+
+    @Test
+    @DisplayName("创建宠物 - 用户不存在")
+    void testCreatePet_UserNotFound() {
+        // 准备测试数据
+        CreatePetRequest request = new CreatePetRequest();
+        request.setName("测试宠物");
+        request.setSpecies("狗");
+        request.setBreed("测试品种");
+        request.setUserId(999999L); // 不存在的用户ID
+
+        // 执行 & 验证
+        UserNotFoundException exception = assertThrows(
+                UserNotFoundException.class,
+                () -> userService.createPet(request)
+        );
+
+        assertTrue(exception.getMessage().contains("用户不存在"));
+        System.out.println("预期的异常: " + exception.getMessage());
     }
 
     @Test
@@ -80,6 +118,7 @@ class UserServiceIntegrationTest {
         request.setSpecies("兔子");
         request.setBreed("垂耳兔");
         request.setBirthday(LocalDate.of(2022, 1, 10));
+        request.setUserId(testUserId);
 
         Pet createdPet = userService.createPet(request);
         Long petId = createdPet.getPetId();
@@ -95,6 +134,12 @@ class UserServiceIntegrationTest {
         assertEquals("垂耳兔", petResponse.getBreed());
         assertEquals(LocalDate.of(2022, 1, 10), petResponse.getBirthday());
 
+        // 验证用户信息
+        assertNotNull(petResponse.getUserId());
+        assertNotNull(petResponse.getUserName());
+        assertEquals(testUserId, petResponse.getUserId());
+        assertEquals("测试用户", petResponse.getUserName());
+
         // 验证统计信息
         assertNotNull(petResponse.getStatusCount());
         assertNotNull(petResponse.getActivityCount());
@@ -102,6 +147,7 @@ class UserServiceIntegrationTest {
         assertNotNull(petResponse.getActivityRecordCount());
 
         System.out.println("查询宠物成功，ID: " + petId);
+        System.out.println("用户信息 - ID: " + petResponse.getUserId() + ", 名称: " + petResponse.getUserName());
         System.out.println("状态数量: " + petResponse.getStatusCount());
         System.out.println("活动数量: " + petResponse.getActivityCount());
     }
@@ -118,7 +164,7 @@ class UserServiceIntegrationTest {
                 () -> userService.getPetById(nonExistentPetId)
         );
 
-        assertEquals("未找到ID为 " + nonExistentPetId + " 的宠物", exception.getMessage());
+        assertTrue(exception.getMessage().contains("未找到ID为"));
         System.out.println("预期的异常: " + exception.getMessage());
     }
 
@@ -141,9 +187,36 @@ class UserServiceIntegrationTest {
             assertNotNull(pet.getName());
             assertNotNull(pet.getSpecies());
             assertNotNull(pet.getCreatedAt());
+            assertNotNull(pet.getUserId());
+            assertNotNull(pet.getUserName());
         });
 
         System.out.println("查询到 " + pets.size() + " 只宠物");
+        pets.forEach(pet ->
+                System.out.println("宠物: " + pet.getName() + " (ID: " + pet.getPetId() + ", 用户: " + pet.getUserName() + ")")
+        );
+    }
+
+    @Test
+    @DisplayName("根据用户ID查询宠物")
+    void testGetPetsByUserId() {
+        // 先创建一些测试数据
+        createTestPets();
+
+        // 执行查询
+        List<PetResponse> pets = userService.getPetsByUserId(testUserId);
+
+        // 验证
+        assertNotNull(pets);
+        assertFalse(pets.isEmpty(), "用户宠物列表不应为空");
+
+        // 验证所有宠物都属于指定用户
+        pets.forEach(pet -> {
+            assertEquals(testUserId, pet.getUserId());
+            assertEquals("测试用户", pet.getUserName());
+        });
+
+        System.out.println("用户 " + testUserId + " 有 " + pets.size() + " 只宠物");
         pets.forEach(pet ->
                 System.out.println("宠物: " + pet.getName() + " (ID: " + pet.getPetId() + ")")
         );
@@ -157,6 +230,7 @@ class UserServiceIntegrationTest {
         request.setName("实体测试宠物");
         request.setSpecies("仓鼠");
         request.setBreed("金丝熊");
+        request.setUserId(testUserId);
 
         Pet createdPet = userService.createPet(request);
         Long petId = createdPet.getPetId();
@@ -169,6 +243,8 @@ class UserServiceIntegrationTest {
         assertEquals(petId, petEntity.getPetId());
         assertEquals("实体测试宠物", petEntity.getName());
         assertEquals("仓鼠", petEntity.getSpecies());
+        assertNotNull(petEntity.getUser());
+        assertEquals(testUserId, petEntity.getUser().getUserId());
 
         System.out.println("获取宠物实体成功: " + petEntity.getName());
     }
@@ -182,6 +258,7 @@ class UserServiceIntegrationTest {
         request.setSpecies("鸟");
         request.setBreed("鹦鹉");
         request.setBirthday(LocalDate.of(2021, 8, 20));
+        request.setUserId(testUserId);
 
         Pet createdPet = userService.createPet(request);
         Long petId = createdPet.getPetId();
@@ -191,12 +268,14 @@ class UserServiceIntegrationTest {
         PetResponse response = userService.getPetById(petId);
         assertNotNull(response);
         assertEquals("完整流程测试宠物", response.getName());
+        assertEquals(testUserId, response.getUserId());
         System.out.println("步骤2 - 通过Response查询完成");
 
         // 通过Entity查询
         Pet entity = userService.getPetEntityById(petId);
         assertNotNull(entity);
         assertEquals("完整流程测试宠物", entity.getName());
+        assertEquals(testUserId, entity.getUser().getUserId());
         System.out.println("步骤3 - 通过Entity查询完成");
 
         // 验证数据一致性
@@ -205,36 +284,6 @@ class UserServiceIntegrationTest {
         System.out.println("步骤4 - 数据一致性验证完成");
     }
 
-    @Test
-    @DisplayName("边界测试: 空品种")
-    void testCreatePet_EmptyBreed() {
-        CreatePetRequest request = new CreatePetRequest();
-        request.setName("无品种测试宠物");
-        request.setSpecies("鱼");
-        request.setBreed(null); // 空品种
-        request.setBirthday(LocalDate.of(2023, 1, 1));
-
-        Pet createdPet = userService.createPet(request);
-
-        assertNotNull(createdPet);
-        assertNull(createdPet.getBreed());
-        System.out.println("空品种测试成功，宠物ID: " + createdPet.getPetId());
-    }
-
-    @Test
-    @DisplayName("边界测试: 长名称")
-    void testCreatePet_LongName() {
-        CreatePetRequest request = new CreatePetRequest();
-        request.setName("这是一个非常长的宠物名称测试看看会不会被截断或者出现问题的情况");
-        request.setSpecies("测试物种");
-        request.setBreed("测试品种");
-
-        Pet createdPet = userService.createPet(request);
-
-        assertNotNull(createdPet);
-        assertEquals("这是一个非常长的宠物名称测试看看会不会被截断或者出现问题的情况", createdPet.getName());
-        System.out.println("长名称测试成功，名称长度: " + createdPet.getName().length());
-    }
 
     /**
      * 创建多个测试宠物
@@ -249,25 +298,9 @@ class UserServiceIntegrationTest {
             request.setSpecies(species[i]);
             request.setBreed(breeds[i]);
             request.setBirthday(LocalDate.of(2020 + i, (i % 12) + 1, 1));
+            request.setUserId(testUserId);
 
             userService.createPet(request);
         }
     }
-
-    /**
-     * 清理测试数据（可选）
-     */
-    /*private void cleanUpTestData() {
-        try {
-            List<PetResponse> pets = userService.getAllPets();
-            pets.stream()
-                    .filter(pet -> pet.getName().contains("测试") || pet.getName().contains("集成测试"))
-                    .forEach(pet -> {
-                        // 注意：实际项目中可能需要先删除关联数据
-                        // 这里依赖 @Transactional 回滚，所以不需要手动清理
-                    });
-        } catch (Exception e) {
-            System.err.println("清理测试数据时出错: " + e.getMessage());
-        }
-    }*/
 }

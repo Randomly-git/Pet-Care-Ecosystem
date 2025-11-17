@@ -41,4 +41,6 @@ public interface PetRepository extends JpaRepository<Pet, Long> {
 
     @Query("SELECT COUNT(a) FROM Activity a WHERE a.pet.petId = :petId")
     Long countActivityByPetId(@Param("petId") Long petId);
+
+    List<Pet> findByUserUserId(Long userId);
 }
