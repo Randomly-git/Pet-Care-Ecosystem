@@ -6,9 +6,11 @@ import com.petcare.backend.dto.response.StatusRecordDTO;
 import com.petcare.backend.entity.Pet;
 import com.petcare.backend.entity.Status;
 import com.petcare.backend.entity.StatusRecord;
+import com.petcare.backend.entity.User; // 新增导入
 import com.petcare.backend.repository.PetRepository;
 import com.petcare.backend.repository.StatusRepository;
 import com.petcare.backend.repository.StatusRecordRepository;
+import com.petcare.backend.repository.UserRepository; // 新增导入
 import com.petcare.backend.service.StatusService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -35,16 +37,19 @@ public class StatusServiceImpl implements StatusService {
     @Autowired
     private PetRepository petRepository;
 
+    @Autowired // 新增 UserRepository
+    private UserRepository userRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
     /**
-     * 1️⃣ 根据宠物ID获取所有有效状态
+     * 1️⃣ 根据用户ID获取所有有效状态
      */
     @Override
-    public List<Status> getValidStatusesByPetId(Long petId) {
-        log.info("查询宠物ID={} 的所有有效状态", petId);
-        List<Status> all = statusRepository.findByPetPetId(petId);
+    public List<Status> getValidStatusesByUserId(Long userId) {
+        log.info("查询用户ID={} 的所有有效状态", userId);
+        List<Status> all = statusRepository.findByUserUserId(userId); // 修改方法名
         return all.stream()
                 .filter(s -> s.getState() != null && s.getState() == 1)
                 .toList();
@@ -81,19 +86,19 @@ public class StatusServiceImpl implements StatusService {
      */
     @Override
     @Transactional
-    public Status createStatus(Long petId, String statusName) {
-        log.info("为宠物ID={} 创建新状态: {}", petId, statusName);
+    public Status createStatus(Long userId, String statusName) {
+        log.info("为用户ID={} 创建新状态: {}", userId, statusName);
 
-        Pet pet = petRepository.findById(petId)
-                .orElseThrow(() -> new RuntimeException("未找到宠物，ID=" + petId));
+        User user = userRepository.findById(userId) // 修改为查询用户
+                .orElseThrow(() -> new RuntimeException("未找到用户，ID=" + userId));
 
         // 若已存在相同状态名称，则可避免重复（可选）
-        if (statusRepository.existsByPetPetIdAndStatusName(petId, statusName)) {
-            throw new RuntimeException("该宠物已存在同名状态: " + statusName);
+        if (statusRepository.existsByUserUserIdAndStatusName(userId, statusName)) { // 修改方法名
+            throw new RuntimeException("该用户已存在同名状态: " + statusName);
         }
 
         Status status = new Status();
-        status.setPet(pet);
+        status.setUser(user); // 修改为设置用户
         status.setStatusName(statusName);
         status.setState(1);
 
@@ -101,9 +106,16 @@ public class StatusServiceImpl implements StatusService {
     }
 
     @Override
-    public List<StatusRecordDTO> getActiveStatusRecordsByPetIdAndDate(Long petId, LocalDate targetDate) {
+    public List<StatusRecordDTO> getActiveStatusRecordsByPetIdAndDate(Long PetId, LocalDate targetDate) { // 修改参数名
         // 如果 targetDate 为 null，返回所有记录；否则返回指定日期的活跃记录
-        return statusRecordRepository.findActiveStatusRecordsByPetIdAndDate(petId, targetDate);
+        return statusRecordRepository.findActiveStatusRecordsByPetIdAndDate(PetId, targetDate); // 修改方法名
+    }
+
+    @Override
+    public List<StatusRecordDTO> getAllStatusRecordsByPetId(Long petId) {
+        log.info("获取宠物ID={} 的所有状态记录", petId);
+        // 调用现有方法，传入 null 日期表示获取所有记录
+        return getActiveStatusRecordsByPetIdAndDate(petId, null);
     }
 
     @Override

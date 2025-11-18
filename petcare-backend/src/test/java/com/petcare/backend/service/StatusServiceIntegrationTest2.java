@@ -6,9 +6,11 @@ import com.petcare.backend.dto.request.UpdateStatusRecordDTO;
 import com.petcare.backend.entity.Status;
 import com.petcare.backend.entity.StatusRecord;
 import com.petcare.backend.entity.Pet;
+import com.petcare.backend.entity.User;
 import com.petcare.backend.repository.StatusRecordRepository;
 import com.petcare.backend.repository.StatusRepository;
 import com.petcare.backend.repository.PetRepository;
+import com.petcare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("dev")
-@Transactional
+//@Transactional
 class StatusServiceIntegrationTest2 {
 
     @Autowired
@@ -38,12 +40,27 @@ class StatusServiceIntegrationTest2 {
     @Autowired
     private PetRepository petRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private Pet testPet;
     private Status testStatus;
     private StatusRecord testStatusRecord;
 
     @BeforeEach
     void setUp() {
+        // 获取或创建测试用户
+        List<User> users = userRepository.findAll();
+        User testUser;
+        if (users.isEmpty()) {
+            testUser = new User();
+            testUser.setName("测试用户");
+            testUser.setPasswordHash("testpassword");
+            testUser = userRepository.save(testUser);
+        } else {
+            testUser = users.get(0);
+        }
+
         // 获取或创建测试宠物
         List<Pet> pets = petRepository.findAll();
         if (pets.isEmpty()) {
@@ -55,17 +72,17 @@ class StatusServiceIntegrationTest2 {
             testPet = pets.get(0);
         }
 
-        // 创建测试状态
+        // 创建测试状态（现在关联用户而不是宠物）
         testStatus = new Status();
         testStatus.setStatusName("健康状态");
-        testStatus.setPet(testPet);
+        testStatus.setUser(testUser); // 改为关联用户
         testStatus.setState(1);
         testStatus = statusRepository.save(testStatus);
 
-        // 创建测试状态记录
+        // 创建测试状态记录（仍然关联宠物）
         testStatusRecord = new StatusRecord();
         testStatusRecord.setStatus(testStatus);
-        testStatusRecord.setPet(testPet);
+        testStatusRecord.setPet(testPet); // 状态记录仍然关联宠物
         testStatusRecord.setStartDate(LocalDate.now().minusDays(5));
         testStatusRecord.setStatusDescription("宠物健康状况良好");
         testStatusRecord = statusRecordRepository.save(testStatusRecord);

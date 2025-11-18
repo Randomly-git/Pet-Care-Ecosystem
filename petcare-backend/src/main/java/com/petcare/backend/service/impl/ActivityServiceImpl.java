@@ -1,10 +1,10 @@
-// ActivityServiceImpl.java (更新后)
 package com.petcare.backend.service.impl;
 
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityKind;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.entity.Pet;
+import com.petcare.backend.entity.User; // 新增导入
 import com.petcare.backend.dto.response.ActivityDTO;
 import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.dto.request.CreateActivityDTO;
@@ -14,6 +14,7 @@ import com.petcare.backend.repository.ActivityRepository;
 import com.petcare.backend.repository.ActivityRecordRepository;
 import com.petcare.backend.repository.ActivityKindRepository;
 import com.petcare.backend.repository.PetRepository;
+import com.petcare.backend.repository.UserRepository; // 新增导入
 import com.petcare.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,22 +35,23 @@ public class ActivityServiceImpl implements ActivityService {
     private final ActivityRecordRepository activityRecordRepository;
     private final ActivityKindRepository activityKindRepository;
     private final PetRepository petRepository;
+    private final UserRepository userRepository; // 新增
 
     @Override
     @Transactional(readOnly = true)
-    public List<ActivityDTO> getActivitiesByPetId(Long petId, Long activityKindId) {
-        log.info("获取宠物ID为 {} 的活动信息，活动种类ID: {}", petId, activityKindId);
+    public List<ActivityDTO> getActivitiesByUserId(Long userId, Long activityKindId) {
+        log.info("获取用户ID为 {} 的活动信息，活动种类ID: {}", userId, activityKindId);
 
         List<Activity> activities;
 
         if (activityKindId != null) {
-            // 如果提供了活动种类ID，则按宠物ID和活动种类ID筛选
-            activities = activityRepository.findByPetPetIdAndActivityKindActivityKindIdAndState(petId, activityKindId, 1);
-            log.debug("按宠物ID和活动种类ID查询，结果数量: {}", activities.size());
+            // 如果提供了活动种类ID，则按用户ID和活动种类ID筛选
+            activities = activityRepository.findByUserUserIdAndActivityKindActivityKindIdAndState(userId, activityKindId, 1);
+            log.debug("按用户ID和活动种类ID查询，结果数量: {}", activities.size());
         } else {
-            // 如果未提供活动种类ID，则只按宠物ID查询
-            activities = activityRepository.findByPetPetIdAndState(petId, 1);
-            log.debug("按宠物ID查询，结果数量: {}", activities.size());
+            // 如果未提供活动种类ID，则只按用户ID查询
+            activities = activityRepository.findByUserUserIdAndState(userId, 1);
+            log.debug("按用户ID查询，结果数量: {}", activities.size());
         }
 
         return activities.stream()
@@ -59,11 +61,10 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ActivityDTO> getActivitiesByPetId(Long petId) {
+    public List<ActivityDTO> getActivitiesByUserId(Long userId) {
         // 调用带两个参数的版本，事务仍然生效
-        return getActivitiesByPetId(petId, null);
+        return getActivitiesByUserId(userId, null);
     }
-
 
     @Override
     @Transactional(readOnly = true)
@@ -79,9 +80,9 @@ public class ActivityServiceImpl implements ActivityService {
     public Activity createActivity(CreateActivityDTO createActivityDTO) {
         log.info("创建新活动: {}", createActivityDTO.getActivityName());
 
-        // 验证宠物是否存在
-        Pet pet = petRepository.findById(createActivityDTO.getPetId())
-                .orElseThrow(() -> new RuntimeException("宠物不存在，ID: " + createActivityDTO.getPetId()));
+        // 验证用户是否存在
+        User user = userRepository.findById(createActivityDTO.getUserId())
+                .orElseThrow(() -> new RuntimeException("用户不存在，ID: " + createActivityDTO.getUserId()));
 
         // 验证活动种类是否存在
         ActivityKind activityKind = activityKindRepository.findById(createActivityDTO.getActivityKindId())
@@ -90,7 +91,7 @@ public class ActivityServiceImpl implements ActivityService {
         // 创建活动实体
         Activity activity = new Activity();
         activity.setActivityName(createActivityDTO.getActivityName());
-        activity.setPet(pet);
+        activity.setUser(user); // 修改为设置用户
         activity.setActivityKind(activityKind);
         activity.setState(1); // 设置为有效状态
 
@@ -119,7 +120,6 @@ public class ActivityServiceImpl implements ActivityService {
         }
     }
 
-
     @Override
     @Transactional
     public Activity updateActivity(UpdateActivityDTO updateActivityDTO) {
@@ -144,8 +144,8 @@ public class ActivityServiceImpl implements ActivityService {
         return activityRepository.save(activity);
     }
 
+    // 以下方法保持不变，因为 ActivityRecord 仍然基于宠物
     @Override
-    @Transactional(readOnly = true)
     public List<ActivityKindDTO> getAllActivityKinds() {
         log.info("获取所有活动种类");
 
@@ -161,9 +161,6 @@ public class ActivityServiceImpl implements ActivityService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 1. 根据 pet_id 搜索活动记录，支持日期范围 & activity_kind_id 可选过滤
-     */
     @Override
     public List<ActivityRecordDTO> searchActivityRecords(Long petId,
                                                          LocalDateTime startDate,
@@ -172,9 +169,6 @@ public class ActivityServiceImpl implements ActivityService {
         return activityRecordRepository.findActivityRecordsWithDetails(petId, startDate, endDate, activityKindId);
     }
 
-    /**
-     * 2. 删除活动记录（硬删除）
-     */
     @Override
     @Transactional
     public void deleteActivityRecord(Long recordId) {
@@ -185,9 +179,6 @@ public class ActivityServiceImpl implements ActivityService {
         log.info("已删除活动记录 ID={}", recordId);
     }
 
-    /**
-     * 3. 插入新的 ActivityRecord
-     */
     @Override
     @Transactional
     public ActivityRecord createActivityRecord(Long petId,
@@ -210,9 +201,6 @@ public class ActivityServiceImpl implements ActivityService {
         return activityRecordRepository.save(record);
     }
 
-    /**
-     * 4. 修改活动记录
-     */
     @Override
     @Transactional
     public ActivityRecord updateActivityRecord(Long recordId,
@@ -240,9 +228,6 @@ public class ActivityServiceImpl implements ActivityService {
         return activityRecordRepository.save(record);
     }
 
-    /**
-     * 5. 完全删除一个 Activity（先删记录，再删 Activity）
-     */
     @Override
     @Transactional
     public void deleteActivityCompletely(Long activityId) {
@@ -269,8 +254,8 @@ public class ActivityServiceImpl implements ActivityService {
         dto.setActivityName(activity.getActivityName());
         dto.setActivityKindId(activity.getActivityKind().getActivityKindId());
         dto.setActivityKindName(activity.getActivityKind().getActivityKindName());
-        dto.setPetId(activity.getPet().getPetId());
-        dto.setPetName(activity.getPet().getName()); // 使用Pet实体的name字段
+        dto.setUserId(activity.getUser().getUserId()); // 修改为 userId
+        dto.setUserName(activity.getUser().getName()); // 使用User实体的name字段
         dto.setState(activity.getState());
 
         return dto;

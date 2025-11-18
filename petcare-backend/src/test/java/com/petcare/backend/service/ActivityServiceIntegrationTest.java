@@ -8,9 +8,11 @@ import com.petcare.backend.dto.request.UpdateActivityDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityKind;
 import com.petcare.backend.entity.Pet;
+import com.petcare.backend.entity.User;
 import com.petcare.backend.repository.ActivityKindRepository;
 import com.petcare.backend.repository.ActivityRepository;
 import com.petcare.backend.repository.PetRepository;
+import com.petcare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +43,10 @@ class ActivityServiceIntegrationTest {
     @Autowired
     private PetRepository petRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User testUser;
     private Pet testPet;
     private ActivityKind existingActivityKind1;
     private ActivityKind existingActivityKind2;
@@ -49,11 +55,19 @@ class ActivityServiceIntegrationTest {
     void setUp() {
         System.out.println("\n=== 开始执行 setUp() ===");
 
-        // 清理测试活动数据，但保留ActivityKind表中的已有数据
+        // 清理测试数据
         System.out.println("清理测试数据...");
         activityRepository.deleteAll();
         petRepository.deleteAll();
+        userRepository.deleteAll();
         activityRepository.flush(); // 强制刷新
+
+        // 创建测试用户
+        testUser = new User();
+        testUser.setName("测试用户");
+        testUser.setPasswordHash("testpassword");
+        testUser = userRepository.save(testUser);
+        System.out.println("创建测试用户: ID=" + testUser.getUserId() + ", 名称=" + testUser.getName());
 
         // 创建测试宠物
         testPet = new Pet();
@@ -116,11 +130,11 @@ class ActivityServiceIntegrationTest {
         // 准备
         CreateActivityDTO createDTO = new CreateActivityDTO();
         createDTO.setActivityName("晨间散步");
-        createDTO.setPetId(testPet.getPetId());
+        createDTO.setUserId(testUser.getUserId()); // 改为 userId
         createDTO.setActivityKindId(existingActivityKind1.getActivityKindId());
 
         System.out.println("创建活动参数: 名称=" + createDTO.getActivityName() +
-                ", 宠物ID=" + createDTO.getPetId() +
+                ", 用户ID=" + createDTO.getUserId() +
                 ", 活动种类ID=" + createDTO.getActivityKindId());
 
         // 执行
@@ -135,7 +149,7 @@ class ActivityServiceIntegrationTest {
         assertNotNull(result);
         assertNotNull(result.getActivityId());
         assertEquals("晨间散步", result.getActivityName());
-        assertEquals(testPet.getPetId(), result.getPet().getPetId());
+        assertEquals(testUser.getUserId(), result.getUser().getUserId()); // 改为验证用户
         assertEquals(existingActivityKind1.getActivityKindId(), result.getActivityKind().getActivityKindId());
         assertEquals(1, result.getState()); // 默认状态为有效
 
@@ -150,22 +164,22 @@ class ActivityServiceIntegrationTest {
     }
 
     @Test
-    void testCreateActivity_WithInvalidPetId_ShouldThrowException() {
-        System.out.println("\n=== 开始执行 testCreateActivity_WithInvalidPetId_ShouldThrowException() ===");
+    void testCreateActivity_WithInvalidUserId_ShouldThrowException() {
+        System.out.println("\n=== 开始执行 testCreateActivity_WithInvalidUserId_ShouldThrowException() ===");
 
         // 准备
         CreateActivityDTO createDTO = new CreateActivityDTO();
         createDTO.setActivityName("测试活动");
-        createDTO.setPetId(999L); // 不存在的宠物ID
+        createDTO.setUserId(999L); // 不存在的用户ID
         createDTO.setActivityKindId(existingActivityKind1.getActivityKindId());
 
-        System.out.println("尝试使用不存在的宠物ID创建活动: " + createDTO.getPetId());
+        System.out.println("尝试使用不存在的用户ID创建活动: " + createDTO.getUserId());
 
         // 执行 & 验证
         Exception exception = assertThrows(RuntimeException.class, () -> activityService.createActivity(createDTO));
         System.out.println("抛出的异常: " + exception.getMessage());
 
-        System.out.println("=== testCreateActivity_WithInvalidPetId_ShouldThrowException() 执行完成 ===\n");
+        System.out.println("=== testCreateActivity_WithInvalidUserId_ShouldThrowException() 执行完成 ===\n");
     }
 
     @Test
@@ -175,7 +189,7 @@ class ActivityServiceIntegrationTest {
         // 准备
         CreateActivityDTO createDTO = new CreateActivityDTO();
         createDTO.setActivityName("测试活动");
-        createDTO.setPetId(testPet.getPetId());
+        createDTO.setUserId(testUser.getUserId()); // 改为 userId
         createDTO.setActivityKindId(999L); // 不存在的活动种类ID
 
         System.out.println("尝试使用不存在的活动种类ID创建活动: " + createDTO.getActivityKindId());
@@ -188,18 +202,18 @@ class ActivityServiceIntegrationTest {
     }
 
     @Test
-    void testGetActivitiesByPetId() {
-        System.out.println("\n=== 开始执行 testGetActivitiesByPetId() ===");
+    void testGetActivitiesByUserId() {
+        System.out.println("\n=== 开始执行 testGetActivitiesByUserId() ===");
 
         // 准备 - 创建测试活动
-        Activity activity1 = createTestActivity("活动1", testPet.getPetId(), existingActivityKind1.getActivityKindId());
-        Activity activity2 = createTestActivity("活动2", testPet.getPetId(), existingActivityKind2.getActivityKindId());
+        Activity activity1 = createTestActivity("活动1", testUser.getUserId(), existingActivityKind1.getActivityKindId());
+        Activity activity2 = createTestActivity("活动2", testUser.getUserId(), existingActivityKind2.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("创建了2个测试活动: ID=" + activity1.getActivityId() + ", " + activity2.getActivityId());
 
         // 执行
-        List<ActivityDTO> result = activityService.getActivitiesByPetId(testPet.getPetId());
+        List<ActivityDTO> result = activityService.getActivitiesByUserId(testUser.getUserId()); // 改为 getActivitiesByUserId
         System.out.println("获取到的活动数量: " + result.size());
 
         // 验证
@@ -214,24 +228,24 @@ class ActivityServiceIntegrationTest {
                     ", 种类=" + dto.getActivityKindName());
         }
 
-        System.out.println("=== testGetActivitiesByPetId() 执行完成 ===\n");
+        System.out.println("=== testGetActivitiesByUserId() 执行完成 ===\n");
     }
 
     @Test
-    void testGetActivitiesByPetId_WithNoActivities() {
-        System.out.println("\n=== 开始执行 testGetActivitiesByPetId_WithNoActivities() ===");
+    void testGetActivitiesByUserId_WithNoActivities() {
+        System.out.println("\n=== 开始执行 testGetActivitiesByUserId_WithNoActivities() ===");
 
-        System.out.println("宠物ID: " + testPet.getPetId() + ", 当前没有活动");
+        System.out.println("用户ID: " + testUser.getUserId() + ", 当前没有活动");
 
         // 执行
-        List<ActivityDTO> result = activityService.getActivitiesByPetId(testPet.getPetId());
+        List<ActivityDTO> result = activityService.getActivitiesByUserId(testUser.getUserId()); // 改为 getActivitiesByUserId
         System.out.println("获取到的活动数量: " + result.size());
 
         // 验证
         assertNotNull(result);
         assertTrue(result.isEmpty());
 
-        System.out.println("=== testGetActivitiesByPetId_WithNoActivities() 执行完成 ===\n");
+        System.out.println("=== testGetActivitiesByUserId_WithNoActivities() 执行完成 ===\n");
     }
 
     @Test
@@ -239,7 +253,7 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 testGetActivityById() ===");
 
         // 准备
-        Activity savedActivity = createTestActivity("测试活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity savedActivity = createTestActivity("测试活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("创建测试活动: ID=" + savedActivity.getActivityId() + ", 名称=" + savedActivity.getActivityName());
@@ -255,26 +269,26 @@ class ActivityServiceIntegrationTest {
         System.out.println("返回的DTO: ID=" + dto.getActivityId() +
                 ", 名称=" + dto.getActivityName() +
                 ", 种类名称=" + dto.getActivityKindName() +
-                ", 宠物名称=" + dto.getPetName() +
+                ", 用户名称=" + dto.getUserName() + // 改为 userName
                 ", 状态=" + dto.getState());
 
         assertEquals(savedActivity.getActivityId(), dto.getActivityId());
         assertEquals("测试活动", dto.getActivityName());
         assertEquals(existingActivityKind1.getActivityKindName(), dto.getActivityKindName());
-        assertEquals(testPet.getName(), dto.getPetName());
+        assertEquals(testUser.getName(), dto.getUserName()); // 改为验证用户名
         assertEquals(1, dto.getState());
 
         System.out.println("=== testGetActivityById() 执行完成 ===\n");
     }
 
     @Test
-    void testGetActivitiesByPetId_WithActivityKindFilter() {
-        System.out.println("\n=== 开始执行 testGetActivitiesByPetId_WithActivityKindFilter() ===");
+    void testGetActivitiesByUserId_WithActivityKindFilter() {
+        System.out.println("\n=== 开始执行 testGetActivitiesByUserId_WithActivityKindFilter() ===");
 
         // 准备 - 创建不同种类的测试活动
-        Activity activity1 = createTestActivity("散步活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
-        Activity activity2 = createTestActivity("喂食活动", testPet.getPetId(), existingActivityKind2.getActivityKindId());
-        Activity activity3 = createTestActivity("另一个散步", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity activity1 = createTestActivity("散步活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
+        Activity activity2 = createTestActivity("喂食活动", testUser.getUserId(), existingActivityKind2.getActivityKindId());
+        Activity activity3 = createTestActivity("另一个散步", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("创建了3个测试活动:");
@@ -282,9 +296,9 @@ class ActivityServiceIntegrationTest {
         System.out.println("  - " + activity2.getActivityName() + " (种类: " + existingActivityKind2.getActivityKindName() + ")");
         System.out.println("  - " + activity3.getActivityName() + " (种类: " + existingActivityKind1.getActivityKindName() + ")");
 
-        // 测试1: 按宠物ID和活动种类1筛选
-        System.out.println("\n测试1: 按宠物ID和活动种类1筛选");
-        List<ActivityDTO> result1 = activityService.getActivitiesByPetId(testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        // 测试1: 按用户ID和活动种类1筛选
+        System.out.println("\n测试1: 按用户ID和活动种类1筛选");
+        List<ActivityDTO> result1 = activityService.getActivitiesByUserId(testUser.getUserId(), existingActivityKind1.getActivityKindId()); // 改为 getActivitiesByUserId
         System.out.println("筛选结果数量: " + result1.size());
 
         assertNotNull(result1);
@@ -296,9 +310,9 @@ class ActivityServiceIntegrationTest {
             assertEquals(existingActivityKind1.getActivityKindName(), dto.getActivityKindName());
         }
 
-        // 测试2: 按宠物ID和活动种类2筛选
-        System.out.println("\n测试2: 按宠物ID和活动种类2筛选");
-        List<ActivityDTO> result2 = activityService.getActivitiesByPetId(testPet.getPetId(), existingActivityKind2.getActivityKindId());
+        // 测试2: 按用户ID和活动种类2筛选
+        System.out.println("\n测试2: 按用户ID和活动种类2筛选");
+        List<ActivityDTO> result2 = activityService.getActivitiesByUserId(testUser.getUserId(), existingActivityKind2.getActivityKindId()); // 改为 getActivitiesByUserId
         System.out.println("筛选结果数量: " + result2.size());
 
         assertNotNull(result2);
@@ -306,9 +320,9 @@ class ActivityServiceIntegrationTest {
         assertEquals("喂食活动", result2.get(0).getActivityName());
         assertEquals(existingActivityKind2.getActivityKindId(), result2.get(0).getActivityKindId());
 
-        // 测试3: 按宠物ID和不存在活动种类筛选
-        System.out.println("\n测试3: 按宠物ID和不存在活动种类筛选");
-        List<ActivityDTO> result3 = activityService.getActivitiesByPetId(testPet.getPetId(), 999L);
+        // 测试3: 按用户ID和不存在活动种类筛选
+        System.out.println("\n测试3: 按用户ID和不存在活动种类筛选");
+        List<ActivityDTO> result3 = activityService.getActivitiesByUserId(testUser.getUserId(), 999L); // 改为 getActivitiesByUserId
         System.out.println("筛选结果数量: " + result3.size());
 
         assertNotNull(result3);
@@ -316,13 +330,13 @@ class ActivityServiceIntegrationTest {
 
         // 测试4: 验证向后兼容性 - 不提供活动种类ID
         System.out.println("\n测试4: 验证向后兼容性 - 不提供活动种类ID");
-        List<ActivityDTO> result4 = activityService.getActivitiesByPetId(testPet.getPetId());
+        List<ActivityDTO> result4 = activityService.getActivitiesByUserId(testUser.getUserId()); // 改为 getActivitiesByUserId
         System.out.println("结果数量: " + result4.size());
 
         assertNotNull(result4);
         assertEquals(3, result4.size(), "应该返回所有3个活动");
 
-        System.out.println("=== testGetActivitiesByPetId_WithActivityKindFilter() 执行完成 ===\n");
+        System.out.println("=== testGetActivitiesByUserId_WithActivityKindFilter() 执行完成 ===\n");
     }
 
     @Test
@@ -346,7 +360,7 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 testUpdateActivity() ===");
 
         // 准备
-        Activity savedActivity = createTestActivity("原始活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity savedActivity = createTestActivity("原始活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("原始活动: ID=" + savedActivity.getActivityId() +
@@ -381,7 +395,7 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 testUpdateActivity_WithPartialUpdate() ===");
 
         // 准备
-        Activity savedActivity = createTestActivity("原始活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity savedActivity = createTestActivity("原始活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("原始活动: ID=" + savedActivity.getActivityId() +
@@ -432,7 +446,7 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 testDeleteActivity() ===");
 
         // 准备
-        Activity savedActivity = createTestActivity("待删除活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity savedActivity = createTestActivity("待删除活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("创建待删除活动: ID=" + savedActivity.getActivityId() +
@@ -502,7 +516,7 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 testDeleteActivity_AlreadyDeleted() ===");
 
         // 准备
-        Activity savedActivity = createTestActivity("已删除活动", testPet.getPetId(), existingActivityKind1.getActivityKindId());
+        Activity savedActivity = createTestActivity("已删除活动", testUser.getUserId(), existingActivityKind1.getActivityKindId());
         activityRepository.flush();
 
         System.out.println("创建活动: ID=" + savedActivity.getActivityId() + ", 名称=" + savedActivity.getActivityName());
@@ -531,10 +545,10 @@ class ActivityServiceIntegrationTest {
     /**
      * 创建测试活动的辅助方法
      */
-    private Activity createTestActivity(String activityName, Long petId, Long activityKindId) {
+    private Activity createTestActivity(String activityName, Long userId, Long activityKindId) {
         CreateActivityDTO createDTO = new CreateActivityDTO();
         createDTO.setActivityName(activityName);
-        createDTO.setPetId(petId);
+        createDTO.setUserId(userId); // 改为 userId
         createDTO.setActivityKindId(activityKindId);
 
         Activity activity = activityService.createActivity(createDTO);

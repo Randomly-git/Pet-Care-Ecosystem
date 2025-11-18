@@ -25,4 +25,5 @@ public class StatusRecordDTO {
         this.endDate = endDate;
         this.statusDescription = statusDescription;
     }
+    public StatusRecordDTO(){}
 }

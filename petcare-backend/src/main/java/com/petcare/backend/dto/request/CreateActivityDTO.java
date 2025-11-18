@@ -7,5 +7,5 @@ import lombok.Data;
 public class CreateActivityDTO {
     private String activityName;
     private Long activityKindId;
-    private Long petId;
+    private Long userId;
 }

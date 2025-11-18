@@ -1,5 +1,6 @@
 package com.petcare.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -15,10 +16,12 @@ public class ActivityRecord {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "activity_id", referencedColumnName = "activity_id")
+    @JsonIgnore
     private Activity activity;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pet_id", referencedColumnName = "pet_id")
+    @JsonIgnore
     private Pet pet;
 
     @Column(name = "activity_description", length = 1000)

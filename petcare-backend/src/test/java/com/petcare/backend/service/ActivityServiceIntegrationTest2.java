@@ -5,10 +5,12 @@ import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityKind;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.entity.Pet;
+import com.petcare.backend.entity.User;
 import com.petcare.backend.repository.ActivityKindRepository;
 import com.petcare.backend.repository.ActivityRecordRepository;
 import com.petcare.backend.repository.ActivityRepository;
 import com.petcare.backend.repository.PetRepository;
+import com.petcare.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +43,10 @@ class ActivityServiceIntegrationTest2 {
     @Autowired
     private PetRepository petRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    private User testUser;
     private Pet testPet;
     private Activity testActivity;
     private ActivityRecord testActivityRecord;
@@ -49,6 +55,19 @@ class ActivityServiceIntegrationTest2 {
 
     @BeforeEach
     void setUp() {
+        // 清理测试数据
+        activityRepository.deleteAll();
+        activityRecordRepository.deleteAll();
+        petRepository.deleteAll();
+        userRepository.deleteAll();
+
+        // 创建测试用户
+        testUser = new User();
+        testUser.setName("测试用户");
+        testUser.setPasswordHash("testpassword");
+        testUser = userRepository.save(testUser);
+        System.out.println("创建测试用户: " + testUser.getName());
+
         // 获取数据库中已存在的活动种类
         List<ActivityKind> existingKinds = activityKindRepository.findAll();
         System.out.println("数据库中存在的活动种类数量: " + existingKinds.size());
@@ -67,29 +86,23 @@ class ActivityServiceIntegrationTest2 {
         System.out.println("使用的活动种类1: " + existingActivityKind1.getActivityKindName());
         System.out.println("使用的活动种类2: " + existingActivityKind2.getActivityKindName());
 
-        // 获取或创建一个测试宠物
-        List<Pet> pets = petRepository.findAll();
-        if (pets.isEmpty()) {
-            testPet = new Pet();
-            testPet.setName("测试宠物");
-            testPet.setSpecies("狗");
-            testPet = petRepository.save(testPet);
-            System.out.println("创建了新宠物: " + testPet.getName());
-        } else {
-            testPet = pets.get(0);
-            System.out.println("使用现有宠物: " + testPet.getName());
-        }
+        // 创建测试宠物
+        testPet = new Pet();
+        testPet.setName("测试宠物");
+        testPet.setSpecies("狗");
+        testPet = petRepository.save(testPet);
+        System.out.println("创建测试宠物: " + testPet.getName());
 
-        // 创建一个测试活动
+        // 创建一个测试活动（现在关联用户）
         testActivity = new Activity();
         testActivity.setActivityName("散步测试");
         testActivity.setActivityKind(existingActivityKind1);
-        testActivity.setPet(testPet);
+        testActivity.setUser(testUser); // 改为关联用户
         testActivity.setState(1);
         testActivity = activityRepository.save(testActivity);
         System.out.println("创建测试活动: " + testActivity.getActivityName());
 
-        // 创建一个测试活动记录
+        // 创建一个测试活动记录（仍然关联宠物）
         testActivityRecord = new ActivityRecord();
         testActivityRecord.setActivity(testActivity);
         testActivityRecord.setPet(testPet);
@@ -186,7 +199,6 @@ class ActivityServiceIntegrationTest2 {
         System.out.println("=== searchActivityRecords（所有参数为空）测试完成 ===");
     }
 
-
     @Test
     void deleteActivityRecord_ShouldRemoveRecord() {
         System.out.println("=== 测试 deleteActivityRecord ===");
@@ -276,11 +288,11 @@ class ActivityServiceIntegrationTest2 {
     void updateActivityRecord_WithDifferentActivity_ShouldUpdateRecord() {
         System.out.println("=== 测试 updateActivityRecord（不同活动） ===");
 
-        // 创建另一个测试活动
+        // 创建另一个测试活动（关联用户）
         Activity newActivity = new Activity();
         newActivity.setActivityName("跑步测试");
         newActivity.setActivityKind(existingActivityKind2);
-        newActivity.setPet(testPet);
+        newActivity.setUser(testUser); // 改为关联用户
         newActivity.setState(1);
         newActivity = activityRepository.save(newActivity);
         System.out.println("创建新活动用于更新: " + newActivity.getActivityName());
@@ -342,11 +354,11 @@ class ActivityServiceIntegrationTest2 {
     void deleteActivityCompletely_WithNoRecords_ShouldRemoveActivityOnly() {
         System.out.println("=== 测试 deleteActivityCompletely（无记录活动） ===");
 
-        // 创建一个没有记录的活动
+        // 创建一个没有记录的活动（关联用户）
         Activity activityWithoutRecords = new Activity();
         activityWithoutRecords.setActivityName("无记录活动");
         activityWithoutRecords.setActivityKind(existingActivityKind1);
-        activityWithoutRecords.setPet(testPet);
+        activityWithoutRecords.setUser(testUser); // 改为关联用户
         activityWithoutRecords.setState(1);
         activityWithoutRecords = activityRepository.save(activityWithoutRecords);
         System.out.println("创建无记录活动: " + activityWithoutRecords.getActivityName());

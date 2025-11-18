@@ -141,15 +141,13 @@ class UserServiceIntegrationTest {
         assertEquals("测试用户", petResponse.getUserName());
 
         // 验证统计信息
-        assertNotNull(petResponse.getStatusCount());
-        assertNotNull(petResponse.getActivityCount());
         assertNotNull(petResponse.getStatusRecordCount());
         assertNotNull(petResponse.getActivityRecordCount());
 
         System.out.println("查询宠物成功，ID: " + petId);
         System.out.println("用户信息 - ID: " + petResponse.getUserId() + ", 名称: " + petResponse.getUserName());
-        System.out.println("状态数量: " + petResponse.getStatusCount());
-        System.out.println("活动数量: " + petResponse.getActivityCount());
+        System.out.println("状态记录数量: " + petResponse.getActivityRecordCount());
+        System.out.println("活动记录数量: " + petResponse.getStatusRecordCount());
     }
 
     @Test

@@ -186,13 +186,9 @@ public class UserServiceImpl implements UserService {
         }
 
         // 添加统计信息
-        Long statusCount = statusRepository.countByPetPetId(pet.getPetId());
-        Long activityCount = activityRepository.countByPetPetId(pet.getPetId());
         Long statusRecordCount = statusRecordRepository.countByPetPetId(pet.getPetId());
         Long activityRecordCount = activityRecordRepository.countByPetPetId(pet.getPetId());
 
-        response.setStatusCount(statusCount);
-        response.setActivityCount(activityCount);
         response.setStatusRecordCount(statusRecordCount);
         response.setActivityRecordCount(activityRecordCount);
 

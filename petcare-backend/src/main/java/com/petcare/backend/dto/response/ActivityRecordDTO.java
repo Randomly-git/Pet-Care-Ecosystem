@@ -27,4 +27,5 @@ public class ActivityRecordDTO {
         this.activityDescription = activityDescription;
         this.activityDate = activityDate;
     }
+    public ActivityRecordDTO(){}
 }

@@ -9,7 +9,7 @@ public class ActivityDTO {
     private String activityName;
     private Long activityKindId;
     private String activityKindName;
-    private Long petId;
-    private String petName;
+    private Long userId; // 改为 userId
+    private String userName; // 改为 userName
     private Integer state; // 添加状态字段
 }

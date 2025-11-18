@@ -18,8 +18,6 @@ public class PetResponse {
     private String userName;
 
     // 可以添加统计信息
-    private Long statusCount;
-    private Long activityCount;
     private Long statusRecordCount;
     private Long activityRecordCount;
 }
