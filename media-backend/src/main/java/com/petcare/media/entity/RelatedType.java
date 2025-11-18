@@ -1,7 +1,7 @@
 // entity/RelatedType.java
 package com.petcare.media.entity;
 
-public enum RelatedType {
+public enum   RelatedType {
     ACTIVITY("活动记录"),
     STATUS("状态记录"),
     MOMENT("动态"),

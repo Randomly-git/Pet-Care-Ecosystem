@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 public class MediaFile {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(name = "media_id")
+    private Long mediaId;
 
     @Column(name = "pet_id", nullable = false)
     private Long petId;

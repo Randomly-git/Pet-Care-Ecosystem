@@ -24,12 +24,6 @@ spring:
       hibernate:
         format_sql: true
 
-  servlet:
-    multipart:
-      max-file-size: 100MB        # 单个文件最大100MB
-      max-request-size: 100MB     # 整个请求最大100MB
-      enabled: true
-
 # 腾讯云COS配置
 tencent:
   cos:
@@ -41,4 +35,3 @@ tencent:
 logging:
   level:
     com.petcare.media: DEBUG
-    com.qcloud.cos: DEBUG

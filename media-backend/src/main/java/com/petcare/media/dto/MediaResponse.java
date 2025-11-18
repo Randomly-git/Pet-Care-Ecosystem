@@ -20,7 +20,7 @@ public class MediaResponse {
 
     public static MediaResponse fromEntity(com.petcare.media.entity.MediaFile mediaFile) {
         MediaResponse response = new MediaResponse();
-        response.setMediaId(mediaFile.getId());
+        response.setMediaId(mediaFile.getMediaId());
         response.setFileName(mediaFile.getFileName());
         response.setFileUrl(mediaFile.getFileUrl());
         response.setFileType(mediaFile.getFileType());

@@ -8,10 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -26,6 +27,7 @@ public class MediaService {
     /**
      * 上传媒体文件
      */
+    @Transactional(rollbackFor = Exception.class)
     public MediaFile uploadMediaFile(MultipartFile file, Long petId,
                                      RelatedType relatedType, Long relatedId) {
         try {
@@ -34,8 +36,12 @@ public class MediaService {
                 throw new RuntimeException("文件不能为空");
             }
 
+            log.info("📁 文件信息 - 文件名: {}, 大小: {}, 类型: {}",
+                    file.getOriginalFilename(), file.getSize(), file.getContentType());
+
             // 确定存储路径
             String filePath = generateFilePath(relatedType, petId, relatedId);
+            log.info("📍 生成的文件路径: {}", filePath);
 
             // 上传到腾讯云COS
             String fileUrl = cosStorageService.uploadFile(file, filePath);
@@ -44,34 +50,77 @@ public class MediaService {
             MediaFile mediaFile = new MediaFile();
             mediaFile.setFileName(file.getOriginalFilename());
             mediaFile.setFileUrl(fileUrl);
-            mediaFile.setFileType(file.getContentType());
+
+            String fileType = file.getContentType();
+            if (fileType == null || fileType.isEmpty()) {
+                // 根据文件扩展名推断类型
+                fileType = determineFileType(file.getOriginalFilename());
+            }
+
+            mediaFile.setFileType(fileType);
             mediaFile.setFileSize(file.getSize());
             mediaFile.setPetId(petId);
             mediaFile.setRelatedType(relatedType);
             mediaFile.setRelatedId(relatedId);
 
             MediaFile savedFile = mediaRepository.save(mediaFile);
-            log.info("媒体文件上传成功: mediaId={}, fileUrl={}", savedFile.getId(), fileUrl);
+            log.info("媒体文件上传成功: mediaId={}, fileUrl={}", savedFile.getMediaId(), fileUrl);
 
             return savedFile;
 
         } catch (IOException e) {
-            log.error("文件上传IO异常: {}", e.getMessage(), e);
+            log.error("❌ 文件上传过程失败: {}", e.getMessage(), e);
             throw new RuntimeException("文件处理失败: " + e.getMessage(), e);
         }
     }
 
+
     /**
-     * 上传媒体文件（字符串类型参数）
+     * 根据文件名推断文件类型
+     */
+    private String determineFileType(String fileName) {
+        if (fileName == null) return "application/octet-stream";
+
+        String lowerFileName = fileName.toLowerCase();
+        if (lowerFileName.endsWith(".png")) return "image/png";
+        if (lowerFileName.endsWith(".jpg") || lowerFileName.endsWith(".jpeg")) return "image/jpeg";
+        if (lowerFileName.endsWith(".gif")) return "image/gif";
+        if (lowerFileName.endsWith(".bmp")) return "image/bmp";
+        if (lowerFileName.endsWith(".webp")) return "image/webp";
+        if (lowerFileName.endsWith(".mp4")) return "video/mp4";
+        if (lowerFileName.endsWith(".avi")) return "video/avi";
+        if (lowerFileName.endsWith(".mov")) return "video/quicktime";
+        if (lowerFileName.endsWith(".pdf")) return "application/pdf";
+        if (lowerFileName.endsWith(".doc") || lowerFileName.endsWith(".docx")) return "application/msword";
+
+        return "application/octet-stream"; // 默认类型
+    }
+
+    /**
+     * 上传媒体文件（字符串类型参数）- 添加详细调试
      */
     public MediaFile uploadMediaFile(MultipartFile file, Long petId,
                                      String relatedTypeStr, Long relatedId) {
         try {
-            RelatedType relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
+            // 添加详细调试信息
+            log.info("🔍 类型转换调试 - 原始值: '{}'", relatedTypeStr);
+            log.info("🔍 类型转换调试 - 去除空格: '{}'", relatedTypeStr.trim());
+            log.info("🔍 类型转换调试 - 转为大写: '{}'", relatedTypeStr.toUpperCase().trim());
+            log.info("🔍 类型转换调试 - 长度: {}", relatedTypeStr.length());
+
+            // 打印所有有效值
+            log.info("🔍 有效枚举值: {}", Arrays.toString(RelatedType.values()));
+
+            String cleanedType = relatedTypeStr.toUpperCase().trim();
+            RelatedType relatedType = RelatedType.valueOf(cleanedType);
+
+            log.info("✅ 枚举转换成功: {}", relatedType);
             return uploadMediaFile(file, petId, relatedType, relatedId);
+
         } catch (IllegalArgumentException e) {
+            log.error("❌ 枚举转换失败 - 输入: '{}', 错误: {}", relatedTypeStr, e.getMessage());
             throw new RuntimeException("无效的关联类型: " + relatedTypeStr +
-                    "，有效值: ACTIVITY, STATUS, MOMENT, PET_AVATAR");
+                    "，有效值: " + String.join(", ", getValidRelatedTypes()));
         }
     }
 
@@ -128,6 +177,7 @@ public class MediaService {
     /**
      * 删除单个媒体文件
      */
+    @Transactional(rollbackFor = Exception.class)
     public void deleteMediaFile(Long mediaId) {
         MediaFile mediaFile = getMediaFileById(mediaId);
 
@@ -149,6 +199,7 @@ public class MediaService {
     /**
      * 删除特定业务记录的所有媒体文件
      */
+    @Transactional(rollbackFor = Exception.class)
     public void deleteMediaFilesByRelated(RelatedType relatedType, Long relatedId) {
         List<MediaFile> mediaFiles = getMediaFilesByRelated(relatedType, relatedId);
 
@@ -158,7 +209,7 @@ public class MediaService {
                 cosStorageService.deleteFile(mediaFile.getFileUrl());
             } catch (Exception e) {
                 log.warn("删除云存储文件失败: {}", mediaFile.getFileUrl(), e);
-                // 继续删除其他文件，不中断
+                throw new RuntimeException("删除云存储文件失败，事务回滚: " + e.getMessage(), e);
             }
         }
 
