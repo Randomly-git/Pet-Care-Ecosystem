@@ -56,11 +56,11 @@ class ActivityServiceIntegrationTest {
         System.out.println("\n=== 开始执行 setUp() ===");
 
         // 清理测试数据
-        System.out.println("清理测试数据...");
-        activityRepository.deleteAll();
-        petRepository.deleteAll();
-        userRepository.deleteAll();
-        activityRepository.flush(); // 强制刷新
+//        System.out.println("清理测试数据...");
+//        activityRepository.deleteAll();
+//        petRepository.deleteAll();
+//        userRepository.deleteAll();
+//        activityRepository.flush(); // 强制刷新
 
         // 创建测试用户
         testUser = new User();

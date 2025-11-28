@@ -16,7 +16,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/pets")
-@CrossOrigin(origins = "*")
 public class PetController extends BaseController {
 
     private final UserService userService;
