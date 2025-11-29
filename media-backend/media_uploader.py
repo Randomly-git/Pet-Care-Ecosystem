@@ -1,4 +1,4 @@
-# media_uploader.py
+# 上传媒体文件的测试python脚本，可独立运行
 import requests
 import os
 
