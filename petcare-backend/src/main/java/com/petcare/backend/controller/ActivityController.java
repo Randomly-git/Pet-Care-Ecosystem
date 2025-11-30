@@ -145,8 +145,8 @@ public class ActivityController {
     public ResponseEntity<ActivityRecord> createActivityRecord(
             @PathVariable Long petId,
             @RequestParam Long activityId,
-            @RequestParam String description,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date) {
+            @RequestParam(required = false) String description, // 修改：允许描述为空
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date) {
 
         log.info("为宠物ID: {} 创建活动记录，活动ID: {}, 描述: {}, 日期: {}",
                 petId, activityId, description, date);
@@ -161,9 +161,9 @@ public class ActivityController {
     @PutMapping("/records/{recordId}")
     public ResponseEntity<ActivityRecord> updateActivityRecord(
             @PathVariable Long recordId,
-            @RequestParam Long newActivityId,
-            @RequestParam String description,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date) {
+            @RequestParam(required = false) Long newActivityId, // 修改：允许参数为空
+            @RequestParam(required = false) String description, // 修改：允许描述为空
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date) {
 
         log.info("更新活动记录ID: {}, 新活动ID: {}, 描述: {}, 日期: {}",
                 recordId, newActivityId, description, date);

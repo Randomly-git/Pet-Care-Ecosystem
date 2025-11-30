@@ -1,20 +1,12 @@
 package com.petcare.backend.service.impl;
 
-import com.petcare.backend.entity.Activity;
-import com.petcare.backend.entity.ActivityKind;
-import com.petcare.backend.entity.ActivityRecord;
-import com.petcare.backend.entity.Pet;
-import com.petcare.backend.entity.User; // 新增导入
+import com.petcare.backend.entity.*;
 import com.petcare.backend.dto.response.ActivityDTO;
 import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.dto.request.CreateActivityDTO;
 import com.petcare.backend.dto.request.UpdateActivityDTO;
 import com.petcare.backend.dto.response.ActivityKindDTO;
-import com.petcare.backend.repository.ActivityRepository;
-import com.petcare.backend.repository.ActivityRecordRepository;
-import com.petcare.backend.repository.ActivityKindRepository;
-import com.petcare.backend.repository.PetRepository;
-import com.petcare.backend.repository.UserRepository; // 新增导入
+import com.petcare.backend.repository.*;
 import com.petcare.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +29,8 @@ public class ActivityServiceImpl implements ActivityService {
     private final ActivityKindRepository activityKindRepository;
     private final PetRepository petRepository;
     private final UserRepository userRepository; // 新增
+    private final FixedActivityRepository fixedActivityRepository; // 新增
+    private final ActivityReminderRepository activityReminderRepository; // 新增
 
     @Override
     @Transactional(readOnly = true)
@@ -195,10 +190,74 @@ public class ActivityServiceImpl implements ActivityService {
         ActivityRecord record = new ActivityRecord();
         record.setPet(pet);
         record.setActivity(activity);
-        record.setActivityDescription(description);
+
+        // 修改：允许描述为空
+        record.setActivityDescription(description); // 如果description为null，这里会设置为null
+
         record.setActivityDate(date != null ? date : LocalDateTime.now());
 
-        return activityRecordRepository.save(record);
+        ActivityRecord savedRecord = activityRecordRepository.save(record);
+        log.info("创建活动记录成功，记录ID: {}", savedRecord.getActivityRecordId());
+
+        // 新增：检查并更新定时活动的提醒
+        updateFixedActivityReminder(petId, activityId, savedRecord.getActivityDate());
+
+        return savedRecord;
+    }
+
+    /**
+     * 更新定时活动的提醒日期
+     */
+    private void updateFixedActivityReminder(Long petId, Long activityId, LocalDateTime activityDate) {
+        try {
+            // 查找是否存在对应的定时活动
+            Optional<FixedActivity> fixedActivityOpt = fixedActivityRepository.findByPetIdAndActivityId(petId, activityId);
+
+            if (fixedActivityOpt.isPresent()) {
+                FixedActivity fixedActivity = fixedActivityOpt.get();
+                LocalDate currentReminderDate = activityDate.toLocalDate();
+                LocalDate newReminderDate = currentReminderDate.plusDays(fixedActivity.getGapTime());
+
+                log.debug("找到定时活动，固定活动ID: {}, 活动ID: {}, 宠物ID: {}, 间隔天数: {}, 新提醒日期: {}",
+                        fixedActivity.getFixedActivityId(), activityId, petId, fixedActivity.getGapTime(), newReminderDate);
+
+                // 修改这里：加上 petId 查询条件
+                List<ActivityReminder> reminders = activityReminderRepository.findByActivityIdAndTypeAndPetId(activityId, 1, petId);
+
+                if (!reminders.isEmpty()) {
+                    // 通常每个活动在每个宠物上应该只有一个type=1的提醒记录
+                    ActivityReminder reminder = reminders.getFirst();
+
+                    // 只有当新日期大于原提醒日期时才更新
+                    if (newReminderDate.isAfter(reminder.getReminderDate())) {
+                        log.info("更新活动提醒，原日期: {}, 新日期: {}, 活动ID: {}, 宠物ID: {}, 固定活动ID: {}",
+                                reminder.getReminderDate(), newReminderDate, activityId, petId, fixedActivity.getFixedActivityId());
+                        reminder.setReminderDate(newReminderDate);
+                        activityReminderRepository.save(reminder);
+                    } else {
+                        log.debug("新提醒日期 {} 不大于原日期 {}，不进行更新",
+                                newReminderDate, reminder.getReminderDate());
+                    }
+                } else {
+                    // 如果没有找到现有的提醒记录，创建一个新的
+                    ActivityReminder newReminder = new ActivityReminder();
+                    newReminder.setActivityId(activityId);
+                    newReminder.setPetId(petId);
+                    newReminder.setReminderDate(newReminderDate);
+                    newReminder.setType(1); // 定时活动类型
+
+                    activityReminderRepository.save(newReminder);
+                    log.info("创建新的定时活动提醒，活动ID: {}, 宠物ID: {}, 固定活动ID: {}, 提醒日期: {}",
+                            activityId, petId, fixedActivity.getFixedActivityId(), newReminderDate);
+                }
+            } else {
+                log.debug("活动ID: {} 在宠物ID: {} 上不是定时活动，无需更新提醒", activityId, petId);
+            }
+        } catch (Exception e) {
+            log.error("更新定时活动提醒失败，活动ID: {}, 宠物ID: {}, 错误: {}",
+                    activityId, petId, e.getMessage(), e);
+            // 这里不抛出异常，因为主要的活动记录创建已经成功
+        }
     }
 
     @Override
@@ -217,8 +276,12 @@ public class ActivityServiceImpl implements ActivityService {
             record.setActivity(activity);
         }
 
+        // 修改：允许描述为空，包括空字符串
         if (description != null) {
             record.setActivityDescription(description);
+        } else {
+            // 如果传入的description为null，设置为null
+            record.setActivityDescription(null);
         }
 
         if (date != null) {

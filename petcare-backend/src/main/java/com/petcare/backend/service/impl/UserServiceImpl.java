@@ -37,8 +37,6 @@ public class UserServiceImpl implements UserService {
 
     private final PetRepository petRepository;
     private final UserRepository userRepository;
-    private final StatusRepository statusRepository;
-    private final ActivityRepository activityRepository;
     private final StatusRecordRepository statusRecordRepository;
     private final ActivityRecordRepository activityRecordRepository;
     private final PasswordUtil passwordUtil;
@@ -48,8 +46,6 @@ public class UserServiceImpl implements UserService {
 
     public UserServiceImpl(PetRepository petRepository,
                            UserRepository userRepository,
-                           StatusRepository statusRepository,
-                           ActivityRepository activityRepository,
                            StatusRecordRepository statusRecordRepository,
                            ActivityRecordRepository activityRecordRepository,
                            PasswordUtil passwordUtil,
@@ -58,8 +54,6 @@ public class UserServiceImpl implements UserService {
                            StatusService statusService) {
         this.petRepository = petRepository;
         this.userRepository = userRepository;
-        this.statusRepository = statusRepository;
-        this.activityRepository = activityRepository;
         this.statusRecordRepository = statusRecordRepository;
         this.activityRecordRepository = activityRecordRepository;
         this.passwordUtil = passwordUtil;
