@@ -5,105 +5,84 @@ import com.petcare.media.dto.ApiResponse;
 import com.petcare.media.dto.MediaResponse;
 import com.petcare.media.entity.MediaFile;
 import com.petcare.media.service.MediaService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/media")
+@RequestMapping("/api/media") // 统一使用 /api 前缀
+@RequiredArgsConstructor // 替代 @Autowired
 public class MediaController {
 
-    @Autowired
-    private MediaService mediaService;
+    private final MediaService mediaService;
 
+    // POST /api/media/upload
     @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<MediaResponse>> uploadFile(
+    public ApiResponse<MediaResponse> uploadFile(
             @RequestParam("file") MultipartFile file,
             @RequestParam("petId") Long petId,
             @RequestParam("relatedType") String relatedType,
             @RequestParam("relatedId") Long relatedId) {
 
-        try {
-            MediaFile mediaFile = mediaService.uploadMediaFile(file, petId, relatedType, relatedId);
-            MediaResponse response = MediaResponse.fromEntity(mediaFile);
-            return ResponseEntity.ok(ApiResponse.success("文件上传成功", response));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+        MediaFile mediaFile = mediaService.uploadMediaFile(file, petId, relatedType, relatedId);
+        MediaResponse response = MediaResponse.fromEntity(mediaFile);
+
+        // 直接返回 ApiResponse.success
+        return ApiResponse.success("文件上传成功", response);
     }
 
+    // GET /api/media/{mediaId}
     @GetMapping("/{mediaId}")
-    public ResponseEntity<ApiResponse<MediaResponse>> getFileInfo(@PathVariable Long mediaId) {
-        try {
-            MediaFile mediaFile = mediaService.getMediaFileById(mediaId);
-            MediaResponse response = MediaResponse.fromEntity(mediaFile);
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ApiResponse<MediaResponse> getFileInfo(@PathVariable Long mediaId) {
+        MediaFile mediaFile = mediaService.getMediaFileById(mediaId);
+        MediaResponse response = MediaResponse.fromEntity(mediaFile);
+        return ApiResponse.success(response);
     }
 
+    // GET /api/media/pet/{petId}
     @GetMapping("/pet/{petId}")
-    public ResponseEntity<ApiResponse<List<MediaResponse>>> getPetFiles(@PathVariable Long petId) {
-        try {
-            List<MediaFile> mediaFiles = mediaService.getMediaFilesByPetId(petId);
-            List<MediaResponse> responses = mediaFiles.stream()
-                    .map(MediaResponse::fromEntity)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(ApiResponse.success(responses));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ApiResponse<List<MediaResponse>> getPetFiles(@PathVariable Long petId) {
+        List<MediaFile> mediaFiles = mediaService.getMediaFilesByPetId(petId);
+        List<MediaResponse> responses = mediaFiles.stream()
+                .map(MediaResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ApiResponse.success(responses);
     }
 
+    // GET /api/media/related/{relatedType}/{relatedId}
     @GetMapping("/related/{relatedType}/{relatedId}")
-    public ResponseEntity<ApiResponse<List<MediaResponse>>> getRelatedFiles(
+    public ApiResponse<List<MediaResponse>> getRelatedFiles(
             @PathVariable String relatedType,
             @PathVariable Long relatedId) {
-        try {
-            List<MediaFile> mediaFiles = mediaService.getMediaFilesByRelated(relatedType, relatedId);
-            List<MediaResponse> responses = mediaFiles.stream()
-                    .map(MediaResponse::fromEntity)
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(ApiResponse.success(responses));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+        List<MediaFile> mediaFiles = mediaService.getMediaFilesByRelated(relatedType, relatedId);
+        List<MediaResponse> responses = mediaFiles.stream()
+                .map(MediaResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ApiResponse.success(responses);
     }
 
+    // DELETE /api/media/{mediaId}
     @DeleteMapping("/{mediaId}")
-    public ResponseEntity<ApiResponse<Void>> deleteFile(@PathVariable Long mediaId) {
-        try {
-            mediaService.deleteMediaFile(mediaId);
-            return ResponseEntity.ok(ApiResponse.success("文件删除成功", null));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ApiResponse<Void> deleteFile(@PathVariable Long mediaId) {
+        mediaService.deleteMediaFile(mediaId);
+        return ApiResponse.success("文件删除成功", null);
     }
 
+    // DELETE /api/media/related/{relatedType}/{relatedId}
     @DeleteMapping("/related/{relatedType}/{relatedId}")
-    public ResponseEntity<ApiResponse<Void>> deleteRelatedFiles(
+    public ApiResponse<Void> deleteRelatedFiles(
             @PathVariable String relatedType,
             @PathVariable Long relatedId) {
-        try {
-            mediaService.deleteMediaFilesByRelated(relatedType, relatedId);
-            return ResponseEntity.ok(ApiResponse.success("关联文件删除成功", null));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+        mediaService.deleteMediaFilesByRelated(relatedType, relatedId);
+        return ApiResponse.success("关联文件删除成功", null);
     }
 
+    // GET /api/media/types
     @GetMapping("/types")
-    public ResponseEntity<ApiResponse<List<String>>> getValidRelatedTypes() {
-        try {
-            List<String> types = mediaService.getValidRelatedTypes();
-            return ResponseEntity.ok(ApiResponse.success(types));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
-        }
+    public ApiResponse<List<String>> getValidRelatedTypes() {
+        List<String> types = mediaService.getValidRelatedTypes();
+        return ApiResponse.success(types);
     }
 }

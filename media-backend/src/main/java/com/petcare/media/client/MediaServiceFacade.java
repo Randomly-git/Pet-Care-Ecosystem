@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petcare.media.dto.ApiResponse;
 import com.petcare.media.dto.MediaResponse;
-import com.petcare.media.util.FileUploadUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,8 +24,18 @@ import java.util.List;
 public class MediaServiceFacade {
 
     private final RestTemplate restTemplate;
-    private final FileUploadUtil fileUploadUtil;
     private final ObjectMapper objectMapper;
+
+    // 在客户端代码中定义了 MediaClientException，用于封装调用媒体服务失败的异常。
+    private static class MediaClientException extends RuntimeException {
+        public MediaClientException(String message) {
+            super(message);
+        }
+        public MediaClientException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
 
     @Value("${app.media-service.url:http://localhost:8082}")
     private String mediaServiceUrl;
@@ -36,43 +45,41 @@ public class MediaServiceFacade {
      */
     public MediaResponse uploadFile(MultipartFile file, Long petId, String relatedType, Long relatedId) {
         try {
-            // 创建请求体
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new MultipartFileResource(file));
             body.add("petId", petId);
             body.add("relatedType", relatedType);
             body.add("relatedId", relatedId);
 
-            // 设置请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            // 发送请求
             String uploadUrl = mediaServiceUrl + "/api/media/upload";
             ResponseEntity<String> response = restTemplate.exchange(
                     uploadUrl, HttpMethod.POST, requestEntity, String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
-                ApiResponse<MediaResponse> apiResponse = objectMapper.readValue(
-                        response.getBody(),
-                        new TypeReference<ApiResponse<MediaResponse>>() {}
-                );
+                ApiResponse<MediaResponse> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<MediaResponse>>() {});
 
-                if (apiResponse.isSuccess()) {
+                // ⚡️ 核心修改：检查 code 是否为 20000
+                if (apiResponse.getCode() == 20000) {
                     log.info("✅ 文件上传成功: {}", file.getOriginalFilename());
                     return apiResponse.getData();
                 } else {
-                    throw new RuntimeException("文件上传失败: " + apiResponse.getMessage());
+                    // 抛出客户端异常，包含后端返回的 code 和 message
+                    throw new MediaClientException(
+                            String.format("文件上传失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
                 }
             } else {
-                throw new RuntimeException("文件上传失败，HTTP状态: " + response.getStatusCode());
+                throw new MediaClientException("文件上传失败，HTTP状态: " + response.getStatusCode());
             }
 
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
             log.error("❌ 文件上传失败: {}", file.getOriginalFilename(), e);
-            throw new RuntimeException("文件上传失败: " + e.getMessage(), e);
+            throw new MediaClientException("文件上传失败: " + e.getMessage(), e);
         }
     }
 
@@ -84,18 +91,19 @@ public class MediaServiceFacade {
             String url = mediaServiceUrl + "/api/media/" + mediaId;
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
-            ApiResponse<MediaResponse> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<MediaResponse>>() {}
-            );
+            ApiResponse<MediaResponse> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<MediaResponse>>() {});
 
-            if (apiResponse.isSuccess()) {
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() == 20000) {
                 return apiResponse.getData();
             } else {
-                throw new RuntimeException("获取文件信息失败: " + apiResponse.getMessage());
+                throw new MediaClientException(
+                        String.format("获取文件信息失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
             }
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("获取文件信息失败: " + e.getMessage(), e);
+            throw new MediaClientException("获取文件信息失败: " + e.getMessage(), e);
         }
     }
 
@@ -108,18 +116,19 @@ public class MediaServiceFacade {
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.DELETE, null, String.class);
 
-            ApiResponse<Void> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<Void>>() {}
-            );
+            ApiResponse<Void> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<Void>>() {});
 
-            if (!apiResponse.isSuccess()) {
-                throw new RuntimeException("文件删除失败: " + apiResponse.getMessage());
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() != 20000) {
+                throw new MediaClientException(
+                        String.format("文件删除失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
             }
 
             log.info("✅ 文件删除成功: {}", mediaId);
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("文件删除失败: " + e.getMessage(), e);
+            throw new MediaClientException("文件删除失败: " + e.getMessage(), e);
         }
     }
 
@@ -131,18 +140,43 @@ public class MediaServiceFacade {
             String url = mediaServiceUrl + "/api/media/pet/" + petId;
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
-            ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<List<MediaResponse>>>() {}
-            );
+            ApiResponse<List<MediaResponse>> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<List<MediaResponse>>>() {});
 
-            if (apiResponse.isSuccess()) {
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() == 20000) {
                 return apiResponse.getData();
             } else {
-                throw new RuntimeException("获取宠物文件失败: " + apiResponse.getMessage());
+                throw new MediaClientException(
+                        String.format("获取宠物文件失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
             }
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("获取宠物文件失败: " + e.getMessage(), e);
+            throw new MediaClientException("获取宠物文件失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取关联业务的所有文件
+     */
+    public List<MediaResponse> getRelatedFiles(String relatedType, Long relatedId) {
+        try {
+            String url = mediaServiceUrl + "/api/media/related/" + relatedType + "/" + relatedId;
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+            ApiResponse<List<MediaResponse>> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<List<MediaResponse>>>() {});
+
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() == 20000) {
+                return apiResponse.getData();
+            } else {
+                throw new MediaClientException(
+                        String.format("获取关联文件失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
+            }
+        } catch (MediaClientException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new MediaClientException("获取关联文件失败: " + e.getMessage(), e);
         }
     }
 
@@ -155,18 +189,19 @@ public class MediaServiceFacade {
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.DELETE, null, String.class);
 
-            ApiResponse<Void> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<Void>>() {}
-            );
+            ApiResponse<Void> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<Void>>() {});
 
-            if (!apiResponse.isSuccess()) {
-                throw new RuntimeException("删除关联文件失败: " + apiResponse.getMessage());
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() != 20000) {
+                throw new MediaClientException(
+                        String.format("删除关联文件失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
             }
 
             log.info("✅ 关联文件删除成功: {}/{}", relatedType, relatedId);
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("删除关联文件失败: " + e.getMessage(), e);
+            throw new MediaClientException("删除关联文件失败: " + e.getMessage(), e);
         }
     }
 
@@ -178,59 +213,32 @@ public class MediaServiceFacade {
             String url = mediaServiceUrl + "/api/media/types";
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
-            ApiResponse<List<String>> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<List<String>>>() {}
-            );
+            ApiResponse<List<String>> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<List<String>>>() {});
 
-            if (apiResponse.isSuccess()) {
+            // ⚡️ 核心修改：检查 code 是否为 20000
+            if (apiResponse.getCode() == 20000) {
                 return apiResponse.getData();
             } else {
-                throw new RuntimeException("获取关联类型失败: " + apiResponse.getMessage());
+                throw new MediaClientException(
+                        String.format("获取关联类型失败 (Code: %d): %s", apiResponse.getCode(), apiResponse.getMessage()));
             }
+        } catch (MediaClientException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("获取关联类型失败: " + e.getMessage(), e);
+            throw new MediaClientException("获取关联类型失败: " + e.getMessage(), e);
         }
     }
 
-    // ========== 本地文件上传的方法 ==========
-
-    /**
-     * 上传本地文件
-     */
-    public MediaResponse uploadLocalFile(String filePath, Long petId, String relatedType, Long relatedId) {
-        String result = fileUploadUtil.uploadLocalFile(filePath, petId, relatedType, relatedId, mediaServiceUrl);
-        try {
-            // 解析返回的JSON
-            ApiResponse<MediaResponse> apiResponse = objectMapper.readValue(
-                    result,
-                    new TypeReference<ApiResponse<MediaResponse>>() {}
-            );
-            return apiResponse.getData();
-        } catch (Exception e) {
-            throw new RuntimeException("解析上传结果失败: " + e.getMessage(), e);
+    // 💡 泛型解析辅助方法
+    private <T> T parseResponse(String json, TypeReference<T> typeRef) throws Exception {
+        if (json == null) {
+            throw new MediaClientException("API响应体为空");
         }
+        return objectMapper.readValue(json, typeRef);
     }
 
     /**
-     * 从字节数组上传文件
-     */
-    public MediaResponse uploadFileFromBytes(byte[] fileBytes, String fileName, Long petId, String relatedType, Long relatedId) {
-        String result = fileUploadUtil.uploadFileFromBytes(fileBytes, fileName, petId, relatedType, relatedId, mediaServiceUrl);
-        try {
-            // 解析返回的JSON
-            ApiResponse<MediaResponse> apiResponse = objectMapper.readValue(
-                    result,
-                    new TypeReference<ApiResponse<MediaResponse>>() {}
-            );
-            return apiResponse.getData();
-        } catch (Exception e) {
-            throw new RuntimeException("解析上传结果失败: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 自定义资源类用于文件上传
+     * 自定义资源类用于文件上传 (保留)
      */
     private static class MultipartFileResource extends ByteArrayResource {
         private final String filename;
@@ -245,25 +253,4 @@ public class MediaServiceFacade {
             return filename;
         }
     }
-
-    public List<MediaResponse> getRelatedFiles(String relatedType, Long relatedId) {
-        try {
-            String url = mediaServiceUrl + "/api/media/related/" + relatedType + "/" + relatedId;
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-
-            ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<List<MediaResponse>>>() {}
-            );
-
-            if (apiResponse.isSuccess()) {
-                return apiResponse.getData();
-            } else {
-                throw new RuntimeException("获取关联文件失败: " + apiResponse.getMessage());
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("获取关联文件失败: " + e.getMessage(), e);
-        }
-    }
-
 }
