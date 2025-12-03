@@ -28,7 +28,7 @@ public interface ActivityReminderRepository extends JpaRepository<ActivityRemind
     @Query(value = "SELECT ar.activity_reminder_id, ar.activity_id, ar.pet_id, ar.reminder_date, ar.type, a.activity_name " +
             "FROM activity_reminder ar " +
             "JOIN activity a ON ar.activity_id = a.activity_id " +
-            "WHERE ar.pet_id = :petId AND ar.reminder_date < CURRENT_DATE " +
+            "WHERE ar.pet_id = :petId AND ar.reminder_date <= CURRENT_DATE " +
             "ORDER BY ar.reminder_date ASC",
             nativeQuery = true)
     List<Object[]> findOverdueRemindersByPetId(@Param("petId") Long petId);

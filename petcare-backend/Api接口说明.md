@@ -1,4 +1,4 @@
- # Activity API 接口说明文档
+# Activity API 接口说明文档
 
 ## 基础信息
 - **基础URL**: `http://localhost:8080/api/activities`
@@ -220,6 +220,9 @@ GET /api/activities/records/pet/393?startDate=2025-11-11T11:53:24&endDate=2025-1
 ]
 ```
 
+
+根据您的需求，我修改了 API 文档，将 `description` 参数从"必需"改为"可选"。以下是更新后的文档：
+
 ### 3.2 创建活动记录
 **POST** `/records/pet/{petId}`
 
@@ -228,12 +231,18 @@ GET /api/activities/records/pet/393?startDate=2025-11-11T11:53:24&endDate=2025-1
 
 #### 查询参数
 - `activityId` (Long, 必需): 活动ID
-- `description` (String, 必需): 活动描述
+- `description` (String, 可选): 活动描述
 - `date` (LocalDateTime, 必需): 活动日期，格式: `yyyy-MM-dd'T'HH:mm:ss`
 
 #### 请求示例
+**示例1：带描述的活动记录**
 ```
 POST /api/activities/records/pet/393?activityId=1&description=今天带宠物散步30分钟&date=2025-11-18T11:53:24
+```
+
+**示例2：不带描述的活动记录**
+```
+POST /api/activities/records/pet/393?activityId=1&date=2025-11-18T11:53:24
 ```
 
 #### 响应格式
@@ -245,6 +254,8 @@ POST /api/activities/records/pet/393?activityId=1&description=今天带宠物散
 }
 ```
 
+**说明：** 如果未提供 `description` 参数，响应中的 `activityDescription` 字段将为 `null`。
+
 ### 3.3 更新活动记录
 **PUT** `/records/{recordId}`
 
@@ -252,13 +263,24 @@ POST /api/activities/records/pet/393?activityId=1&description=今天带宠物散
 - `recordId` (Long, 必需): 活动记录ID
 
 #### 查询参数
-- `newActivityId` (Long, 必需): 新的活动ID
-- `description` (String, 必需): 新的活动描述
-- `date` (LocalDateTime, 必需): 新的活动日期，格式: `yyyy-MM-dd'T'HH:mm:ss`
+- `newActivityId` (Long, 可选): 新的活动ID（如不提供则保持不变）
+- `description` (String, 可选): 新的活动描述（如不提供则保持不变，如提供空值则设置为null）
+- `date` (LocalDateTime, 可选): 新的活动日期，格式: `yyyy-MM-dd'T'HH:mm:ss`（如不提供则保持不变）
 
 #### 请求示例
+**示例1：更新所有字段**
 ```
 PUT /api/activities/records/1?newActivityId=1&description=更新后的活动描述&date=2025-11-18T11:53:25
+```
+
+**示例2：只更新描述**
+```
+PUT /api/activities/records/1?description=只更新描述字段
+```
+
+**示例3：清空描述**
+```
+PUT /api/activities/records/1?description=
 ```
 
 #### 响应格式
@@ -269,6 +291,11 @@ PUT /api/activities/records/1?newActivityId=1&description=更新后的活动描�
   "activityDate": "2025-11-18T11:53:25"
 }
 ```
+
+**说明：**
+- 所有查询参数都是可选的，可以只更新需要修改的字段
+- 如果 `description` 参数为空字符串，将被设置为 `null`
+- 未提供的参数将保持原有值不变
 
 ### 3.4 删除活动记录
 **DELETE** `/records/{recordId}`
@@ -1353,30 +1380,459 @@ if (petResponse.ok) {
 }
 ```
 
+
+# 定时活动管理 API 文档
+
+## 接口基础信息
+
+- **基础URL**: `http://localhost:8080/api/fixed-activities`
+- **认证方式**: 无认证（根据实际需求添加）
+- **数据格式**: JSON
+- **字符编码**: UTF-8
+
 ---
 
-## 7. 注意事项
+## API 接口列表
 
-1. **数据完整性**: 创建宠物时必须提供有效的用户ID
-2. **日期格式**: 生日字段使用 `yyyy-MM-dd` 格式
-3. **字符限制**: 注意各字段的字符长度限制
-4. **错误处理**: 客户端应妥善处理404和400错误
-5. **统计信息**: 统计信息在创建宠物时初始化为0
+### 1. 创建定时活动
+
+创建新的定时活动记录，同一个宠物下不能创建两个活动ID相同的定时活动。
+
+- **URL**: `POST /api/fixed-activities`
+- **请求头**: `Content-Type: application/json`
+
+#### 请求参数
+
+```json
+{
+  "petId": 1,
+  "activityId": 101,
+  "gapTime": 7
+}
+```
+| 字段名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| petId | Long | 是 | 宠物ID | 1 |
+| activityId | Long | 是 | 活动ID | 101 |
+| gapTime | Integer | 是 | 活动间隔时间（天） | 7 |
+
+#### 响应示例
+
+**成功响应 (201 Created)**
+```json
+{
+  "fixedActivityId": 1,
+  "petId": 1,
+  "activityId": 101,
+  "gapTime": 7,
+}
+```
+---
+
+### 2. 修改定时活动间隔时间
+
+修改指定定时活动的间隔时间。
+
+- **URL**: `PUT /api/fixed-activities/{fixedActivityId}`
+- **请求头**: `Content-Type: application/json`
+
+#### 路径参数
+
+| 参数名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| fixedActivityId | Long | 是 | 定时活动ID | 1 |
+
+#### 请求参数
+
+```json
+{
+  "gapTime": 14
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| gapTime | Integer | 是 | 新的间隔时间（天） | 14 |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```json
+{
+  "fixedActivityId": 1,
+  "petId": 1,
+  "activityId": 101,
+  "gapTime": 14,
+}
+```
 
 ---
 
-## 8. 与其他API的关系
+### 3. 查看宠物所有定时活动
 
-### 8.1 与Status API关联
-- 使用宠物ID查询状态记录: `GET /api/status/records/pet/{petId}`
-- 为宠物创建状态记录: `POST /api/status/records`
+获取指定宠物的所有定时活动列表，包含活动名称、宠物名称等详细信息。
 
-### 8.2 与Activity API关联
-- 使用宠物ID查询活动记录: `GET /api/activities/records/pet/{petId}`
-- 为宠物创建活动记录: `POST /api/activities/records/pet/{petId}`
+- **URL**: `GET /api/fixed-activities/pet/{petId}`
 
-### 8.3 与User API关联
-- 宠物信息中包含用户基本信息
-- 创建宠物时需要验证用户存在性
+#### 路径参数
+
+| 参数名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| petId | Long | 是 | 宠物ID | 1 |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```json
+[
+  {
+    "fixedActivityId": 1,
+    "activityId": 101,
+    "activityName": "喂食",
+    "activityKindId": 1,
+    "activityKindName": "日常护理",
+    "petId": 1,
+    "petName": "旺财",
+    "gapTime": 7,
+    "nextReminderDate": "2023-10-08"
+  },
+  {
+    "fixedActivityId": 2,
+    "activityId": 102,
+    "activityName": "洗澡",
+    "activityKindId": 1,
+    "activityKindName": "日常护理",
+    "petId": 1,
+    "petName": "旺财",
+    "gapTime": 14,
+    "nextReminderDate": "2023-10-15"
+  }
+]
+```
+
+**空数据响应 (200 OK)**
+```json
+[]
+```
+
+---
+
+### 4. 删除定时活动
+
+删除指定的定时活动，同时会删除对应的提醒记录。
+
+- **URL**: `DELETE /api/fixed-activities/{fixedActivityId}`
+
+#### 路径参数
+
+| 参数名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| fixedActivityId | Long | 是 | 定时活动ID | 1 |
+
+#### 响应示例
+
+**成功响应 (204 No Content)**
+```
+无响应体
+```
+
+---
+
+## 使用示例
+
+### cURL 示例
+
+```bash
+# 1. 创建定时活动
+curl -X POST "http://localhost:8080/api/fixed-activities" \
+  -H "Content-Type: application/json" \
+  -d '{"petId": 1, "activityId": 101, "gapTime": 7}'
+
+# 2. 查询宠物定时活动
+curl -X GET "http://localhost:8080/api/fixed-activities/pet/1"
+
+# 3. 修改间隔时间
+curl -X PUT "http://localhost:8080/api/fixed-activities/1" \
+  -H "Content-Type: application/json" \
+  -d '{"gapTime": 14}'
+
+# 4. 删除定时活动
+curl -X DELETE "http://localhost:8080/api/fixed-activities/1"
+```
+# 预约活动管理 API 文档
+
+## 接口基础信息
+
+- **基础URL**: `http://localhost:8080/api/reserved-activities`
+- **认证方式**: 无认证
+- **数据格式**: JSON
+- **字符编码**: UTF-8
+
+---
+
+## API 接口列表
+
+### 1. 创建预约活动
+
+创建新的预约活动记录。
+
+- **URL**: `POST /api/reserved-activities`
+- **请求头**: `Content-Type: application/json`
+
+#### 请求参数
+
+```json
+{
+  "activityId": 201,
+  "petId": 1,
+  "reminderDate": "2023-10-10"
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| activityId | Long | 是 | 活动ID | 201 |
+| petId | Long | 是 | 宠物ID | 1 |
+| reminderDate | LocalDate | 是 | 提醒日期 | "2023-10-10" |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```json
+{
+  "activityReminderId": 1,
+  "activityId": 201,
+  "reminderDate": "2023-10-10",
+  "type": 2,
+  "petId": 1
+}
+```
+
+**错误响应 (400 Bad Request)**
+```json
+{
+  "timestamp": "2023-10-01T10:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "请求参数验证失败",
+  "path": "/api/reserved-activities"
+}
+```
+
+---
+
+### 2. 查看宠物所有预约活动
+
+获取指定宠物的所有预约活动列表，包含活动名称等详细信息。
+
+- **URL**: `GET /api/reserved-activities/pet/{petId}`
+
+#### 路径参数
+
+| 参数名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| petId | Long | 是 | 宠物ID | 1 |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```json
+[
+  {
+    "activityReminderId": 1,
+    "activityId": 201,
+    "petId": 1,
+    "reminderDate": "2023-10-10",
+    "activityName": "兽医检查"
+  },
+  {
+    "activityReminderId": 2,
+    "activityId": 202,
+    "petId": 1,
+    "reminderDate": "2023-10-15",
+    "activityName": "美容护理"
+  }
+]
+```
+
+**空数据响应 (200 OK)**
+```json
+[]
+```
+
+---
+
+### 3. 修改预约活动日期
+
+修改指定预约活动的提醒日期。
+
+- **URL**: `PUT /api/reserved-activities/date`
+- **请求头**: `Content-Type: application/json`
+
+#### 请求参数
+
+```json
+{
+  "activityReminderId": 1,
+  "reminderDate": "2023-10-12"
+}
+```
+
+| 字段名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| activityReminderId | Long | 是 | 活动提醒ID | 1 |
+| reminderDate | LocalDate | 是 | 新的提醒日期 | "2023-10-12" |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```json
+{
+  "activityReminderId": 1,
+  "activityId": 201,
+  "reminderDate": "2023-10-12",
+  "type": 2,
+  "petId": 1
+}
+```
+
+**错误响应 (404 Not Found)**
+```json
+{
+  "timestamp": "2023-10-01T10:00:00",
+  "status": 404,
+  "error": "Not Found",
+  "message": "预约活动不存在",
+  "path": "/api/reserved-activities/date"
+}
+```
+
+---
+
+### 4. 删除预约活动
+
+删除指定的预约活动。
+
+- **URL**: `DELETE /api/reserved-activities/{activityReminderId}`
+
+#### 路径参数
+
+| 参数名 | 类型 | 必填 | 描述 | 示例值 |
+|--------|------|------|------|--------|
+| activityReminderId | Long | 是 | 活动提醒ID | 1 |
+
+#### 响应示例
+
+**成功响应 (200 OK)**
+```
+无响应体
+```
+
+**错误响应 (404 Not Found)**
+```json
+{
+  "timestamp": "2023-10-01T10:00:00",
+  "status": 404,
+  "error": "Not Found",
+  "message": "预约活动不存在",
+  "path": "/api/reserved-activities/1"
+}
+```
+
+## 业务规则
+
+1. **类型标识**: 预约活动固定使用 `type = 2`（一次性提醒）
+2. **日期格式**: 所有日期字段使用 `yyyy-MM-dd` 格式
+3. **数据关联**: 通过 `activityId` 关联活动基础信息
+4. **宠物关联**: 通过 `petId` 关联宠物信息
+
+---
+
+## 错误码说明
+
+| HTTP状态码 | 错误码 | 描述 |
+|------------|--------|------|
+| 400 | BAD_REQUEST | 请求参数验证失败 |
+| 404 | NOT_FOUND | 资源不存在 |
+| 500 | INTERNAL_SERVER_ERROR | 服务器内部错误 |
+
+---
+
+## 使用示例
+
+### cURL 示例
+
+```bash
+# 1. 创建预约活动
+curl -X POST "http://localhost:8080/api/reserved-activities" \
+  -H "Content-Type: application/json" \
+  -d '{"activityId": 201, "petId": 1, "reminderDate": "2023-10-10"}'
+
+# 2. 查询宠物预约活动
+curl -X GET "http://localhost:8080/api/reserved-activities/pet/1"
+
+# 3. 修改预约活动日期
+curl -X PUT "http://localhost:8080/api/reserved-activities/date" \
+  -H "Content-Type: application/json" \
+  -d '{"activityReminderId": 1, "reminderDate": "2023-10-12"}'
+
+# 4. 删除预约活动
+curl -X DELETE "http://localhost:8080/api/reserved-activities/1"
+```
+
+### JavaScript Fetch 示例
+
+```javascript
+// 创建预约活动
+const createReservedActivity = async () => {
+  const response = await fetch('http://localhost:8080/api/reserved-activities', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      activityId: 201,
+      petId: 1,
+      reminderDate: '2023-10-10'
+    })
+  });
+  const result = await response.json();
+  console.log('创建结果:', result);
+  return result.activityReminderId;
+};
+
+// 查询宠物预约活动
+const getReservedActivities = async (petId) => {
+  const response = await fetch(`http://localhost:8080/api/reserved-activities/pet/${petId}`);
+  const result = await response.json();
+  console.log('预约活动列表:', result);
+  return result;
+};
+
+// 修改预约活动日期
+const updateReservedActivity = async (activityReminderId, newDate) => {
+  const response = await fetch('http://localhost:8080/api/reserved-activities/date', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      activityReminderId: activityReminderId,
+      reminderDate: newDate
+    })
+  });
+  const result = await response.json();
+  console.log('修改结果:', result);
+  return result;
+};
+
+// 删除预约活动
+const deleteReservedActivity = async (activityReminderId) => {
+  const response = await fetch(`http://localhost:8080/api/reserved-activities/${activityReminderId}`, {
+    method: 'DELETE'
+  });
+  console.log('删除成功，状态:', response.status);
+};
+```
 
 
