@@ -86,6 +86,31 @@ JSON
 
 返回 `ApiResponse<MediaResponse>`，`data` 字段为单个媒体文件对象。
 
+**URL:** `GET /api/media/pet/{petId}` **成功响应格式**
+
+**(`ApiResponse<MediaResponse>`):**
+
+JSON
+
+```
+{
+  "code": 20000,
+  "message": "文件信息查询成功",
+  "data": {
+    "mediaId": 123,
+    "fileName": "avatar.png",
+    "fileUrl": "https://cos.url/pet_1/PET_AVATAR_1.png",
+    "fileType": "image/png",
+    "fileSize": 51200,
+    "uploadTime": "2025-12-03T10:00:00",
+    "petId": 1,
+    "relatedType": "PET_AVATAR",
+    "relatedTypeDesc": "宠物头像",
+    "relatedId": 1
+  }
+}
+```
+
 ------
 
 ## 3. 按宠物查询文件
@@ -104,6 +129,43 @@ JSON
 ### 成功响应
 
 返回 `ApiResponse<List<MediaResponse>>`，`data` 字段为文件列表。
+
+**URL:** `GET /api/media/pet/{petId}` **成功响应格式 (`ApiResponse<List<MediaResponse>>`):**
+
+JSON
+
+```
+{
+  "code": 20000,
+  "message": "按宠物ID查询文件列表成功",
+  "data": [
+    {
+      "mediaId": 123,
+      "fileName": "avatar.png",
+      "fileUrl": "https://cos.url/pet_1/PET_AVATAR_1.png",
+      "fileType": "image/png",
+      "fileSize": 51200,
+      "uploadTime": "2025-12-03T10:00:00",
+      "petId": 1,
+      "relatedType": "PET_AVATAR",
+      "relatedTypeDesc": "宠物头像",
+      "relatedId": 1
+    },
+    {
+      "mediaId": 124,
+      "fileName": "moment_photo.jpg",
+      "fileUrl": "https://cos.url/pet_1/MOMENT_101_1.jpg",
+      "fileType": "image/jpeg",
+      "fileSize": 102400,
+      "uploadTime": "2025-12-04T15:30:00",
+      "petId": 1,
+      "relatedType": "MOMENT",
+      "relatedTypeDesc": "动态",
+      "relatedId": 101
+    }
+  ]
+}
+```
 
 ------
 
@@ -125,6 +187,43 @@ JSON
 
 返回 `ApiResponse<List<MediaResponse>>`，`data` 字段为文件列表。
 
+**URL:** `GET /api/media/related/{relatedType}/{relatedId}` **成功响应格式 (`ApiResponse<List<MediaResponse>>`):**
+
+JSON
+
+```
+{
+  "code": 20000,
+  "message": "按业务关联查询文件列表成功",
+  "data": [
+    {
+      "mediaId": 124,
+      "fileName": "moment_photo.jpg",
+      "fileUrl": "https://cos.url/pet_1/MOMENT_101_1.jpg",
+      "fileType": "image/jpeg",
+      "fileSize": 102400,
+      "uploadTime": "2025-12-04T15:30:00",
+      "petId": 1,
+      "relatedType": "MOMENT",
+      "relatedTypeDesc": "动态",
+      "relatedId": 101
+    },
+    {
+      "mediaId": 125,
+      "fileName": "moment_video.mp4",
+      "fileUrl": "https://cos.url/pet_1/MOMENT_101_2.mp4",
+      "fileType": "video/mp4",
+      "fileSize": 5120000,
+      "uploadTime": "2025-12-04T15:31:00",
+      "petId": 1,
+      "relatedType": "MOMENT",
+      "relatedTypeDesc": "动态",
+      "relatedId": 101
+    }
+  ]
+}
+```
+
 ------
 
 ## 5. 文件删除
@@ -143,6 +242,18 @@ JSON
 ### 成功响应
 
 返回 `ApiResponse<Void>`，`data` 字段为 `null`。
+
+**URL:** `DELETE /api/media/{mediaId}` **成功响应格式 (`ApiResponse<Void>`):**
+
+JSON
+
+```
+{
+  "code": 20000,
+  "message": "文件删除成功",
+  "data": null
+}
+```
 
 ------
 
@@ -163,3 +274,15 @@ JSON
 ### 成功响应
 
 返回 `ApiResponse<Void>`，`data` 字段为 `null`。
+
+**URL:** `DELETE /api/media/related/{relatedType}/{relatedId}` **成功响应格式 (`ApiResponse<Void>`):**
+
+JSON
+
+```
+{
+  "code": 20000,
+  "message": "关联文件删除成功",
+  "data": null
+}
+```
