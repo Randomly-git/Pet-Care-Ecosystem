@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
+import petcare.example.community_backend.repository.CommentRepository; // 新增
+import petcare.example.community_backend.repository.LikeRepository;    // 新增
+import petcare.example.community_backend.model.TargetType;
 
 @Service
 @RequiredArgsConstructor
@@ -15,18 +18,31 @@ public class MomentService {
 
     private final PetMomentRepository momentRepository;
     private final MomentMapper momentMapper;
+    private final CommentRepository commentRepository;
+    private final LikeRepository likeRepository;
 
     /**
      * 获取特定用户ID的所有动态，并转换为 DTO 列表。
      */
     public List<MomentResponseDTO> getMomentsByUserId(Long userId) {
         List<PetMoment> moments = momentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<MomentResponseDTO> dtos = momentMapper.toResponseDTOList(moments);
 
-        // 直接返回 Mapper 转换结果
-        // TODO: 在这里是微服务组合的关键！
-        //    应该调用 Media Service 和 Comment Service 的 API，
-        //    获取 mediaUrls, commentCount, likeCount，并填充到 DTOs 中。
-        return momentMapper.toResponseDTOList(moments);
+        for (MomentResponseDTO dto : dtos) {
+            Long momentId = dto.getId();
+
+            // 1. 获取评论数
+            long commentCount = commentRepository.countByMomentId(momentId);
+            dto.setCommentCount((int) commentCount);
+
+            // 2. 获取点赞数
+            long likeCount = likeRepository.countByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
+            dto.setLikeCount((int) likeCount);
+        }
+
+        // TODO: 媒体URL的填充逻辑不变
+
+        return dtos;
     }
 
     /**

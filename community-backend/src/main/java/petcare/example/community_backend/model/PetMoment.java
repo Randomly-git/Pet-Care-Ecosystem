@@ -7,19 +7,20 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * PetMoment 实体类
+ * Moment 实体类
  */
 @Entity
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "pet_moments", indexes = {
+@Table(name = "moments", indexes = {
         @Index(name = "idx_user_id", columnList = "user_id")
 })
 public class PetMoment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "moment_id")
     private Long id;
 
     // 绑定到用户微服务的用户ID
