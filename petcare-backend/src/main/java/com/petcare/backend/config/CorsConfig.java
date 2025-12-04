@@ -1,4 +1,4 @@
-package com.petcare.backend;
+package com.petcare.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

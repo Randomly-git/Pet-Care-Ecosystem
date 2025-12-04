@@ -41,7 +41,7 @@ public interface ActivityService {
                                                   Long activityKindId);     // 可为空
 
     // 2. 删除活动记录（软删除 or 直接删？这里选择硬删除）
-    void deleteActivityRecord(Long activityRecordId);
+    boolean deleteActivityRecord(Long activityRecordId);
 
     // 3. 插入活动记录 - 这个保持不变，因为记录还是基于宠物
     ActivityRecord createActivityRecord(Long petId,

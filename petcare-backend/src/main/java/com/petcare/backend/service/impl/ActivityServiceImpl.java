@@ -1,5 +1,7 @@
 package com.petcare.backend.service.impl;
 
+import com.petcare.backend.client.MediaServiceClient;
+import com.petcare.backend.dto.response.MediaResponse;
 import com.petcare.backend.entity.*;
 import com.petcare.backend.dto.response.ActivityDTO;
 import com.petcare.backend.dto.response.ActivityRecordDTO;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -166,12 +169,18 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     @Transactional
-    public void deleteActivityRecord(Long recordId) {
-        ActivityRecord record = activityRecordRepository.findById(recordId)
-                .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
+    public boolean deleteActivityRecord(Long recordId) {
+        try {
+            ActivityRecord record = activityRecordRepository.findById(recordId)
+                    .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
 
-        activityRecordRepository.delete(record);
-        log.info("已删除活动记录 ID={}", recordId);
+            activityRecordRepository.delete(record);
+            log.info("已删除活动记录 ID={}", recordId);
+            return true;
+        } catch (Exception e) {
+            log.error("删除活动记录失败 ID={}", recordId, e);
+            return false;
+        }
     }
 
     @Override

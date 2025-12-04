@@ -2,6 +2,7 @@ package com.petcare.backend.dto.response;
 
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class ActivityRecordDTO {
@@ -13,6 +14,12 @@ public class ActivityRecordDTO {
     private Long petId;
     private String activityDescription;
     private LocalDateTime activityDate;
+
+
+    // 新增媒体相关字段
+    private List<MediaResponse> mediaFiles;  // 媒体文件列表
+    private Integer mediaCount;              // 媒体文件数量
+    private String firstMediaUrl;           // 第一个媒体文件的URL（用于列表展示）
 
     // 构造函数
     public ActivityRecordDTO(Long activityRecordId, Long activityId, String activityName,
@@ -27,5 +34,15 @@ public class ActivityRecordDTO {
         this.activityDescription = activityDescription;
         this.activityDate = activityDate;
     }
+
+    // getter/setter 方法
+    public void setMediaFiles(List<MediaResponse> mediaFiles) {
+        this.mediaFiles = mediaFiles;
+        this.mediaCount = mediaFiles != null ? mediaFiles.size() : 0;
+        if (mediaFiles != null && !mediaFiles.isEmpty()) {
+            this.firstMediaUrl = mediaFiles.getFirst().getFileUrl();
+        }
+    }
+
     public ActivityRecordDTO(){}
 }
