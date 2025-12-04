@@ -1,288 +1,144 @@
-# 媒体文件微服务 API 参考
+好的，根据您提供的客户端 DTO 文件（`ApiResponse`、`MediaResponse` 和 `MediaBatchUpdateRequest`），以下是推导出的 **媒体微服务 (Media Service)** 的 API 调用说明。
 
-**服务名称:** Media Backend Service
-**基础路径 (Base URL):** `[您的服务IP/域名]:[端口]/api/media`
-**成功业务码:** `20000`
-
----
-
-## 统一 API 响应格式 (ApiResponse<T>)
-
-所有 API 接口均返回统一的 JSON 结构，其中 HTTP 状态码用于表示连接或请求的基本状态 (200 OK, 400 Bad Request, 500 Internal Error)，而 `code` 字段用于表示业务处理结果。
-
-| 字段 | 类型 | 描述 |
-| :--- | :--- | :--- |
-| `code` | `integer` | **业务状态码**。`20000` 表示成功；`4xxxx` 表示业务错误（如参数错误、资源未找到）；`5xxxx` 表示系统错误（如文件读写失败）。 |
-| `message` | `string` | 响应消息或错误描述。 |
-| `data` | `T` | 业务数据主体，成功时为 `MediaResponse` 或列表，失败时为 `null`。 |
-
----
-
-## 1. 文件上传
-
-| 属性 | 描述 |
-| :--- | :--- |
-| **URL** | `POST /api/media/upload` |
-| **请求类型** | `multipart/form-data` |
-
-### 请求参数 (Query/Form Data)
-
-| 参数名 | 类型 | 描述 | 必需 |
-| :--- | :--- | :--- | :--- |
-| `file` | `file` | 要上传的媒体文件。 | 是 |
-| `petId` | `long` | 关联的宠物 ID。 | 是 |
-| `relatedType` | `string` | 关联的业务类型 (如 `ACTIVITY`, `MOMENT`, `PET_AVATAR`)。 | 是 |
-| `relatedId` | `long` | 关联的业务记录 ID (如活动 ID，动态 ID)。 | 是 |
-
-### 成功响应示例 (HTTP 200)
-
-```json
-{
-  "code": 20000,
-  "message": "文件上传成功",
-  "data": {
-    "mediaId": 123,
-    "fileName": "avatar.png",
-    "fileUrl": "[https://cos.url/pet_1/PET_AVATAR_1.png](https://cos.url/pet_1/PET_AVATAR_1.png)",
-    "fileType": "image/png",
-    "fileSize": 51200,
-    "uploadTime": "2025-12-03T10:00:00",
-    "petId": 1,
-    "relatedType": "PET_AVATAR",
-    "relatedTypeDesc": "宠物头像",
-    "relatedId": 1
-  }
-}
-```
-
-### 失败响应示例 (HTTP 400)
-
-JSON
-
-```
-{
-  "code": 40001,
-  "message": "无效的关联类型: INVALID_TYPE，有效值: ACTIVITY, STATUS, MOMENT, PET_AVATAR",
-  "data": null
-}
-```
+此文档旨在帮助 **社区微服务**（或任何其他微服务）的开发人员正确调用媒体服务。
 
 ------
 
-## 2. 文件信息查询
+# 📺 媒体微服务 API 调用说明
 
-| **属性**     | **描述**                   |
-| ------------ | -------------------------- |
-| **URL**      | `GET /api/media/{mediaId}` |
-| **请求类型** | `application/json`         |
+本微服务负责处理所有文件的上传、存储和关联关系管理。
 
-### Path 参数
+**根路径：** `/api/v1/media`
 
-| **参数名** | **类型** | **描述**      |
-| ---------- | -------- | ------------- |
-| `mediaId`  | `long`   | 媒体文件 ID。 |
+## 1. 基础数据格式
 
-### 成功响应
+所有 API 响应均采用统一的 `ApiResponse<T>` 封装。
 
-返回 `ApiResponse<MediaResponse>`，`data` 字段为单个媒体文件对象。
+### 1.1. 统一响应格式 (`ApiResponse<T>`)
 
-**URL:** `GET /api/media/pet/{petId}` **成功响应格式**
+| **字段名** | **类型** | **描述**                                   | **示例值**               |
+| ---------- | -------- | ------------------------------------------ | ------------------------ |
+| `code`     | `int`    | 业务状态码。`20000` 表示成功。             | `20000`                  |
+| `message`  | `String` | 响应消息。                                 | `"操作成功"`             |
+| `data`     | `T`      | 实际返回的业务数据（类型取决于具体 API）。 | `{ MediaResponse 列表 }` |
 
-**(`ApiResponse<MediaResponse>`):**
+### 1.2. 媒体文件响应 DTO (`MediaResponse`)
 
-JSON
+这是媒体文件信息的标准结构，通常作为 `ApiResponse` 中的 `data` 字段返回。
 
-```
-{
-  "code": 20000,
-  "message": "文件信息查询成功",
-  "data": {
-    "mediaId": 123,
-    "fileName": "avatar.png",
-    "fileUrl": "https://cos.url/pet_1/PET_AVATAR_1.png",
-    "fileType": "image/png",
-    "fileSize": 51200,
-    "uploadTime": "2025-12-03T10:00:00",
-    "petId": 1,
-    "relatedType": "PET_AVATAR",
-    "relatedTypeDesc": "宠物头像",
-    "relatedId": 1
-  }
-}
-```
+| **字段名**    | **类型**        | **描述**                                      |
+| ------------- | --------------- | --------------------------------------------- |
+| `mediaId`     | `Long`          | 媒体文件的唯一 ID。                           |
+| `fileUrl`     | `String`        | 文件的访问 URL（前端直接用于展示）。          |
+| `relatedType` | `String`        | 关联业务类型（如：`MOMENT`, `USER_AVATAR`）。 |
+| `relatedId`   | `Long`          | 关联的业务 ID（如：动态 ID，用户 ID）。       |
+| `fileName`    | `String`        | 文件原始名称。                                |
+| `fileType`    | `String`        | 文件类型（如：`image/jpeg`）。                |
+| `uploadTime`  | `LocalDateTime` | 文件上传时间。                                |
 
 ------
 
-## 3. 按宠物查询文件
+## 2. 媒体 API 接口详情
 
-| **属性**     | **描述**                     |
-| ------------ | ---------------------------- |
-| **URL**      | `GET /api/media/pet/{petId}` |
-| **请求类型** | `application/json`           |
+### 2.1. 批量关联媒体文件
 
-### Path 参数
+此接口用于将一批已上传（但尚未关联）的临时文件与特定的业务实体（如新创建的动态）进行绑定。
 
-| **参数名** | **类型** | **描述**  |
-| ---------- | -------- | --------- |
-| `petId`    | `long`   | 宠物 ID。 |
+| **属性**   | **值**                                             |
+| ---------- | -------------------------------------------------- |
+| **用途**   | 关联媒体文件到业务实体（如 `PetMoment`）。         |
+| **URI**    | `/api/v1/media/related/batch`                      |
+| **Method** | `PUT` / `POST` (取决于具体实现，通常 `PUT` 更合适) |
 
-### 成功响应
+#### 🔹 请求体 (`MediaBatchUpdateRequest`)
 
-返回 `ApiResponse<List<MediaResponse>>`，`data` 字段为文件列表。
+| **字段名**     | **类型**     | **约束**    | **描述**                                    |
+| -------------- | ------------ | ----------- | ------------------------------------------- |
+| `mediaIds`     | `List<Long>` | `@NotEmpty` | 需要关联的媒体文件 ID 列表。                |
+| `relatedType`  | `String`     | `@NotBlank` | 关联的业务类型，例如 **`MOMENT`**。         |
+| `newRelatedId` | `Long`       | `@NotNull`  | **新的** 关联 ID（例如：新创建的动态 ID）。 |
 
-**URL:** `GET /api/media/pet/{petId}` **成功响应格式 (`ApiResponse<List<MediaResponse>>`):**
+#### 🔹 响应格式
 
-JSON
-
-```
-{
-  "code": 20000,
-  "message": "按宠物ID查询文件列表成功",
-  "data": [
-    {
-      "mediaId": 123,
-      "fileName": "avatar.png",
-      "fileUrl": "https://cos.url/pet_1/PET_AVATAR_1.png",
-      "fileType": "image/png",
-      "fileSize": 51200,
-      "uploadTime": "2025-12-03T10:00:00",
-      "petId": 1,
-      "relatedType": "PET_AVATAR",
-      "relatedTypeDesc": "宠物头像",
-      "relatedId": 1
-    },
-    {
-      "mediaId": 124,
-      "fileName": "moment_photo.jpg",
-      "fileUrl": "https://cos.url/pet_1/MOMENT_101_1.jpg",
-      "fileType": "image/jpeg",
-      "fileSize": 102400,
-      "uploadTime": "2025-12-04T15:30:00",
-      "petId": 1,
-      "relatedType": "MOMENT",
-      "relatedTypeDesc": "动态",
-      "relatedId": 101
-    }
-  ]
-}
-```
+| **状态码**                  | **响应体 (Body)**   | **描述**                                 |
+| --------------------------- | ------------------- | ---------------------------------------- |
+| `200 OK`                    | `ApiResponse<Void>` | 关联成功，`data` 为 `null`。             |
+| `400 Bad Request`           | `ApiResponse<Void>` | 请求体校验失败（例如 `mediaIds` 为空）。 |
+| `500 Internal Server Error` | `ApiResponse<Void>` | 内部系统错误。                           |
 
 ------
 
-## 4. 按业务关联查询文件
+### 2.2. 获取关联的媒体文件列表
 
-| **属性**     | **描述**                                           |
-| ------------ | -------------------------------------------------- |
-| **URL**      | `GET /api/media/related/{relatedType}/{relatedId}` |
-| **请求类型** | `application/json`                                 |
+此接口用于获取特定业务实体（如某条动态）下的所有媒体文件 URL，是社区服务进行数据聚合的关键。
 
-### Path 参数
+| **属性**   | **值**                                            |
+| ---------- | ------------------------------------------------- |
+| **用途**   | 根据业务 ID 获取所有媒体文件的信息。              |
+| **URI**    | `/api/v1/media/related/{relatedType}/{relatedId}` |
+| **Method** | `GET`                                             |
 
-| **参数名**    | **类型** | **描述**            |
-| ------------- | -------- | ------------------- |
-| `relatedType` | `string` | 关联的业务类型。    |
-| `relatedId`   | `long`   | 关联的业务记录 ID。 |
+#### 🔹 URL 参数
 
-### 成功响应
+| **参数名**      | **描述**                     | **示例**                             |
+| --------------- | ---------------------------- | ------------------------------------ |
+| `{relatedType}` | 业务类型，例如：**`MOMENT`** | `/api/v1/media/related/MOMENT/`      |
+| `{relatedId}`   | 业务 ID，例如：动态 ID       | `/api/v1/media/related/MOMENT/12345` |
 
-返回 `ApiResponse<List<MediaResponse>>`，`data` 字段为文件列表。
+#### 🔹 响应格式
 
-**URL:** `GET /api/media/related/{relatedType}/{relatedId}` **成功响应格式 (`ApiResponse<List<MediaResponse>>`):**
-
-JSON
-
-```
-{
-  "code": 20000,
-  "message": "按业务关联查询文件列表成功",
-  "data": [
-    {
-      "mediaId": 124,
-      "fileName": "moment_photo.jpg",
-      "fileUrl": "https://cos.url/pet_1/MOMENT_101_1.jpg",
-      "fileType": "image/jpeg",
-      "fileSize": 102400,
-      "uploadTime": "2025-12-04T15:30:00",
-      "petId": 1,
-      "relatedType": "MOMENT",
-      "relatedTypeDesc": "动态",
-      "relatedId": 101
-    },
-    {
-      "mediaId": 125,
-      "fileName": "moment_video.mp4",
-      "fileUrl": "https://cos.url/pet_1/MOMENT_101_2.mp4",
-      "fileType": "video/mp4",
-      "fileSize": 5120000,
-      "uploadTime": "2025-12-04T15:31:00",
-      "petId": 1,
-      "relatedType": "MOMENT",
-      "relatedTypeDesc": "动态",
-      "relatedId": 101
-    }
-  ]
-}
-```
+| **状态码**      | **响应体 (Body)**                  | **描述**                                   |
+| --------------- | ---------------------------------- | ------------------------------------------ |
+| `200 OK`        | `ApiResponse<List<MediaResponse>>` | 成功返回该业务实体关联的所有媒体文件列表。 |
+| `404 Not Found` | `ApiResponse<Void>`                | 未找到任何关联的媒体文件。                 |
 
 ------
 
-## 5. 文件删除
+### 2.3. 删除关联的媒体文件
 
-| **属性**     | **描述**                      |
-| ------------ | ----------------------------- |
-| **URL**      | `DELETE /api/media/{mediaId}` |
-| **请求类型** | `application/json`            |
+此接口用于删除与特定业务实体关联的所有媒体文件，通常在删除动态时调用，以清理存储资源。
 
-### Path 参数
+| **属性**   | **值**                                             |
+| ---------- | -------------------------------------------------- |
+| **用途**   | 删除与业务实体关联的所有媒体文件（包括物理删除）。 |
+| **URI**    | `/api/v1/media/related/{relatedType}/{relatedId}`  |
+| **Method** | `DELETE`                                           |
 
-| **参数名** | **类型** | **描述**      |
-| ---------- | -------- | ------------- |
-| `mediaId`  | `long`   | 媒体文件 ID。 |
+#### 🔹 URL 参数
 
-### 成功响应
+| **参数名**      | **描述**                     | **示例**                             |
+| --------------- | ---------------------------- | ------------------------------------ |
+| `{relatedType}` | 业务类型，例如：**`MOMENT`** | `/api/v1/media/related/MOMENT/`      |
+| `{relatedId}`   | 业务 ID，例如：动态 ID       | `/api/v1/media/related/MOMENT/12345` |
 
-返回 `ApiResponse<Void>`，`data` 字段为 `null`。
+#### 🔹 响应格式
 
-**URL:** `DELETE /api/media/{mediaId}` **成功响应格式 (`ApiResponse<Void>`):**
-
-JSON
-
-```
-{
-  "code": 20000,
-  "message": "文件删除成功",
-  "data": null
-}
-```
+| **状态码**                  | **响应体 (Body)**   | **描述**               |
+| --------------------------- | ------------------- | ---------------------- |
+| `200 OK`                    | `ApiResponse<Void>` | 成功删除所有关联文件。 |
+| `500 Internal Server Error` | `ApiResponse<Void>` | 删除操作失败。         |
 
 ------
 
-## 6. 删除关联业务的所有文件
+### 2.4. 文件上传 (前端直接调用)
 
-| **属性**     | **描述**                                              |
-| ------------ | ----------------------------------------------------- |
-| **URL**      | `DELETE /api/media/related/{relatedType}/{relatedId}` |
-| **请求类型** | `application/json`                                    |
+此接口通常由前端直接调用，将文件上传到存储服务并获取一个临时 ID。
 
-### Path 参数
+| **属性**         | **值**                                    |
+| ---------------- | ----------------------------------------- |
+| **用途**         | 上传文件到服务器，获取文件信息和临时 ID。 |
+| **URI**          | `/api/v1/media/upload`                    |
+| **Method**       | `POST`                                    |
+| **Content-Type** | `multipart/form-data`                     |
 
-| **参数名**    | **类型** | **描述**            |
-| ------------- | -------- | ------------------- |
-| `relatedType` | `string` | 关联的业务类型。    |
-| `relatedId`   | `long`   | 关联的业务记录 ID。 |
+#### 🔹 请求参数
 
-### 成功响应
+| **参数名** | **类型** | **描述**           |
+| ---------- | -------- | ------------------ |
+| `file`     | File     | 要上传的媒体文件。 |
 
-返回 `ApiResponse<Void>`，`data` 字段为 `null`。
+#### 🔹 响应格式
 
-**URL:** `DELETE /api/media/related/{relatedType}/{relatedId}` **成功响应格式 (`ApiResponse<Void>`):**
-
-JSON
-
-```
-{
-  "code": 20000,
-  "message": "关联文件删除成功",
-  "data": null
-}
-```
+| **状态码** | **响应体 (Body)**            | **描述**                                                     |
+| ---------- | ---------------------------- | ------------------------------------------------------------ |
+| `200 OK`   | `ApiResponse<MediaResponse>` | 上传成功，`data` 字段返回该文件的 `MediaResponse` 对象，包含其 `mediaId`。 |

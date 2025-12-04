@@ -30,7 +30,7 @@ public class MediaService {
      * 上传媒体文件 (主体方法，接收 RelatedType 枚举)
      */
     @Transactional(rollbackFor = Exception.class)
-    public MediaFile uploadMediaFile(MultipartFile file, Long petId,
+    public MediaFile uploadMediaFile(MultipartFile file, Long userId,
                                      RelatedType relatedType, Long relatedId) {
         // 1. 验证文件
         if (file.isEmpty()) {
@@ -42,7 +42,7 @@ public class MediaService {
                     file.getOriginalFilename(), file.getSize(), file.getContentType());
 
             // 2. 确定存储路径
-            String filePath = generateFilePath(relatedType, petId, relatedId);
+            String filePath = generateFilePath(relatedType, userId, relatedId);
             log.info("📍 生成的文件路径: {}", filePath);
 
             // 3. 上传到腾讯云COS
@@ -60,7 +60,7 @@ public class MediaService {
 
             mediaFile.setFileType(fileType);
             mediaFile.setFileSize(file.getSize());
-            mediaFile.setPetId(petId);
+            mediaFile.setUserId(userId);
             mediaFile.setRelatedType(relatedType);
             mediaFile.setRelatedId(relatedId);
 
@@ -87,7 +87,7 @@ public class MediaService {
     /**
      * 上传媒体文件（Controller 调用方法，接收 String 类型参数）
      */
-    public MediaFile uploadMediaFile(MultipartFile file, Long petId,
+    public MediaFile uploadMediaFile(MultipartFile file, Long userId,
                                      String relatedTypeStr, Long relatedId) {
         try {
             String cleanedType = relatedTypeStr.toUpperCase().trim();
@@ -95,7 +95,7 @@ public class MediaService {
             RelatedType type = RelatedType.valueOf(cleanedType);
 
             // 正确调用主体方法
-            return uploadMediaFile(file, petId, type, relatedId);
+            return uploadMediaFile(file, userId, type, relatedId);
 
         } catch (IllegalArgumentException e) {
             log.error("❌ 枚举转换失败 - 输入: '{}', 错误: {}", relatedTypeStr, e.getMessage());
@@ -115,8 +115,8 @@ public class MediaService {
     /**
      * 获取宠物的所有媒体文件
      */
-    public List<MediaFile> getMediaFilesByPetId(Long petId) {
-        return mediaRepository.findByPetId(petId);
+    public List<MediaFile> getMediaFilesByUserId(Long userId) {
+        return mediaRepository.findByUserId(userId);
     }
 
     /**
@@ -225,8 +225,8 @@ public class MediaService {
     /**
      * 统计宠物的媒体文件数量
      */
-    public Long countMediaFilesByPetId(Long petId) {
-        return mediaRepository.countByPetId(petId);
+    public Long countMediaFilesByUserId(Long userId) {
+        return mediaRepository.countByUserId(userId);
     }
 
     /**
@@ -266,11 +266,58 @@ public class MediaService {
     /**
      * 生成文件存储路径
      */
-    private String generateFilePath(RelatedType relatedType, Long petId, Long relatedId) {
-        return String.format("%s/pet_%d/%s_%d",
+    private String generateFilePath(RelatedType relatedType, Long userId, Long relatedId) {
+        return String.format("%s/user_%d/%s_%d",
                 relatedType.name().toLowerCase(),
-                petId,
+                userId,
                 relatedType.name().toLowerCase(),
                 relatedId);
+    }
+
+    /**
+     * 批量更新媒体文件的 relatedId 和 relatedType。
+     * @param mediaIds 媒体文件 ID 列表
+     * @param relatedTypeStr 关联类型（字符串，如 "MOMENT"）
+     * @param newRelatedId 新的关联 ID（如 Moment ID）
+     * @return 更新成功的记录数
+     */
+    @Transactional(rollbackFor = Exception.class) // 这是一个写操作，需要事务
+    public int batchUpdateRelatedId(List<Long> mediaIds, String relatedTypeStr, Long newRelatedId) {
+        if (mediaIds == null || mediaIds.isEmpty()) {
+            return 0;
+        }
+
+        RelatedType relatedType;
+        try {
+            // 校验并转换 RelatedType
+            relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.error("无效的关联类型: {}", relatedTypeStr);
+            throw new IllegalArgumentException("无效的关联类型: " + relatedTypeStr);
+        }
+
+        // 1. 批量查询待更新的 MediaFile 实体
+        List<MediaFile> filesToUpdate = mediaRepository.findAllById(mediaIds);
+
+        // 2. 批量更新实体属性
+        for (MediaFile mediaFile : filesToUpdate) {
+            // 确保更新后的文件类型与请求的类型一致，避免错误关联
+            if (mediaFile.getRelatedType() == relatedType) {
+                mediaFile.setRelatedId(newRelatedId);
+                // relatedType 理论上在上传时已设定，这里不重复设置，保持数据一致性
+            } else {
+                // 可选：如果上传时的 relatedType 与本次关联的类型不匹配，可以跳过或抛出异常
+                log.warn("媒体文件ID: {} 的上传类型({}) 与本次关联类型({}) 不匹配，已跳过。",
+                        mediaFile.getMediaId(), mediaFile.getRelatedType().name(), relatedTypeStr);
+            }
+        }
+
+        // 3. 批量保存更新后的实体
+        mediaRepository.saveAll(filesToUpdate);
+
+        log.info("✅ 成功将 {} 个媒体文件关联到 RelatedType: {}, RelatedId: {}",
+                filesToUpdate.size(), relatedTypeStr, newRelatedId);
+
+        return filesToUpdate.size();
     }
 }

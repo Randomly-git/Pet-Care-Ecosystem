@@ -7,16 +7,26 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.mockito.Mockito;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import petcare.example.community_backend.client.MediaServiceFacade;
 import petcare.example.community_backend.dto.MomentCreateRequestDTO;
 import petcare.example.community_backend.dto.LikeRequestDTO;
 import petcare.example.community_backend.dto.CommentCreateRequestDTO;
 import petcare.example.community_backend.dto.FollowRequestDTO;
 import petcare.example.community_backend.model.TargetType;
 
+import java.util.List;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+// 注意：移除了对 doNothing 的静态导入，因为它现在不再使用
+// import static org.mockito.Mockito.doNothing;
+
 
 // 完整的 Spring Boot 应用上下文
 @SpringBootTest
@@ -24,12 +34,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 // 每次测试后回滚事务，确保测试独立性
 @Transactional
-// 如果您为测试配置了特定的 profile (如 application-test.properties)
 @ActiveProfiles("test")
+@TestPropertySource(properties = "spring.main.allow-bean-definition-overriding=true")
 class CommunityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // 关键：Mock 掉远程服务，解决 500 错误
+    @MockBean
+    private MediaServiceFacade mediaServiceFacade;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -52,6 +66,15 @@ class CommunityIntegrationTest {
         MomentCreateRequestDTO createMomentRequest = new MomentCreateRequestDTO();
         createMomentRequest.setUserId(userIdA);
         createMomentRequest.setContent("这是用户A的测试动态。");
+        List<Long> mockMediaIds = List.of(991L, 992L);
+        createMomentRequest.setMediaIds(mockMediaIds);
+
+        // 👈 关键修改：使用 when().thenReturn() 模拟返回一个成功更新的行数 (2)
+        Mockito.when(mediaServiceFacade.batchUpdateRelatedId(
+                Mockito.anyList(),
+                Mockito.eq("MOMENT"),
+                Mockito.anyLong()
+        )).thenReturn(2); // 模拟成功关联了 2 个媒体文件
 
         String momentResponseJson = mockMvc.perform(post(MOMENT_URL)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -91,7 +114,8 @@ class CommunityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(momentId))
                 .andExpect(jsonPath("$[0].likeCount").value(1))   // 验证点赞数
-                .andExpect(jsonPath("$[0].commentCount").value(1)); // 验证评论数
+                .andExpect(jsonPath("$[0].commentCount").value(1)) // 验证评论数
+                .andExpect(jsonPath("$[0].mediaUrls").exists());
     }
 
     /**

@@ -28,7 +28,7 @@ public class FileUploadUtil {
     /**
      * 上传本地文件到媒体服务
      */
-    public String uploadLocalFile(String filePath, Long petId, String relatedType, Long relatedId, String mediaServiceUrl) {
+    public String uploadLocalFile(String filePath, Long userId, String relatedType, Long relatedId, String mediaServiceUrl) {
         try {
             File file = new File(filePath);
             if (!file.exists()) {
@@ -39,7 +39,7 @@ public class FileUploadUtil {
             Resource resource = new FileSystemResource(file);
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", resource);
-            body.add("petId", petId);
+            body.add("userId", userId);
             body.add("relatedType", relatedType);
             body.add("relatedId", relatedId);
 
@@ -70,13 +70,13 @@ public class FileUploadUtil {
     /**
      * 从字节数组上传文件
      */
-    public String uploadFileFromBytes(byte[] fileBytes, String fileName, Long petId, String relatedType, Long relatedId, String mediaServiceUrl) {
+    public String uploadFileFromBytes(byte[] fileBytes, String fileName, Long userId, String relatedType, Long relatedId, String mediaServiceUrl) {
         try {
             // 创建临时文件
             Path tempFile = Files.createTempFile("upload_", "_" + fileName);
             Files.write(tempFile, fileBytes);
 
-            String result = uploadLocalFile(tempFile.toString(), petId, relatedType, relatedId, mediaServiceUrl);
+            String result = uploadLocalFile(tempFile.toString(), userId, relatedType, relatedId, mediaServiceUrl);
 
             // 删除临时文件
             Files.deleteIfExists(tempFile);

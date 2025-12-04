@@ -16,13 +16,13 @@ import java.util.Optional;
 public interface MediaRepository extends JpaRepository<MediaFile, Long> {
 
     // 根据宠物ID查找所有媒体文件
-    List<MediaFile> findByPetId(Long petId);
+    List<MediaFile> findByUserId(Long UserId);
 
     // 根据业务类型和业务ID查找媒体文件
     List<MediaFile> findByRelatedTypeAndRelatedId(RelatedType relatedType, Long relatedId);
 
-    // 根据宠物ID和业务类型查找
-    List<MediaFile> findByPetIdAndRelatedType(Long petId, RelatedType relatedType);
+    // 根据用户ID和业务类型查找
+    List<MediaFile> findByUserIdAndRelatedType(Long UserId, RelatedType relatedType);
 
     // 根据文件URL查找
     Optional<MediaFile> findByFileUrl(String fileUrl);
@@ -43,12 +43,12 @@ public interface MediaRepository extends JpaRepository<MediaFile, Long> {
     int deleteByRelatedTypeAndRelatedId(@Param("relatedType") RelatedType relatedType,
                                         @Param("relatedId") Long relatedId);
 
-    // 统计宠物有多少媒体文件
-    @Query("SELECT COUNT(m) FROM MediaFile m WHERE m.petId = :petId")
-    Long countByPetId(@Param("petId") Long petId);
+    // 统计有用户多少媒体文件
+    @Query("SELECT COUNT(m) FROM MediaFile m WHERE m.userId = :userId")
+    Long countByUserId(@Param("userId") Long userId);
 
     // 获取宠物最新的媒体文件
-    List<MediaFile> findByPetIdOrderByUploadTimeDesc(Long petId);
+    List<MediaFile> findByUserIdOrderByUploadTimeDesc(Long UserId);
 
     // 根据多个业务ID查找
     @Query("SELECT m FROM MediaFile m WHERE m.relatedType = :relatedType AND m.relatedId IN :relatedIds")

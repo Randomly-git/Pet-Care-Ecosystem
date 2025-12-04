@@ -13,7 +13,7 @@ public class MediaResponse {
     private String fileType;
     private Long fileSize;
     private LocalDateTime uploadTime;
-    private Long petId;
+    private Long userId;
     private String relatedType;  // 返回字符串给前端
     private String relatedTypeDesc; // 类型描述
     private Long relatedId;
@@ -26,7 +26,7 @@ public class MediaResponse {
         response.setFileType(mediaFile.getFileType());
         response.setFileSize(mediaFile.getFileSize());
         response.setUploadTime(mediaFile.getUploadTime());
-        response.setPetId(mediaFile.getPetId());
+        response.setUserId(mediaFile.getUserId());
         response.setRelatedType(mediaFile.getRelatedType().name());
         response.setRelatedTypeDesc(mediaFile.getRelatedType().getDescription());
         response.setRelatedId(mediaFile.getRelatedId());

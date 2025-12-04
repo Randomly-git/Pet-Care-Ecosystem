@@ -14,7 +14,6 @@ public class ApiResponse<T> {
     private int code; // 业务状态码 (20000 成功, 4xxxx 业务错误, 5xxxx 系统错误)
     private String message;
     private T data;
-    // 移除 boolean success，通过 code 字段判断即可
 
     // 成功响应 (code: 20000)
     public static <T> ApiResponse<T> success(T data) {

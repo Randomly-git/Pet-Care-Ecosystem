@@ -43,11 +43,11 @@ public class MediaServiceFacade {
     /**
      * 上传文件（MultipartFile）
      */
-    public MediaResponse uploadFile(MultipartFile file, Long petId, String relatedType, Long relatedId) {
+    public MediaResponse uploadFile(MultipartFile file, Long userId, String relatedType, Long relatedId) {
         try {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new MultipartFileResource(file));
-            body.add("petId", petId);
+            body.add("userId", userId);
             body.add("relatedType", relatedType);
             body.add("relatedId", relatedId);
 
@@ -133,11 +133,11 @@ public class MediaServiceFacade {
     }
 
     /**
-     * 获取宠物的所有文件
+     * 获取用户的所有文件
      */
-    public List<MediaResponse> getPetFiles(Long petId) {
+    public List<MediaResponse> getUserFiles(Long userId) {
         try {
-            String url = mediaServiceUrl + "/api/media/pet/" + petId;
+            String url = mediaServiceUrl + "/api/media/user/" + userId;
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
             ApiResponse<List<MediaResponse>> apiResponse = parseResponse(response.getBody(), new TypeReference<ApiResponse<List<MediaResponse>>>() {});

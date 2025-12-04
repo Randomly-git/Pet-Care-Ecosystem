@@ -13,8 +13,8 @@ public class MediaFile {
     @Column(name = "media_id")
     private Long mediaId;
 
-    @Column(name = "pet_id", nullable = false)
-    private Long petId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "file_name", nullable = false)
     private String fileName;

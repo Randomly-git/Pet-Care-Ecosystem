@@ -15,10 +15,8 @@ public class MomentResponseDTO {
     private String content;
     private LocalDateTime createdAt;
 
-    // 从其他微服务获取或通过 API 组合获取
+    // 从媒体微服务获取 URL 列表
     private List<String> mediaUrls;
-
-    // 预留给 Comment/Like Service 的字段，初始为 0
     private int commentCount = 0;
     private int likeCount = 0;
 }

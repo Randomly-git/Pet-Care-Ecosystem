@@ -25,7 +25,7 @@ class MediaServiceIntegrationTest {
     private MediaService mediaService;
 
     private static Long testMediaId;
-    private static final Long TEST_PET_ID = 1L;
+    private static final Long TEST_USER_ID = 1L;
     private static final Long TEST_RELATED_ID = 100L;
     private static final String TEST_UPLOAD_DIR = "src/test/resources/test-uploads";
 
@@ -44,23 +44,23 @@ class MediaServiceIntegrationTest {
 
     @Test
     @Order(1)
-    void testUploadPetAvatar() throws IOException {
+    void testUploadUserAvatar() throws IOException {
         // 使用真实图片文件创建 MultipartFile
         MultipartFile file = MediaTestUtils.createMultipartFileFromLocal(
                 TEST_UPLOAD_DIR + "/test-image.jpg",
-                "pet-avatar.jpg"
+                "user-avatar.jpg"
         );
 
         // 执行真实上传到腾讯云COS
         MediaFile mediaFile = mediaService.uploadMediaFile(
-                file, TEST_PET_ID, "PET_AVATAR", TEST_RELATED_ID
+                file, TEST_USER_ID, "USER_AVATAR", TEST_RELATED_ID
         );
 
         // 验证结果
         assertNotNull(mediaFile);
         assertNotNull(mediaFile.getMediaId());
-        assertEquals("pet-avatar.jpg", mediaFile.getFileName());
-        assertEquals(RelatedType.PET_AVATAR, mediaFile.getRelatedType());
+        assertEquals("user-avatar.jpg", mediaFile.getFileName());
+        assertEquals(RelatedType.USER_AVATAR, mediaFile.getRelatedType());
         assertNotNull(mediaFile.getFileUrl());
         assertTrue(mediaFile.getFileUrl().contains("myqcloud.com")); // 验证是腾讯云URL
 
@@ -78,7 +78,7 @@ class MediaServiceIntegrationTest {
         );
 
         MediaFile mediaFile = mediaService.uploadMediaFile(
-                file, TEST_PET_ID, "ACTIVITY", 200L
+                file, TEST_USER_ID, "ACTIVITY", 200L
         );
 
         assertNotNull(mediaFile);
@@ -97,7 +97,7 @@ class MediaServiceIntegrationTest {
 
         assertNotNull(mediaFile);
         assertEquals(testMediaId, mediaFile.getMediaId());
-        assertEquals("pet-avatar.jpg", mediaFile.getFileName());
+        assertEquals("user-avatar.jpg", mediaFile.getFileName());
         assertTrue(mediaFile.getFileUrl().contains("myqcloud.com"));
 
         System.out.println("✅ 查询文件信息成功: " + mediaFile.getFileName());
@@ -106,8 +106,8 @@ class MediaServiceIntegrationTest {
 
     @Test
     @Order(4)
-    void testGetPetFiles() {
-        List<MediaFile> mediaFiles = mediaService.getMediaFilesByPetId(TEST_PET_ID);
+    void testGetUserFiles() {
+        List<MediaFile> mediaFiles = mediaService.getMediaFilesByUserId(TEST_USER_ID);
 
         assertNotNull(mediaFiles);
         assertTrue(mediaFiles.size() >= 1);
@@ -117,7 +117,7 @@ class MediaServiceIntegrationTest {
             assertTrue(file.getFileUrl().contains("myqcloud.com"));
         }
 
-        System.out.println("✅ 查询宠物文件成功，数量: " + mediaFiles.size());
+        System.out.println("✅ 查询用户文件成功，数量: " + mediaFiles.size());
     }
 
     @Test
@@ -154,7 +154,7 @@ class MediaServiceIntegrationTest {
 
         // 测试图片上传
         MediaFile imageMedia = mediaService.uploadMediaFile(
-                imageFile, TEST_PET_ID, "MOMENT", 300L
+                imageFile, TEST_USER_ID, "MOMENT", 300L
         );
         assertNotNull(imageMedia);
         assertEquals("test.png", imageMedia.getFileName());
@@ -162,7 +162,7 @@ class MediaServiceIntegrationTest {
 
         // 测试视频上传
         MediaFile videoMedia = mediaService.uploadMediaFile(
-                videoFile, TEST_PET_ID, "STATUS", 400L
+                videoFile, TEST_USER_ID, "STATUS", 400L
         );
         assertNotNull(videoMedia);
         assertEquals("test.mp4", videoMedia.getFileName());

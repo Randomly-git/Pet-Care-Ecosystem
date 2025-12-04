@@ -2,6 +2,7 @@ package petcare.example.community_backend.repository;
 
 import petcare.example.community_backend.model.Like;
 import petcare.example.community_backend.model.TargetType;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
@@ -16,4 +17,7 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     // 用于事务性删除
     void deleteByUserIdAndTargetTypeAndTargetId(Long userId, TargetType targetType, Long targetId);
+
+    @Modifying
+    void deleteByTargetTypeAndTargetId(TargetType targetType, Long targetId);
 }

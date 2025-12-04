@@ -31,29 +31,31 @@ public class MomentController {
 
     /**
      * POST /api/v1/moments
-     * 创建动态 (接收 Request DTO, 返回 Response DTO)
-     * 使用 @Valid 触发 MomentCreateRequestDTO 中的校验规则
+     * 创建动态 (接收 DTO，使用 application/json)
+     * **已修改：** 改为接收 JSON 请求体，其中包含预上传的 mediaIds。
      */
     @PostMapping
-    public ResponseEntity<MomentResponseDTO> createMoment(@Valid @RequestBody MomentCreateRequestDTO requestDTO) {
+    public ResponseEntity<MomentResponseDTO> createMoment(
+            @Valid @RequestBody MomentCreateRequestDTO requestDTO) {
 
         try {
-            // 1. 将 DTO 转换为 Entity
+            // 1. DTO 转换为 Moment 实体
             PetMoment momentEntity = momentMapper.toEntity(requestDTO);
 
-            // 2. 保存 Entity
-            PetMoment savedEntity = momentService.createMoment(momentEntity);
+            // 2. 调用 Service 层，传入 Moment 实体和 mediaIds 列表
+            PetMoment savedEntity = momentService.createMoment(
+                    momentEntity,
+                    requestDTO.getMediaIds()
+            );
 
             // 3. 将保存后的 Entity 转换回 Response DTO 返回
             MomentResponseDTO responseDTO = momentMapper.toResponseDTO(savedEntity);
 
-            // TODO: 在这里可以填充 mediaUrls 等跨服务数据
-
             return new ResponseEntity<>(responseDTO, HttpStatus.CREATED);
 
         } catch (Exception e) {
-            // 建议使用 @ControllerAdvice 进行统一异常处理，这里简化处理
             System.err.println("创建动态失败: " + e.getMessage());
+            // 如果是业务异常，这里可以返回更精确的状态码
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -67,9 +69,9 @@ public class MomentController {
         boolean deleted = momentService.deleteMoment(momentId);
 
         if (deleted) {
-            return new ResponseEntity<>("删除成功", HttpStatus.OK);
+            return ResponseEntity.ok("删除成功");
         } else {
-            return new ResponseEntity<>("动态不存在或删除失败", HttpStatus.NOT_FOUND);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("动态不存在或删除失败");
         }
     }
 }

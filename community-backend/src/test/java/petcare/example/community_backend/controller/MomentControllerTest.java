@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -47,28 +48,29 @@ class MomentControllerTest {
         MomentCreateRequestDTO requestDTO = new MomentCreateRequestDTO();
         requestDTO.setUserId(1L);
         requestDTO.setContent("测试动态内容");
+        // 【新增】添加 mediaIds，用于新模式测试
+        requestDTO.setMediaIds(List.of(101L, 102L));
 
-        // 假设 PetMoment 实体已使用 @AllArgsConstructor，或者您有一个带所有字段的构造函数
-        PetMoment entity = new PetMoment(null, 1L, "测试动态内容", null); // Mock Entity
+        // 模拟 PetMoment 实体
+        PetMoment entity = new PetMoment(null, 1L, "测试动态内容", null);
         PetMoment savedEntity = new PetMoment(1L, 1L, "测试动态内容", LocalDateTime.now());
         MomentResponseDTO responseDTO = new MomentResponseDTO();
         responseDTO.setId(1L);
 
         // 模拟 Mapper 和 Service 的行为
         when(momentMapper.toEntity(any(MomentCreateRequestDTO.class))).thenReturn(entity);
-        when(momentService.createMoment(any(PetMoment.class))).thenReturn(savedEntity);
+        when(momentService.createMoment(any(PetMoment.class), anyList())).thenReturn(savedEntity);
         when(momentMapper.toResponseDTO(any(PetMoment.class))).thenReturn(responseDTO);
 
-        // 执行 POST 请求
+        // 【已修复】将 multipart(BASE_URL) 改为 post(BASE_URL)
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        // 修复：ObjectMapper.writeValueAsString 拼写错误
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isCreated()) // 验证HTTP状态码 201
                 .andExpect(jsonPath("$.id").value(1L)); // 验证返回的JSON体
 
-        // 验证业务方法是否被调用
-        verify(momentService, times(1)).createMoment(any(PetMoment.class));
+        // 验证业务方法是否被调用 (Service 期望接收 PetMoment 和 List<Long> mediaIds)
+        verify(momentService, times(1)).createMoment(any(PetMoment.class), anyList());
     }
 
     @Test
@@ -76,17 +78,17 @@ class MomentControllerTest {
         // 准备一个无效的请求（内容为空，违反 @NotBlank 约束）
         MomentCreateRequestDTO invalidRequest = new MomentCreateRequestDTO();
         invalidRequest.setUserId(1L);
-        invalidRequest.setContent("");
+        invalidRequest.setContent(""); // @NotBlank 校验失败
 
         // 执行 POST 请求
+        // 【已修复】将 multipart(BASE_URL) 改为 post(BASE_URL)
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        // 修复：ObjectMapper.writeValueAsString 拼写错误
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest()); // 验证HTTP状态码 400
 
         // 验证 Service 层未被调用
-        verify(momentService, never()).createMoment(any(PetMoment.class));
+        verify(momentService, never()).createMoment(any(PetMoment.class), anyList());
     }
 
     // ------------------------- GET /api/v1/moments/user/{userId} 测试 -------------------------
