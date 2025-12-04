@@ -35,3 +35,8 @@ tencent:
 logging:
   level:
     com.petcare.media: DEBUG
+
+
+app:
+  media-service:
+    url: http://localhost:8082  # 测试环境URL
