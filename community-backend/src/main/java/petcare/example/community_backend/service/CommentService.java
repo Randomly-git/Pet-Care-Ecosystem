@@ -1,200 +1,241 @@
 package petcare.example.community_backend.service;
 
+import petcare.example.community_backend.client.UserServiceFacade;
+import petcare.example.community_backend.client.dto.UserResponseDTO;
 import petcare.example.community_backend.model.Comment;
 import petcare.example.community_backend.dto.CommentCreateRequestDTO;
 import petcare.example.community_backend.dto.CommentResponseDTO;
 import petcare.example.community_backend.repository.CommentRepository;
 import petcare.example.community_backend.model.TargetType;
-// 假设引入了用户服务 Facade 用于获取用户昵称和头像
-// 如果您有这个类，请确保路径正确，否则需要您自行实现或 mock
-// import petcare.example.community_backend.client.UserServiceFacade;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j; // 引入 Slf4j 日志
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 评论业务服务类，负责评论的创建、查询（含层级构建和数据聚合）。
+ * 评论业务服务类，负责评论的创建、查询（含层级构建和数据聚合）、删除。
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CommentService {
 
     private final CommentRepository commentRepository;
-    private final LikeService likeService; // 用于点赞统计
-
-    // **注意：UserServiceFacade 未提供，此处仅为结构示例，实际需注入并实现远程接口**
-    // private final UserServiceFacade userServiceFacade;
+    private final LikeService likeService;
+    private final UserServiceFacade userServiceFacade; // 注入用户服务门面
 
     /**
      * 创建评论或回复
      * @param requestDTO 评论请求 DTO
-     * @return 创建成功的评论/回复的 CommentResponseDTO
+     * @return 创建成功的评论/回复的 DTO
      */
     @Transactional
     public CommentResponseDTO createComment(CommentCreateRequestDTO requestDTO) {
-        // 1. 创建 Comment 实体
-        Comment comment = new Comment();
-        comment.setUserId(requestDTO.getUserId());
-        comment.setMomentId(requestDTO.getMomentId());
-        comment.setContent(requestDTO.getContent());
-        comment.setParentId(requestDTO.getParentId());
+        // 1. 业务校验（检查 parentId 是否存在且属于同一 moment）
+        if (requestDTO.getParentId() != null) {
+            Comment parentComment = commentRepository.findById(requestDTO.getParentId())
+                    .orElseThrow(() -> new IllegalArgumentException("回复的评论 (parentId) 不存在."));
+            if (!parentComment.getMomentId().equals(requestDTO.getMomentId())) {
+                throw new IllegalArgumentException("回复的评论不属于目标动态.");
+            }
+        }
 
-        Comment savedComment = commentRepository.save(comment);
+        // 2. DTO -> Entity 并保存
+        Comment newComment = new Comment();
+        newComment.setUserId(requestDTO.getUserId());
+        newComment.setMomentId(requestDTO.getMomentId());
+        newComment.setContent(requestDTO.getContent());
+        newComment.setParentId(requestDTO.getParentId());
 
-        // 2. 转换并聚合 DTO (为简化，此处仅返回基础数据，实际项目中应补充用户/点赞信息聚合)
-        // 假设聚合方法能在单次操作中处理：
-        return convertToResponseDTO(savedComment, Map.of(), Map.of());
+        Comment savedComment = commentRepository.save(newComment);
+
+        // 3. 聚合所需的用户信息（作者 + 被回复人）
+        Set<Long> userIds = new HashSet<>(Arrays.asList(savedComment.getUserId()));
+        // 如果是回复，需要被回复人的 ID
+        if (savedComment.getParentId() != null) {
+            commentRepository.findById(savedComment.getParentId()).ifPresent(parent -> {
+                userIds.add(parent.getUserId());
+            });
+        }
+        Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
+
+        // 4. Entity -> ResponseDTO (新建评论点赞数为 0)
+        return convertToDto(savedComment, userMap, 0);
     }
 
+
     /**
-     * 获取某一动态下的所有评论 (层级结构 + 聚合数据)
+     * GET /api/v1/comments/moment/{momentId}
+     * 获取某动态下的所有评论 (实现数据聚合和层级构建)
      * @param momentId 动态ID
-     * @return 包含嵌套回复的 CommentResponseDTO 列表
+     * @return 评论列表 (包含嵌套回复)
      */
     public List<CommentResponseDTO> getCommentsByMomentId(Long momentId) {
-        // 1. 查询所有评论和回复，按创建时间升序
+        // 1. 查找所有评论，按时间升序排列
         List<Comment> allComments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
 
         if (allComments.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
 
-        // 2. 收集所有需要聚合的数据 (用户ID、评论ID)
-        Set<Long> commentIds = allComments.stream().map(Comment::getId).collect(Collectors.toSet());
-        Set<Long> userIds = allComments.stream().map(Comment::getUserId).collect(Collectors.toSet());
+        // 2. 收集所需 ID (用户 ID 和评论 ID)
+        Set<Long> userIds = new HashSet<>();
+        Set<Long> commentIds = new HashSet<>();
+        Map<Long, Comment> commentMap = new HashMap<>();
 
-        // 获取所有父评论 (用于确定回复对象的用户ID)
-        Map<Long, Comment> parentCommentMap = allComments.stream()
+        // 收集所有作者ID和评论ID
+        for (Comment c : allComments) {
+            userIds.add(c.getUserId());
+            commentIds.add(c.getId());
+            commentMap.put(c.getId(), c);
+        }
+
+        // 收集所有 parentId 对应的 userId (即回复的目标用户ID)
+        commentMap.values().stream()
                 .filter(c -> c.getParentId() != null)
-                .map(Comment::getParentId)
-                .distinct()
-                .flatMap(parentId -> commentRepository.findById(parentId).stream())
-                .collect(Collectors.toMap(Comment::getId, Function.identity()));
+                .map(c -> commentMap.get(c.getParentId()))
+                .filter(Objects::nonNull)
+                .forEach(parent -> userIds.add(parent.getUserId()));
 
-        // 收集被回复人的用户ID
-        parentCommentMap.values().stream()
-                .map(Comment::getUserId)
-                .forEach(userIds::add);
+        // 3. 调用 Facade 和 Service 进行批量查询
+        Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
+        Map<Long, Long> likeCounts = likeService.countLikesByTargetIds(TargetType.COMMENT, commentIds); // 假设 LikeService 已有此方法
 
-        // 3. 聚合远程数据 (此处为示例，实际应调用 LikeService/UserServiceFacade)
+        // 4. 构建评论层级结构并填充 DTO
+        List<CommentResponseDTO> rootComments = new ArrayList<>();
+        Map<Long, CommentResponseDTO> dtoMap = new HashMap<>();
 
-        // **点赞数聚合 (假设 LikeService 提供了批量查询方法)**
-        // Map<Long, Integer> likeCounts = likeService.getLikeCounts(TargetType.COMMENT, commentIds);
-        Map<Long, Integer> likeCounts = commentIds.stream()
-                .collect(Collectors.toMap(id -> id, id -> (int) (id % 5 + 1))); // 模拟点赞数
+        for (Comment comment : allComments) {
+            // 实体转换为 DTO 并填充聚合数据
+            CommentResponseDTO dto = convertToDto(
+                    comment,
+                    userMap,
+                    likeCounts.getOrDefault(comment.getId(), 0L).intValue()
+            );
+            dtoMap.put(comment.getId(), dto);
 
-        // **用户信息聚合 (假设 UserServiceFacade 提供了批量查询方法)**
-        // Map<Long, UserInfoDTO> userInfos = userServiceFacade.getUserInfo(userIds);
-        Map<Long, Map<String, String>> userInfos = userIds.stream()
-                .collect(Collectors.toMap(
-                        id -> id,
-                        id -> Map.of(
-                                "name", "用户" + id,
-                                "avatarUrl", "/avatar/" + id + ".jpg"
-                        )
-                )); // 模拟用户信息 Map<UserId, Map<Key, Value>>
-
-
-        // 4. 转换为 DTO 并构建层级结构
-        Map<Long, CommentResponseDTO> dtoMap = allComments.stream()
-                .map(comment -> convertToResponseDTO(comment, userInfos, parentCommentMap))
-                .peek(dto -> dto.setLikeCount(likeCounts.getOrDefault(dto.getId(), 0))) // 填充点赞数
-                .collect(Collectors.toMap(CommentResponseDTO::getId, Function.identity()));
-
-        // 5. 嵌套回复
-        List<CommentResponseDTO> topLevelComments = dtoMap.values().stream()
-                .filter(dto -> dto.getParentId() == null)
-                .sorted((c1, c2) -> c2.getCreatedAt().compareTo(c1.getCreatedAt())) // 最新的一级评论在最上面
-                .collect(Collectors.toList());
-
-        // 将回复（ParentId 非空）添加到对应的一级评论下
-        dtoMap.values().stream()
-                .filter(dto -> dto.getParentId() != null)
-                .forEach(reply -> {
-                    // 假设 ParentId 总是指向顶级评论的 ID
-                    Long topLevelId = reply.getParentId();
-
-                    if (dtoMap.containsKey(topLevelId)) {
-                        CommentResponseDTO topComment = dtoMap.get(topLevelId);
-                        if (topComment.getReplies() == null) {
-                            topComment.setReplies(new java.util.ArrayList<>());
-                        }
-                        topComment.getReplies().add(reply);
+            if (comment.getParentId() == null) {
+                // 顶级评论
+                rootComments.add(dto);
+            } else {
+                // 回复，将其添加到父评论的 replies 列表中
+                CommentResponseDTO parentDto = dtoMap.get(comment.getParentId());
+                if (parentDto != null) {
+                    if (parentDto.getReplies() == null) {
+                        parentDto.setReplies(new ArrayList<>());
                     }
-                });
-
-        // 6. 调整回复的排序：按创建时间升序 (旧回复在前面)
-        topLevelComments.forEach(topComment -> {
-            if (topComment.getReplies() != null) {
-                topComment.getReplies().sort((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt()));
+                    parentDto.getReplies().add(dto);
+                } else {
+                    log.warn("发现孤立回复，ID: {}，ParentID: {}。作为顶级评论处理。", comment.getId(), comment.getParentId());
+                    rootComments.add(dto); // 容错处理：作为顶级评论显示
+                }
             }
-        });
+        }
 
-        return topLevelComments;
+        return rootComments;
     }
 
-    // 简化的私有方法：将 Comment 实体转换为 CommentResponseDTO 并填充用户/回复信息
-    private CommentResponseDTO convertToResponseDTO(Comment comment,
-                                                    Map<Long, Map<String, String>> userInfos,
-                                                    Map<Long, Comment> parentCommentMap) {
+    /**
+     * 辅助方法：将 Comment 实体转换为 CommentResponseDTO，并填充聚合数据
+     */
+    private CommentResponseDTO convertToDto(Comment comment, Map<Long, UserResponseDTO> userMap, int likeCount) {
         CommentResponseDTO dto = new CommentResponseDTO();
+        // 1. 基础数据
         dto.setId(comment.getId());
         dto.setMomentId(comment.getMomentId());
         dto.setContent(comment.getContent());
         dto.setCreatedAt(comment.getCreatedAt());
         dto.setParentId(comment.getParentId());
         dto.setUserId(comment.getUserId());
+        dto.setLikeCount(likeCount);
 
-        // 填充作者信息
-        Map<String, String> authorInfo = userInfos.getOrDefault(comment.getUserId(), Map.of());
-        dto.setAuthorName(authorInfo.getOrDefault("name", "未知用户"));
-        dto.setAuthorAvatarUrl(authorInfo.getOrDefault("avatarUrl", ""));
+        // 2. 填充作者信息 (使用默认值进行降级处理)
+        UserResponseDTO authorInfo = userMap.getOrDefault(comment.getUserId(), new UserResponseDTO(comment.getUserId(), "未知用户", null));
+        dto.setAuthorName(authorInfo.getNickname());
+        dto.setAuthorAvatarUrl(authorInfo.getAvatarUrl());
 
-        // 填充回复信息 (如果存在 parentId)
+        // 3. 填充回复信息 (被回复人信息)
         if (comment.getParentId() != null) {
-            Comment parentComment = parentCommentMap.get(comment.getParentId());
-            if (parentComment != null) {
+            // 再次查询父评论实体以获取其作者ID (或在调用层传入 parentCommentMap)
+            commentRepository.findById(comment.getParentId()).ifPresent(parentComment -> {
                 Long replyToUserId = parentComment.getUserId();
-                Map<String, String> replyToUserInfo = userInfos.getOrDefault(replyToUserId, Map.of());
+                UserResponseDTO replyToUserInfo = userMap.getOrDefault(replyToUserId, new UserResponseDTO(replyToUserId, "未知用户", null));
 
                 dto.setReplyToUserId(replyToUserId);
-                dto.setReplyToUserName(replyToUserInfo.getOrDefault("name", "未知用户"));
-            }
+                dto.setReplyToUserName(replyToUserInfo.getNickname());
+            });
         }
 
         return dto;
     }
 
     /**
-     * 删除某动态下的所有评论 (供 MomentService 调用)
+     * 删除某动态下的所有评论 (供 MomentService 调用) - 实现级联删除
      * @param momentId 动态ID
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteCommentsByMomentId(Long momentId) {
-        // TODO: 实际应用中，还需要在删除评论的同时，删除所有针对这些评论的点赞记录。
-        // likeService.deleteLikesByTargetIdAndType(TargetType.COMMENT, commentIds);
+        // 1. 查询所有待删除评论的ID
+        List<Comment> commentsToDelete = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
+        if (commentsToDelete.isEmpty()) {
+            return;
+        }
 
+        Set<Long> commentIds = commentsToDelete.stream()
+                .map(Comment::getId)
+                .collect(Collectors.toSet());
+
+        // 2. 级联删除所有针对这些评论的点赞记录 (通过 LikeService 统一处理)
+        likeService.deleteLikesByTargetTypeAndTargetIds(TargetType.COMMENT, commentIds); // 假设 LikeService 已有此方法
+
+        // 3. 删除评论主体
         commentRepository.deleteByMomentId(momentId);
     }
 
     /**
-     * 删除单条评论 (及其所有回复)
+     * 删除单条评论 (及其所有回复和点赞)
      * @param commentId 评论ID
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteComment(Long commentId) {
-        // TODO: 实现删除逻辑
-        // 1. 查找所有以该 commentId 为 parentId 的回复（如果有）
-        // 2. 删除所有回复
-        // 3. 删除原始评论
-        // 4. 删除所有相关点赞
+        // 1. 检查评论是否存在
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new IllegalArgumentException("评论不存在，ID: " + commentId));
 
-        // 简化处理：仅删除原始评论
-        commentRepository.deleteById(commentId);
+        // 2. 收集需要删除的评论ID集合 (评论本身 + 所有回复它的评论)
+        // 查找属于同一动态且 parentId 等于 commentId 的评论
+        List<Comment> replies = commentRepository.findByMomentIdOrderByCreatedAtAsc(comment.getMomentId()).stream()
+                .filter(c -> commentId.equals(c.getParentId()))
+                .collect(Collectors.toList());
+
+        Set<Long> idsToDelete = new HashSet<>();
+        idsToDelete.add(commentId); // 评论本身
+        replies.stream().map(Comment::getId).forEach(idsToDelete::add); // 所有回复
+
+        // 3. 级联删除点赞记录
+        likeService.deleteLikesByTargetTypeAndTargetIds(TargetType.COMMENT, idsToDelete); // 假设 LikeService 已有此方法
+
+        // 4. 删除评论主体 (会删除 commentId 及其所有回复)
+        // 使用 deleteAllById 效率更高
+        commentRepository.deleteAllById(idsToDelete);
+    }
+
+    /**
+     * 【新增】批量统计动态的评论数 (供 MomentService 调用)
+     * @param momentIds 动态 ID 集合
+     * @return Map<MomentId, Count>
+     */
+    public Map<Long, Long> countCommentsByMomentIds(Collection<Long> momentIds) {
+        // CommentRepository 增加了批量方法：
+        // List<Object[]> countByMomentIdIn(Collection<Long> momentIds);
+
+        return commentRepository.countByMomentIdIn(momentIds).stream()
+                .collect(Collectors.toMap(
+                        arr -> (Long) arr[0],  // MomentId
+                        arr -> (Long) arr[1]   // Count
+                ));
     }
 }

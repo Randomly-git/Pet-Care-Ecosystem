@@ -29,3 +29,5 @@ app:
   # 媒体服务地址，根据实际部署情况修改
   media-service:
     url: http://localhost:8082
+  user-service:
+    url: http://localhost:8081

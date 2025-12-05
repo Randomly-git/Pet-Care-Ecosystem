@@ -1424,7 +1424,7 @@ if (petResponse.ok) {
   "fixedActivityId": 1,
   "petId": 1,
   "activityId": 101,
-  "gapTime": 7,
+  "gapTime": 7
 }
 ```
 ---
@@ -1462,7 +1462,7 @@ if (petResponse.ok) {
   "fixedActivityId": 1,
   "petId": 1,
   "activityId": 101,
-  "gapTime": 14,
+  "gapTime": 14
 }
 ```
 

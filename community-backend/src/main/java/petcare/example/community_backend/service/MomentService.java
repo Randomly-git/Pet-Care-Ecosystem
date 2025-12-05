@@ -1,5 +1,8 @@
 package petcare.example.community_backend.service;
 
+import petcare.example.community_backend.client.UserServiceFacade;
+import petcare.example.community_backend.client.dto.MediaResponse;
+import petcare.example.community_backend.client.dto.UserResponseDTO;
 import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.repository.PetMomentRepository;
@@ -8,12 +11,13 @@ import petcare.example.community_backend.repository.CommentRepository;
 import petcare.example.community_backend.repository.LikeRepository;
 import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.client.MediaServiceFacade;
-// 移除 import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
-import java.util.Optional;
+
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,40 +27,62 @@ public class MomentService {
     private final MomentMapper momentMapper;
     private final CommentRepository commentRepository;
     private final LikeRepository likeRepository;
+    private final CommentService commentService;
+    private final LikeService likeService;
     private final MediaServiceFacade mediaServiceFacade;
+    private final UserServiceFacade userServiceFacade;
 
     /**
      * 获取特定用户ID的所有动态，并转换为 DTO 列表。
-     * 核心：负责从多个服务（点赞、评论、媒体）聚合数据。
+     * 核心：负责从多个服务（用户、媒体、点赞、评论）聚合数据。
      */
     public List<MomentResponseDTO> getMomentsByUserId(Long userId) {
         // 1. 查询数据库获取所有动态实体
         List<PetMoment> moments = momentRepository.findByUserIdOrderByCreatedAtDesc(userId);
 
-        // 2. 使用 Mapper 将实体转换为 DTO 列表
-        List<MomentResponseDTO> dtos = momentMapper.toResponseDTOList(moments);
-
-        // 3. 循环填充跨服务/聚合数据
-        for (MomentResponseDTO dto : dtos) {
-            Long momentId = dto.getId();
-
-            // 3.1. 获取评论数
-            long commentCount = commentRepository.countByMomentId(momentId);
-            dto.setCommentCount((int) commentCount);
-
-            // 3.2. 获取点赞数
-            long likeCount = likeRepository.countByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
-            dto.setLikeCount((int) likeCount);
-
-            // 3.3. 【新增逻辑】调用媒体服务获取媒体 URL 列表
-            List<String> mediaUrls = mediaServiceFacade.getMediaUrlsByRelated(
-                    "MOMENT", // 关联类型（字符串，与媒体服务保持一致）
-                    momentId
-            );
-            dto.setMediaUrls(mediaUrls); // 填充媒体 URL
+        if (moments.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return dtos;
+        // 2. 收集所需 ID
+        Set<Long> momentIds = moments.stream().map(PetMoment::getId).collect(Collectors.toSet());
+        // 收集所有动态的作者 ID
+        Set<Long> userIds = moments.stream().map(PetMoment::getUserId).collect(Collectors.toSet());
+
+        // 3. 批量聚合数据
+        // a. 批量获取媒体文件
+        Map<Long, List<MediaResponse>> mediaMap = mediaServiceFacade.batchGetMediaMap("MOMENT", momentIds);
+
+        // b. 批量获取动态点赞数 (调用 LikeService)
+        Map<Long, Long> likeCounts = likeService.countLikesByTargetIds(TargetType.MOMENT, momentIds);
+
+        // c. 批量获取动态评论数 (调用 CommentService)
+        Map<Long, Long> commentCounts = commentService.countCommentsByMomentIds(momentIds);
+
+        // d. 批量获取作者信息 (调用 UserServiceFacade)
+        Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds); // 【修改点 1】: 调用 UserServiceFacade
+
+        // 4. 组装 DTO 列表
+        return moments.stream().map(moment -> {
+            MomentResponseDTO dto = momentMapper.toResponseDTO(moment);
+            Long currentMomentId = moment.getId();
+
+            // 聚合媒体 URLs
+            List<String> mediaUrls = mediaMap.getOrDefault(currentMomentId, Collections.emptyList()).stream()
+                    .map(MediaResponse::getFileUrl)
+                    .collect(Collectors.toList());
+            dto.setMediaUrls(mediaUrls);
+
+            // 聚合计数
+            dto.setLikeCount(likeCounts.getOrDefault(currentMomentId, 0L).intValue());
+            dto.setCommentCount(commentCounts.getOrDefault(currentMomentId, 0L).intValue());
+
+            // 聚合作者信息
+            // **注意：MomentResponseDTO 中目前没有作者信息字段，如果需要显示作者昵称/头像，需要修改 MomentResponseDTO**
+            // 暂时忽略作者信息聚合，仅保留计数和媒体的聚合逻辑。
+
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -92,13 +118,20 @@ public class MomentService {
         Optional<PetMoment> momentOpt = momentRepository.findById(momentId);
 
         if (momentOpt.isPresent()) {
-            // ... (评论和点赞删除逻辑)
+            // 1. 级联删除评论及其点赞 (调用 CommentService)
+            commentService.deleteCommentsByMomentId(momentId);
 
-            // 2. 【新增】删除媒体文件
+            // 2. 删除动态的点赞 (调用 LikeService)
+            // 使用 LikeService 提供的批量删除方法
+            likeService.deleteLikesByTargetTypeAndTargetIds(TargetType.MOMENT, Set.of(momentId));
+
+            // 3. 删除媒体文件 (调用 MediaServiceFacade)
+            // 使用 MediaServiceFacade 提供的 deleteRelatedFiles 方法
             mediaServiceFacade.deleteRelatedFiles("MOMENT", momentId);
 
-            // 3. 删除动态主体
+            // 4. 删除动态主体
             momentRepository.deleteById(momentId);
+
             return true;
         }
         return false;

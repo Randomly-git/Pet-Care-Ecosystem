@@ -13,6 +13,8 @@ import petcare.example.community_backend.client.dto.MediaResponse;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -182,5 +184,83 @@ public class MediaServiceFacade {
             // 远程服务宕机、网络问题或 JSON 解析异常
             return false;
         }
+    }
+
+    /**
+     * @param relatedType 关联类型 (如: MOMENT)
+     * @param relatedIds 业务实体 ID 列表 (如: Moment ID 列表)
+     * @return Map<RelatedId, List<MediaResponse>> 聚合后的数据
+     */
+    public Map<Long, List<MediaResponse>> getMediaFilesByRelatedIds(String relatedType, List<Long> relatedIds) {
+        if (relatedIds == null || relatedIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 1. 构造 API URL，使用逗号分隔的 ID 列表
+        String idsString = relatedIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+        String url = String.format("%s/api/v1/media/related/batch?relatedType=%s&relatedIds=%s",
+                mediaServiceUrl, relatedType, idsString);
+
+        try {
+            // 2. 发送 GET 请求
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+            // 3. 检查状态码并解析响应体：ApiResponse<List<MediaResponse>>
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
+                        response.getBody(),
+                        new TypeReference<ApiResponse<List<MediaResponse>>>() {}
+                );
+
+                // 4. 将 List<MediaResponse> 转换为 Map<RelatedId, List<MediaResponse>> 方便 MomentService 使用
+                if (apiResponse.isSuccess() && apiResponse.getData() != null) {
+                    return apiResponse.getData().stream()
+                            .collect(Collectors.groupingBy(MediaResponse::getRelatedId));
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ 调用媒体服务批量查询文件失败. Type: {}, IDs: {}", relatedType, idsString, e);
+        }
+        return Collections.emptyMap();
+    }
+
+    public Map<Long, List<MediaResponse>> batchGetMediaMap(String relatedType, Set<Long> relatedIds) {
+        // 使用 Set 作为参数类型更规范
+        if (relatedIds == null || relatedIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // 1. 构造 API URL，使用逗号分隔的 ID 列表
+        String idsString = relatedIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+        String url = String.format("%s/api/v1/media/related/batch?relatedType=%s&relatedIds=%s",
+                mediaServiceUrl, relatedType, idsString);
+
+        try {
+            // 2. 发送 GET 请求
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+
+            // 3. 检查状态码并解析响应体：ApiResponse<List<MediaResponse>>
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
+                        response.getBody(),
+                        new TypeReference<ApiResponse<List<MediaResponse>>>() {}
+                );
+
+                // 4. 将 List<MediaResponse> 转换为 Map<RelatedId, List<MediaResponse>> 方便 MomentService 使用
+                if (apiResponse.isSuccess() && apiResponse.getData() != null) {
+                    return apiResponse.getData().stream()
+                            .collect(Collectors.groupingBy(MediaResponse::getRelatedId));
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ 调用媒体服务批量查询文件失败. Type: {}, IDs: {}", relatedType, idsString, e);
+            // 降级：返回空 Map
+            return Collections.emptyMap();
+        }
+        return Collections.emptyMap();
     }
 }
