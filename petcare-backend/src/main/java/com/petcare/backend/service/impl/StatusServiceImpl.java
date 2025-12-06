@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -172,6 +173,33 @@ public class StatusServiceImpl implements StatusService {
 
         // 然后删除状态
         statusRepository.delete(status);
+    }
+
+    @Override
+    @Transactional
+    public List<StatusRecordDTO> getStatusRecordsByStatusId(Long statusId) {
+        log.debug("根据状态ID {} 获取状态记录", statusId);
+
+        // 从数据库查询
+        List<StatusRecord> records = statusRecordRepository.findByStatusStatusId(statusId);
+
+        // 转换为DTO
+        return records.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    // 如果还没有这个方法，需要添加转换方法
+    private StatusRecordDTO convertToDTO(StatusRecord record) {
+        return new StatusRecordDTO(
+                record.getStatusRecordId(),
+                record.getStatus().getStatusId(),
+                record.getStatus().getStatusName(),
+                record.getPet().getPetId(),
+                record.getStartDate(),
+                record.getEndDate(),
+                record.getStatusDescription()
+        );
     }
 
     @Override

@@ -44,4 +44,7 @@ public interface StatusService {
 
     // 修改状态记录
     StatusRecord updateStatusRecord(UpdateStatusRecordDTO updateStatusRecordDTO);
+
+    // 新增：根据状态ID获取所有状态记录
+    List<StatusRecordDTO> getStatusRecordsByStatusId(Long statusId);
 }
