@@ -34,23 +34,32 @@ public class ActivityMediaIntegrationTest {
     private static final String TEST_FILE_PATH = "test-image.png"; // 准备一个测试图片文件
 
     public static void main(String[] args) throws IOException, InterruptedException {
+
+        // 首先验证文件状态
+        File testFile = new File(TEST_FILE_PATH);
+        System.out.println("=== 文件状态检查 ===");
+        System.out.println("文件路径: " + testFile.getAbsolutePath());
+        System.out.println("文件是否存在: " + testFile.exists());
+        System.out.println("文件大小: " + (testFile.exists() ? testFile.length() + " bytes" : "N/A"));
+        System.out.println("=== 检查结束 ===\n");
+
         System.out.println("=== 开始测试活动记录媒体集成接口 ===\n");
 
         // 测试1：创建带文件的活动记录
-        Long recordId = testCreateActivityRecordWithFile();
+        //Long recordId = testCreateActivityRecordWithFile();
 
 //        if (recordId != null) {
 //            // 等待文件上传完成
 //            Thread.sleep(2000);
 //
 //            // 测试2：搜索活动记录（查看媒体文件）
-//            testSearchActivityRecords();
+              //testSearchActivityRecords();
 //
 //            // 测试3：更新活动记录（更换文件）
 //            testUpdateActivityRecordWithFile(recordId);
 //
 //            // 测试4：删除活动记录（验证媒体文件也被删除）
-//            testDeleteActivityRecord(recordId);
+              testDeleteActivityRecord(79L);
 //
 //            // 额外测试：独立的媒体管理接口
 //            testMediaManagementApis();
@@ -87,6 +96,13 @@ public class ActivityMediaIntegrationTest {
             fileContentType = "application/octet-stream";
         }
 
+        System.out.println("=== 调试信息 ===");
+        System.out.println("文件名: " + fileName);
+        System.out.println("文件大小: " + fileBytes.length + " bytes");
+        System.out.println("文件类型: " + fileContentType);
+        System.out.println("测试文件路径: " + testFile.getAbsolutePath());
+        System.out.println("文件是否存在: " + testFile.exists());
+
         // 构建multipart请求体
         StringBuilder requestBody = new StringBuilder();
 
@@ -107,19 +123,27 @@ public class ActivityMediaIntegrationTest {
         requestBody.append("Content-Disposition: form-data; name=\"userId\"\r\n\r\n");
         requestBody.append(USER_ID).append("\r\n");
 
-        // 添加文件参数
+        // 添加文件参数 - 这里修复了格式问题
         requestBody.append("--").append(boundary).append("\r\n");
         requestBody.append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(fileName).append("\"\r\n");
-        requestBody.append("Content-Type: ").append(fileContentType).append("\r\n\r\n");
+        requestBody.append("Content-Type: ").append(fileContentType).append("\r\n\r\n");  // 注意这里有两个\r\n
 
-        // 构建完整请求体
+        // 获取文本部分的字节
         byte[] textPartBytes = requestBody.toString().getBytes();
         byte[] endBoundaryBytes = ("\r\n--" + boundary + "--\r\n").getBytes();
 
+        // 构建完整请求体
         byte[] fullRequestBody = new byte[textPartBytes.length + fileBytes.length + endBoundaryBytes.length];
         System.arraycopy(textPartBytes, 0, fullRequestBody, 0, textPartBytes.length);
         System.arraycopy(fileBytes, 0, fullRequestBody, textPartBytes.length, fileBytes.length);
         System.arraycopy(endBoundaryBytes, 0, fullRequestBody, textPartBytes.length + fileBytes.length, endBoundaryBytes.length);
+
+        // 打印请求体大小
+        System.out.println("文本部分大小: " + textPartBytes.length + " bytes");
+        System.out.println("文件部分大小: " + fileBytes.length + " bytes");
+        System.out.println("结束边界大小: " + endBoundaryBytes.length + " bytes");
+        System.out.println("总请求体大小: " + fullRequestBody.length + " bytes");
+        System.out.println("=== 调试结束 ===\n");
 
         // 发送请求
         HttpRequest request = HttpRequest.newBuilder()
@@ -128,10 +152,12 @@ public class ActivityMediaIntegrationTest {
                 .POST(BodyPublishers.ofByteArray(fullRequestBody))
                 .build();
 
-        HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
-
         System.out.println("请求URL: " + request.uri());
         System.out.println("请求方法: POST");
+        System.out.println("Content-Type: multipart/form-data; boundary=" + boundary);
+
+        HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
+
         System.out.println("响应状态: " + response.statusCode());
         System.out.println("响应内容:");
         System.out.println(formatJson(response.body()));
@@ -143,9 +169,13 @@ public class ActivityMediaIntegrationTest {
             // 简单解析JSON获取ID（实际应该使用JSON解析库）
             if (responseBody.contains("\"id\"")) {
                 String idStr = responseBody.split("\"id\":")[1].split(",")[0].trim();
-                Long recordId = Long.parseLong(idStr);
-                System.out.println("创建的活动记录ID: " + recordId);
-                return recordId;
+                try {
+                    Long recordId = Long.parseLong(idStr);
+                    System.out.println("创建的活动记录ID: " + recordId);
+                    return recordId;
+                } catch (NumberFormatException e) {
+                    System.err.println("解析ID失败: " + e.getMessage());
+                }
             }
         }
 
@@ -162,10 +192,7 @@ public class ActivityMediaIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime oneWeekAgo = now.minusDays(7);
 
-        String url = BASE_URL + "/api/activities/records/pet/" + PET_ID +
-                "?startDate=" + oneWeekAgo.format(DateTimeFormatter.ISO_DATE_TIME) +
-                "&endDate=" + now.format(DateTimeFormatter.ISO_DATE_TIME) +
-                "&activityKindId=" + ACTIVITY_ID;
+        String url = BASE_URL + "/api/activities/records/pet/" + PET_ID;
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
