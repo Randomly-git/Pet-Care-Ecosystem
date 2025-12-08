@@ -271,9 +271,14 @@ export class MockAPI {
 
 // 判断是否启用Mock模式
 export const isMockEnabled = () => {
-  return import.meta.env.VITE_ENABLE_MOCK === 'true' ||
-         window.location.hostname === 'localhost' ||
-         window.location.hostname === '127.0.0.1'
+  // 优先使用环境变量配置
+  const envMock = import.meta.env.VITE_ENABLE_MOCK
+  if (envMock !== undefined) {
+    return envMock === 'true'
+  }
+
+  // 如果没有设置环境变量，根据域名判断（开发环境默认关闭）
+  return false // 默认关闭Mock模式
 }
 
 export default MockAPI

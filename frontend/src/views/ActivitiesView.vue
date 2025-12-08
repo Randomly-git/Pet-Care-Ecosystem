@@ -569,6 +569,26 @@ const petForm = ref({
 const addFormRules = {
   petId: [{ required: true, message: '请选择宠物', trigger: 'change' }],
   activityKindId: [{ required: true, message: '请选择活动类别', trigger: 'change' }],
+  activityDate: [
+    { 
+      validator: (rule, value, callback) => {
+        // 现在日期是可选字段，如果不提供则使用当前时间
+        if (!value) {
+          callback()
+        } else {
+          // 验证日期格式
+          try {
+            new Date(value)
+            callback()
+          } catch (error) {
+            callback(new Error('日期格式不正确'))
+          }
+        }
+      },
+      trigger: 'change'
+    }
+  ],
+  // description 现在是可选字段，不需要必填验证
   activityId: [
     {
       validator: (rule, value, callback) => {
@@ -582,9 +602,7 @@ const addFormRules = {
       },
       trigger: 'change'
     }
-  ],
-  activityDate: [{ required: true, message: '请选择活动时间', trigger: 'change' }],
-  description: [{ required: true, message: '请输入活动描述', trigger: 'blur' }]
+  ]
 }
 
 // 宠物表单验证规则
@@ -970,7 +988,8 @@ const submitAddForm = async () => {
         recordData = {
           activityKindId: addForm.value.activityKindId,
           description: addForm.value.description,
-          date: formattedDate
+          date: formattedDate,
+          userId: Number(currentUserId.value) // 新增：添加userId
         }
         console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用活动种类创建记录:`, recordData)
         createPromises.push(createActivityRecordByKind(petId, recordData))
@@ -979,7 +998,8 @@ const submitAddForm = async () => {
         recordData = {
           activityId: addForm.value.activityId,
           description: addForm.value.description,
-          date: formattedDate
+          date: formattedDate,
+          userId: Number(currentUserId.value) // 新增：添加userId
         }
         console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用具体活动创建记录:`, recordData)
         createPromises.push(createActivityRecord(petId, recordData))

@@ -70,6 +70,46 @@ const router = createRouter({
       name: 'about',
       redirect: '/'
     },
+    // 媒体上传测试页面
+    {
+      path: '/media-test',
+      name: 'media-test',
+      component: () => import('../views/MediaUploadTest.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '媒体上传测试'
+      }
+    },
+    // 社区页面
+    {
+      path: '/community',
+      name: 'community',
+      component: () => import('../views/CommunityView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '宠物社区'
+      }
+    },
+    // 社区功能测试页面
+    {
+      path: '/community-test',
+      name: 'community-test',
+      component: () => import('../views/CommunityTestView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '社区功能测试'
+      }
+    },
+    // 朋友圈/社区动态页面
+    {
+      path: '/moments',
+      name: 'moments',
+      component: () => import('../views/MomentsView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '宠物社区'
+      }
+    },
   ],
 })
 

@@ -292,4 +292,33 @@ public class ActivityController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * 批量获取活动记录（用于统计）
+     */
+    @PostMapping("/records/batch")
+    public ResponseEntity<List<ActivityRecordDTO>> getActivityRecordsByPetIds(@RequestBody List<Long> petIds) {
+        log.info("批量获取宠物ID: {} 的活动记录", petIds);
+
+        try {
+            List<ActivityRecordDTO> records = activityService.getActivityRecordsByPetIds(petIds);
+
+            // 为每个记录获取关联的媒体文件
+            if (records != null) {
+                for (ActivityRecordDTO record : records) {
+                    try {
+                        List<MediaResponse> mediaFiles = mediaServiceClient.getRelatedFiles("ACTIVITY", record.getActivityRecordId());
+                        record.setMediaFiles(mediaFiles);
+                    } catch (Exception e) {
+                        log.warn("获取活动记录 {} 的媒体文件失败: {}", record.getActivityRecordId(), e.getMessage());
+                    }
+                }
+            }
+
+            return ResponseEntity.ok(records);
+        } catch (Exception e) {
+            log.error("批量获取活动记录失败: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

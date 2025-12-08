@@ -57,4 +57,7 @@ public interface ActivityService {
 
     // 5. 彻底删除一个 Activity（先删 record 再删 activity）
     void deleteActivityCompletely(Long activityId);
+
+    // 6. 批量获取多个宠物的活动记录（用于统计）
+    List<ActivityRecordDTO> getActivityRecordsByPetIds(List<Long> petIds);
 }

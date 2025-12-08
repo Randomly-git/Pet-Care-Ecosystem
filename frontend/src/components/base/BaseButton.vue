@@ -18,11 +18,11 @@ const props = defineProps({
     default: 'primary',
     validator: (value) => ['primary', 'secondary', 'text', 'outline'].includes(value)
   },
-  // 按钮大小: sm | md | lg
+  // 按钮大小: sm | md | lg | small | medium | large
   size: {
     type: String,
     default: 'md',
-    validator: (value) => ['sm', 'md', 'lg'].includes(value)
+    validator: (value) => ['sm', 'md', 'lg', 'small', 'medium', 'large'].includes(value)
   },
   // 是否禁用
   disabled: {
@@ -38,11 +38,24 @@ const props = defineProps({
 
 const emit = defineEmits(['click'])
 
+// 映射size值到CSS类
+const sizeClass = computed(() => {
+  const sizeMap = {
+    'small': 'sm',
+    'medium': 'md',
+    'large': 'lg',
+    'sm': 'sm',
+    'md': 'md',
+    'lg': 'lg'
+  }
+  return `base-button--${sizeMap[props.size] || 'md'}`
+})
+
 const buttonClasses = computed(() => {
   return [
     'base-button',
     `base-button--${props.variant}`,
-    `base-button--${props.size}`,
+    sizeClass.value,
     {
       'base-button--full-width': props.fullWidth,
       'base-button--disabled': props.disabled

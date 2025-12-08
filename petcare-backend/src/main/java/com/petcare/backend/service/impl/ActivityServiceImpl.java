@@ -332,4 +332,38 @@ public class ActivityServiceImpl implements ActivityService {
 
         return dto;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActivityRecordDTO> getActivityRecordsByPetIds(List<Long> petIds) {
+        log.info("批量获取宠物ID: {} 的活动记录", petIds);
+
+        if (petIds == null || petIds.isEmpty()) {
+            return List.of();
+        }
+
+        // 查询这些宠物的所有活动记录
+        List<ActivityRecord> records = activityRecordRepository.findByPetPetIdIn(petIds);
+
+        return records.stream()
+                .map(this::convertToRecordDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 将ActivityRecord实体转换为ActivityRecordDTO
+     */
+    private ActivityRecordDTO convertToRecordDTO(ActivityRecord record) {
+        ActivityRecordDTO dto = new ActivityRecordDTO();
+        dto.setActivityRecordId(record.getActivityRecordId());
+        dto.setActivityId(record.getActivity().getActivityId());
+        dto.setActivityName(record.getActivity().getActivityName());
+        dto.setActivityKindId(record.getActivity().getActivityKind().getActivityKindId());
+        dto.setActivityKindName(record.getActivity().getActivityKind().getActivityKindName());
+        dto.setPetId(record.getPet().getPetId());
+        // TODO: Add petName field to ActivityRecordDTO if needed
+        dto.setActivityDescription(record.getActivityDescription());
+        dto.setActivityDate(record.getActivityDate());
+        return dto;
+    }
 }

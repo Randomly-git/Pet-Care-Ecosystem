@@ -20,10 +20,46 @@ export default defineConfig(({ mode }) => {
       open: true,
       cors: true,
       proxy: {
-        // 开发环境代理API请求
-        '/api': {
-          target: env.VITE_API_GATEWAY || 'http://localhost:8080',
+        // PetCare 后端 API (宠物相关)
+        '/api/pets': {
+          target: 'http://localhost:8082',
           changeOrigin: true,
+          secure: false
+        },
+        '/api/activities': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+          secure: false
+        },
+        '/api/users': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+          secure: false
+        },
+        '/api/auth': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+          secure: false
+        },
+        // 媒体后端 API
+        '/api/media': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/media/, '/api/v1/media'),
+          secure: false
+        },
+        // 社区后端 API
+        '/api/community': {
+          target: 'http://localhost:8084',
+          changeOrigin: true,
+          rewrite: (path) => {
+            // 将 /api/community/moments 转换为 /api/v1/moments
+            if (path.startsWith('/api/community/moments')) {
+              return path.replace('/api/community', '/api/v1')
+            }
+            // 将 /api/community/xxx 转换为 /api/v1/xxx
+            return path.replace('/api/community', '/api/v1')
+          },
           secure: false
         }
       }

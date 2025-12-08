@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CORS 解决方案</title>
+</head>
+<body>
+    <h1>CORS 问题解决方案</h1>
+
+    <h2>方法1：Chrome开发者模式（推荐）</h2>
+    <p>关闭所有Chrome窗口，然后运行：</p>
+    <pre><code>chrome.exe --disable-web-security --disable-features=VizDisplayCompositor --user-data-dir="C:/chrome-dev"</code></pre>
+    <button onclick="openDevChrome()">打开开发者模式Chrome</button>
+
+    <h2>方法2：修改Windows hosts文件</h2>
+    <p>将以下内容添加到 C:\Windows\System32\drivers\etc\hosts：</p>
+    <pre><code>127.0.0.1 localhost
+127.0.0.1 api.petcare.local</code></pre>
+
+    <h2>方法3：使用代理服务器</h2>
+    <button onclick="startProxy()">启动代理服务器</button>
+
+    <div id="output"></div>
+
+    <script>
+        function openDevChrome() {
+            window.open('chrome://settings/', '_blank');
+        }
+
+        async function startProxy() {
+            const output = document.getElementById('output');
+            output.innerHTML = '启动代理服务器中...';
+
+            try {
+                // 检查Node.js是否安装
+                const response = await fetch('http://localhost:3000/api/test');
+                output.innerHTML = '代理服务器已运行！访问：<a href="http://localhost:5177" target="_blank">前端应用</a>';
+            } catch (e) {
+                output.innerHTML = '请先安装Node.js，然后运行：<br>npm install -g http-proxy-middleware<br>http-proxy-middleware --target http://localhost:8083 --changeOrigin true --port 3000';
+            }
+        }
+    </script>
+</body>
+</html>

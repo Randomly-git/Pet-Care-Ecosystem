@@ -149,9 +149,9 @@
                 视频
               </el-button>
             </div>
-            <el-button 
-              type="primary" 
-              @click="publishMoment" 
+            <el-button
+              type="primary"
+              @click="publishMoment"
               :disabled="!newMomentContent.trim() || publishing"
               :loading="publishing"
               size="small"
@@ -442,6 +442,8 @@ import {
 
 // 导入API服务
 import { monitoredApiService } from '@/api/modules'
+import { createMoment, getUserMoments } from '@/api/community'
+import { uploadMultipleMedia } from '@/api/media'
 
 const route = useRoute()
 const router = useRouter()
@@ -689,47 +691,40 @@ const publishMoment = async () => {
     return
   }
 
-  if (!currentPet.value.id) {
-    ElMessage.warning('请先选择一个宠物')
-    return
-  }
-
   publishing.value = true
 
   try {
-    // 模拟发布动态（实际应该调用动态API）
-    const newMoment = {
-      id: Date.now(),
-      pet_name: currentPet.value.name,
-      pet_avatar: currentPet.value.avatar_url,
-      content: newMomentContent.value,
-      media_urls: uploadedImages.value.map(img => img.url),
-      created_at: new Date().toISOString(),
-      like_count: 0,
-      comment_count: 0,
+    // 暂时跳过媒体上传，只发布文本内容
+    // TODO: 媒体上传功能需要后端服务正常工作
+    let mediaIds = []
+    if (uploadedImages.value.length > 0) {
+      ElMessage.warning('媒体上传功能暂时不可用，将只发布文本内容')
+    }
+
+    // 2. 创建动态
+    const momentData = {
+      userId: currentUserId.value,
+      content: newMomentContent.value.trim(),
+      mediaIds: mediaIds
+    }
+
+    const newMoment = await createMoment(momentData)
+
+    // 3. 转换为前端显示格式
+    const displayMoment = {
+      id: newMoment.id,
+      userId: newMoment.userId,
+      content: newMoment.content,
+      media_urls: newMoment.mediaUrls || [],
+      created_at: newMoment.createdAt,
+      like_count: newMoment.likeCount || 0,
+      comment_count: newMoment.commentCount || 0,
       liked: false,
       isOwn: true
     }
 
     // 添加到动态列表
-    moments.value.unshift(newMoment)
-
-    // 可以选择将动态转换为活动记录
-    if (newMomentContent.value.trim()) {
-      try {
-        // 尝试创建一个通用的"其他"活动类型
-        await monitoredApiService.activities.createRecord(currentPet.value.id, {
-          activityId: 1, // 假设有一个通用的活动ID
-          description: newMomentContent.value,
-          date: new Date().toISOString()
-        })
-        // 重新加载活动记录
-        await loadActivityRecords()
-      } catch (activityError) {
-        console.warn('创建活动记录失败:', activityError)
-        // 不影响动态发布
-      }
-    }
+    moments.value.unshift(displayMoment)
 
     ElMessage.success('发布动态成功！')
     newMomentContent.value = ''
@@ -775,6 +770,33 @@ const getCurrentPet = async () => {
   // 加载宠物数据
   await loadPetData()
   await loadSuggestions()
+  // 加载用户动态
+  await loadUserMoments()
+}
+
+// 加载用户动态
+const loadUserMoments = async () => {
+  if (!currentUserId.value) return
+
+  try {
+    const userMoments = await getUserMoments(currentUserId.value)
+
+    // 转换为前端显示格式
+    moments.value = userMoments.map(moment => ({
+      id: moment.id,
+      userId: moment.userId,
+      content: moment.content,
+      media_urls: moment.mediaUrls || [],
+      created_at: moment.createdAt,
+      like_count: moment.likeCount || 0,
+      comment_count: moment.commentCount || 0,
+      liked: false,
+      isOwn: true
+    }))
+  } catch (error) {
+    console.error('加载用户动态失败:', error)
+    moments.value = []
+  }
 }
 
 const fetchPetInfo = async (petId) => {
@@ -881,7 +903,7 @@ const submitStatusForm = async () => {
     console.log('创建状态记录:', statusData)
 
     // 调用状态创建API
-    const response = await fetch('http://localhost:8080/api/status-records', {
+    const response = await fetch('http://localhost:8082/api/status-records', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -921,7 +943,7 @@ const stopStatus = async (record) => {
   try {
     const stopDate = new Date().toISOString().split('T')[0]
 
-    const response = await fetch(`http://localhost:8080/api/status-records/${record.statusId}/stop`, {
+    const response = await fetch(`http://localhost:8082/api/status-records/${record.statusId}/stop`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -956,7 +978,7 @@ const deleteStatus = async (record) => {
       }
     )
 
-    const response = await fetch(`http://localhost:8080/api/status-records/${record.statusId}`, {
+    const response = await fetch(`http://localhost:8082/api/status-records/${record.statusId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`

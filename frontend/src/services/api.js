@@ -5,12 +5,15 @@ import { MockAPI, isMockEnabled } from './mock'
 
 // 微服务端点配置
 const MICROSERVICE_ENDPOINTS = {
-  GATEWAY: import.meta.env.VITE_API_GATEWAY || 'http://localhost:8080',
-  USER_SERVICE: import.meta.env.VITE_USER_SERVICE || 'http://localhost:8081',
-  PET_SERVICE: import.meta.env.VITE_PET_SERVICE || 'http://localhost:8082',
-  ACTIVITY_SERVICE: import.meta.env.VITE_ACTIVITY_SERVICE || 'http://localhost:8083',
-  MEDICAL_SERVICE: import.meta.env.VITE_MEDICAL_SERVICE || 'http://localhost:8084',
-  SHOP_SERVICE: import.meta.env.VITE_SHOP_SERVICE || 'http://localhost:8085'
+  GATEWAY: import.meta.env.VITE_API_GATEWAY || 'http://localhost:8082', // petcare-backend
+  USER_SERVICE: import.meta.env.VITE_USER_SERVICE || 'http://localhost:8082', // petcare-backend中的用户服务
+  PET_SERVICE: import.meta.env.VITE_PET_SERVICE || 'http://localhost:8082', // petcare-backend中的宠物服务
+  ACTIVITY_SERVICE: import.meta.env.VITE_ACTIVITY_SERVICE || 'http://localhost:8082', // petcare-backend中的活动服务
+  MEDICAL_SERVICE: import.meta.env.VITE_MEDICAL_SERVICE || 'http://localhost:8082', // petcare-backend中的状态记录服务
+  SHOP_SERVICE: import.meta.env.VITE_SHOP_SERVICE || 'http://localhost:8082', // 未来扩展
+  // 新增的微服务
+  MEDIA_SERVICE: import.meta.env.VITE_MEDIA_SERVICE || 'http://localhost:8081', // 媒体微服务
+  COMMUNITY_SERVICE: import.meta.env.VITE_COMMUNITY_SERVICE || 'http://localhost:8083' // 社区微服务
 }
 
 // API请求封装
@@ -213,10 +216,136 @@ export const shopAPI = {
   updateOrderStatus: (orderId, status) => apiService.put(`/shop/orders/${orderId}`, { status })
 }
 
-// 文件上传API
+// 媒体服务API
+export const mediaAPI = {
+  // 上传文件到媒体微服务（通过前端代理）
+  uploadFile: async (file, onProgress) => {
+    const endpoint = '/api/media/upload'
+    return apiService.upload(endpoint, file, onProgress)
+  },
+
+  // 获取媒体信息（通过前端代理）
+  getMediaInfo: (mediaId) => {
+    const endpoint = `/api/media/${mediaId}`
+    return fetch(endpoint).then(res => res.json())
+  },
+
+  // 获取关联的媒体文件（通过前端代理）
+  getRelatedMedia: (relatedType, relatedId) => {
+    const endpoint = `/api/media/related/${relatedType}/${relatedId}`
+    return fetch(endpoint).then(res => res.json())
+  }
+}
+
+// 保留原有的文件上传API（向后兼容）
 export const uploadAPI = {
-  uploadImage: (file, onProgress) => apiService.upload('/upload/image', file, onProgress),
-  uploadAvatar: (file) => apiService.upload('/upload/avatar', file)
+  uploadImage: (file, onProgress) => mediaAPI.uploadFile(file, onProgress),
+  uploadAvatar: (file) => mediaAPI.uploadFile(file),
+  uploadMedia: (file, onProgress) => mediaAPI.uploadFile(file, onProgress)
+}
+
+// 社区服务API
+export const communityAPI = {
+  // 动态相关（通过前端代理）
+  getMomentsByUser: (userId) => {
+    const endpoint = `/api/community/moments/user/${userId}`
+    return fetch(endpoint).then(res => res.json())
+  },
+
+  createMoment: (userId, content, mediaIds = []) => {
+    const endpoint = '/api/community/moments'
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId,
+        content,
+        mediaIds
+      })
+    }).then(res => res.json())
+  },
+
+  deleteMoment: (momentId) => {
+    const endpoint = `/api/community/moments/${momentId}`
+    return fetch(endpoint, {
+      method: 'DELETE'
+    }).then(res => res.ok)
+  },
+
+  // 评论相关
+  getCommentsByMoment: (momentId) => {
+    const endpoint = `/api/community/comments/moment/${momentId}`
+    return fetch(endpoint).then(res => res.json())
+  },
+
+  createComment: (userId, momentId, content, parentId = null) => {
+    const endpoint = '/api/community/comments'
+    const requestBody = {
+      userId,
+      momentId,
+      content
+    }
+    if (parentId) {
+      requestBody.parentId = parentId
+    }
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    }).then(res => res.json())
+  },
+
+  deleteComment: (commentId) => {
+    const endpoint = `/api/community/comments/${commentId}`
+    return fetch(endpoint, {
+      method: 'DELETE'
+    }).then(res => res.ok)
+  },
+
+  // 点赞相关
+  toggleLike: (userId, targetType, targetId) => {
+    const endpoint = '/api/community/likes'
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId,
+        targetType,
+        targetId
+      })
+    }).then(res => res.ok)
+  },
+
+  // 关注相关
+  toggleFollow: (followerId, followedId) => {
+    const endpoint = '/api/community/follows'
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        followerId,
+        followedId
+      })
+    }).then(res => res.ok)
+  },
+
+  getFollowersCount: (userId) => {
+    const endpoint = `/api/community/follows/followers/count/${userId}`
+    return fetch(endpoint).then(res => res.text()).then(text => parseInt(text))
+  },
+
+  getFollowingCount: (userId) => {
+    const endpoint = `/api/community/follows/following/count/${userId}`
+    return fetch(endpoint).then(res => res.text()).then(text => parseInt(text))
+  }
 }
 
 // 工具函数

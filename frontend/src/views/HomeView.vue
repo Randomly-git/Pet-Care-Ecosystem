@@ -82,6 +82,17 @@
             </div>
           </div>
 
+          <!-- 宠物社区 -->
+          <div class="feature-card" @click="goToCommunity">
+            <div class="card-icon">💬</div>
+            <h3 class="card-title">宠物社区</h3>
+            <p class="card-description">分享宠物生活和交流经验</p>
+            <div class="card-arrow">
+              <span>进入</span>
+              <div class="arrow-icon">→</div>
+            </div>
+          </div>
+
           </div>
       </div>
     </section>
@@ -177,6 +188,14 @@ const goToShopping = () => {
 const goToActivities = () => {
   if (isLoggedIn.value) {
     router.push('/activities')
+  } else {
+    router.push('/login')
+  }
+}
+
+const goToCommunity = () => {
+  if (isLoggedIn.value) {
+    router.push('/moments')  // 跳转到朋友圈页面
   } else {
     router.push('/login')
   }
