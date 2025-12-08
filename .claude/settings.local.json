@@ -24,7 +24,20 @@
       "Bash(git credential-manager-core erase:*)",
       "Bash(cmd:*)",
       "Bash(ssh:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(find:*)",
+      "Bash(jps:*)",
+      "Bash(mysql:*)",
+      "Bash(echo:*)",
+      "Bash(dir:*)",
+      "Bash(tree:*)",
+      "Bash(./start-all.bat)",
+      "Bash(mvn clean compile:*)",
+      "Bash(./stop-all.sh)",
+      "Bash(./start-all.sh:*)",
+      "Bash(node test_navigation:*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

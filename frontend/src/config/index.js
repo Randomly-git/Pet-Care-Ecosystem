@@ -9,10 +9,10 @@ const isProduction = import.meta.env.PROD
 
 // API配置
 export const API_CONFIG = {
-  // 基础API地址
+  // 基础API地址（通过前端代理）
   BASE_URL: isDevelopment
-    ? 'http://localhost:8080/api'
-    : 'http://47.100.240.111:8080/api',
+    ? '/api'  // 开发环境使用前端代理
+    : 'http://47.100.240.111:8082/api',  // 生产环境保持不变
 
   // 请求超时时间
   TIMEOUT: 10000,
@@ -55,11 +55,13 @@ export const ROUTE_CONFIG = {
     '/',
     '/login',
     '/register',
+    '/community',  // 社区页面也设为公共，让用户可以浏览
   ],
 
   // 需要登录的路由
   PROTECTED_ROUTES: [
     '/space',
+    '/activities',
     '/medical',
     '/shop',
   ],

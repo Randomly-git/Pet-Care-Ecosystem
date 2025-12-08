@@ -63,4 +63,7 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
                                                            @Param("startDate") LocalDateTime startDate,
                                                            @Param("endDate") LocalDateTime endDate,
                                                            @Param("activityKindId") Long activityKindId);
+
+    // 根据宠物ID列表批量查找活动记录
+    List<ActivityRecord> findByPetPetIdIn(List<Long> petIds);
 }

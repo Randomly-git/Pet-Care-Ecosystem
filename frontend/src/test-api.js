@@ -71,7 +71,7 @@ console.group('🌐 测试API请求')
 const testAPIRequest = async () => {
   try {
     // 测试GET请求到健康检查端点
-    const response = await fetch('http://localhost:8080/api', {
+    const response = await fetch('http://localhost:8082/api', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'

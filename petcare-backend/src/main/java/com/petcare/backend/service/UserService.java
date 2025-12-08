@@ -10,6 +10,8 @@ import com.petcare.backend.entity.Pet;
 import com.petcare.backend.entity.User;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 public interface UserService {
 
@@ -53,4 +55,18 @@ public interface UserService {
     LoginResponse login(LoginRequest loginRequest);
 
     User getUserEntityById(Long userId);
+
+    /**
+     * 批量获取用户信息
+     * @param userIds 用户ID集合
+     * @return 用户列表
+     */
+    List<User> batchGetUsersByIds(Set<Long> userIds);
+
+    /**
+     * 根据用户ID获取用户信息
+     * @param userId 用户ID
+     * @return 用户信息的Optional包装
+     */
+    Optional<User> getUserById(Long userId);
 }

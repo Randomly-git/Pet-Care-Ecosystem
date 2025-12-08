@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { showToast } from '@/utils/message'
 
-// API基础配置
-const API_BASE_URL = 'http://localhost:8080/api'
+// API基础配置（通过前端代理）
+const API_BASE_URL = '/api'  // 使用前端代理，不再直接指定端口
 
 // 创建axios实例
 const apiClient = axios.create({

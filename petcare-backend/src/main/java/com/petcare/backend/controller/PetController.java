@@ -59,6 +59,19 @@ public class PetController extends BaseController {
     }
 
     /**
+     * 获取所有宠物（用于推荐）
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<PetResponse>>> getAllPets() {
+        try {
+            List<PetResponse> pets = userService.getAllPets();
+            return success(pets);
+        } catch (Exception e) {
+            return error("获取所有宠物信息失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * 根据用户ID获取宠物列表
      */
     @GetMapping("/user/{userId}")

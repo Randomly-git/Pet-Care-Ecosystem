@@ -190,8 +190,10 @@ export const getActivityRecords = async (petId, searchParams = {}) => {
  * @param {number} petId - 宠物ID
  * @param {Object} recordData - 活动记录数据
  * @param {number} recordData.activityId - 活动ID
- * @param {string} recordData.description - 活动描述
- * @param {string} recordData.date - 活动日期 yyyy-MM-dd'T'HH:mm:ss
+ * @param {number} recordData.userId - 用户ID
+ * @param {string} [recordData.description] - 活动描述（可选）
+ * @param {string} [recordData.date] - 活动日期 yyyy-MM-dd'T'HH:mm:ss（可选）
+ * @param {File} [recordData.file] - 上传的文件（可选）
  * @returns {Promise} 创建结果响应
  */
 export const createActivityRecord = async (petId, recordData) => {
@@ -201,24 +203,48 @@ export const createActivityRecord = async (petId, recordData) => {
     }
 
     // 验证必需字段
-    const requiredFields = ['activityId', 'description', 'date']
+    const requiredFields = ['activityId', 'userId']
     const missingFields = requiredFields.filter(field => !recordData[field])
 
     if (missingFields.length > 0) {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 验证日期格式
-    const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/
-    if (!datePattern.test(recordData.date)) {
-      throw new Error('日期格式不正确，请使用 yyyy-MM-dd\'T\'HH:mm:ss 格式')
+    // 如果提供了日期，验证格式
+    if (recordData.date) {
+      const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/
+      if (!datePattern.test(recordData.date)) {
+        throw new Error('日期格式不正确，请使用 yyyy-MM-dd\'T\'HH:mm:ss 格式')
+      }
+    }
+
+    // 构建FormData
+    const formData = new FormData()
+    formData.append('activityId', recordData.activityId)
+    formData.append('userId', recordData.userId)
+    
+    // 可选字段
+    if (recordData.description) {
+      formData.append('description', recordData.description)
+    }
+    
+    if (recordData.date) {
+      formData.append('date', recordData.date)
+    }
+    
+    if (recordData.file) {
+      formData.append('file', recordData.file)
     }
 
     const response = await request({
       url: `/activities/records/pet/${petId}`,
       method: 'POST',
-      data: recordData
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
+    
     return response
   } catch (error) {
     console.error('创建活动记录失败:', error)
@@ -364,12 +390,28 @@ export const getActivityRecordsByPetIds = async (petIds, searchParams = {}) => {
       throw new Error('宠物ID数组不能为空')
     }
 
-    const response = await request({
-      url: '/activities/records/batch',
-      method: 'POST',
-      data: { petIds, ...searchParams }
+    // 由于 /batch 端点有问题，改用并行调用单个宠物端点
+    const promises = petIds.map(petId =>
+      request({
+        url: `/activities/records/pet/${petId}`,
+        method: 'GET',
+        params: searchParams
+      })
+    )
+
+    const responses = await Promise.all(promises)
+
+    // 合并所有响应的数据
+    let allRecords = []
+    responses.forEach(response => {
+      if (Array.isArray(response)) {
+        allRecords = allRecords.concat(response)
+      } else if (response && Array.isArray(response.data)) {
+        allRecords = allRecords.concat(response.data)
+      }
     })
-    return response
+
+    return allRecords
   } catch (error) {
     console.error('批量获取活动记录失败:', error)
     throw error

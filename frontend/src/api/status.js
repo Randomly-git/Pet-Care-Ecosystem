@@ -207,14 +207,16 @@ export const getActiveStatusRecord = async (petId, targetDate) => {
  * @param {Object} recordData - 状态记录数据
  * @param {number} recordData.petId - 宠物ID
  * @param {number} recordData.statusId - 状态ID
- * @param {string} [recordData.statusDescription] - 状态描述
+ * @param {number} recordData.userId - 用户ID
  * @param {string} recordData.startDate - 开始时间 yyyy-MM-dd'T'HH:mm:ss
+ * @param {string} [recordData.description] - 状态描述（可选）
+ * @param {File} [recordData.file] - 上传的文件（可选）
  * @returns {Promise} 创建结果响应
  */
 export const createStatusRecord = async (recordData) => {
   try {
     // 验证必需字段
-    const requiredFields = ['petId', 'statusId', 'startDate']
+    const requiredFields = ['petId', 'statusId', 'userId', 'startDate']
     const missingFields = requiredFields.filter(field => !recordData[field])
 
     if (missingFields.length > 0) {
@@ -231,21 +233,51 @@ export const createStatusRecord = async (recordData) => {
       throw new Error('状态ID必须是正整数')
     }
 
+    // 验证用户ID
+    if (typeof recordData.userId !== 'number' || recordData.userId <= 0) {
+      throw new Error('用户ID必须是正整数')
+    }
+
     // 验证描述长度（如果提供）
-    if (recordData.statusDescription && recordData.statusDescription.length > 500) {
+    if (recordData.description && recordData.description.length > 500) {
       throw new Error('状态描述长度不能超过500个字符')
     }
 
-    // 验证日期格式
-    const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/
-    if (!datePattern.test(recordData.startDate)) {
-      throw new Error('开始时间格式不正确，请使用 yyyy-MM-dd\'T\'HH:mm:ss 格式')
+    // 验证日期格式（可选，如果提供就验证）
+    if (recordData.startDate) {
+      const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/
+      if (!datePattern.test(recordData.startDate)) {
+        throw new Error('开始时间格式不正确，请使用 yyyy-MM-dd\'T\'HH:mm:ss 格式')
+      }
+    }
+
+    // 构建FormData
+    const formData = new FormData()
+    formData.append('statusId', recordData.statusId)
+    formData.append('petId', recordData.petId)
+    formData.append('userId', recordData.userId)
+    
+    // 如果提供了开始时间，则添加
+    if (recordData.startDate) {
+      formData.append('startDate', recordData.startDate)
+    }
+    
+    // 可选字段
+    if (recordData.description) {
+      formData.append('description', recordData.description)
+    }
+    
+    if (recordData.file) {
+      formData.append('file', recordData.file)
     }
 
     const response = await request({
       url: '/status/records',
       method: 'POST',
-      data: recordData
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
     return response
   } catch (error) {

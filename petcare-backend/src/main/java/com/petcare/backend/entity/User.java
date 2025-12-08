@@ -18,6 +18,12 @@ public class User {
     @Column(name = "name", length = 100)
     private String name;
 
+    @Column(name = "nickname", length = 100)
+    private String nickname;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
@@ -29,5 +35,9 @@ public class User {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        // 如果没有设置nickname，默认使用name
+        if (nickname == null || nickname.trim().isEmpty()) {
+            nickname = name;
+        }
     }
 }

@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/follows")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*", maxAge = 3600, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 public class FollowController {
 
     private final FollowService followService;
