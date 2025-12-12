@@ -25,7 +25,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -52,7 +51,7 @@ public class UserServiceImpl implements UserService {
                            ActivityRecordRepository activityRecordRepository,
                            PasswordUtil passwordUtil,
                            JwtTokenUtil jwtTokenUtil,
-                           ActivityService activityService,  // 新增
+                           ActivityService activityService,
                            StatusService statusService) {
         this.petRepository = petRepository;
         this.userRepository = userRepository;
@@ -76,8 +75,12 @@ public class UserServiceImpl implements UserService {
         BeanUtils.copyProperties(createPetRequest, pet);
         pet.setUser(user); // 设置用户关联
 
+        // 处理gender属性（如果CreatePetRequest中有）
+        // 注意：如果CreatePetRequest中没有gender字段，这里需要单独设置或确保DTO中有该字段
+
         Pet savedPet = petRepository.save(pet);
-        log.info("宠物创建成功, ID: {}", savedPet.getPetId());
+        log.info("宠物创建成功, ID: {}, 性别: {}", savedPet.getPetId(),
+                savedPet.getGender() != null ? (savedPet.getGender() ? "公" : "母") : "未知");
 
         return savedPet;
     }
@@ -267,6 +270,10 @@ public class UserServiceImpl implements UserService {
         response.setBreed(pet.getBreed());
         response.setBirthday(pet.getBirthday());
         response.setCreatedAt(pet.getCreatedAt());
+        // 添加gender属性
+        response.setGender(pet.getGender());
+        // 添加gender的文字描述
+        response.setGenderText(pet.getGender() != null ? (pet.getGender() ? "公" : "母") : "未知");
 
         // 设置用户信息
         if (pet.getUser() != null) {

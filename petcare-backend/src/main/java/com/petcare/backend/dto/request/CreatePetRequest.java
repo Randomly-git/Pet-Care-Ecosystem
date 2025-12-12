@@ -23,4 +23,6 @@ public class CreatePetRequest {
 
     @NotNull(message = "用户ID不能为空")
     private Long userId;
+
+    private Boolean gender; // 1代表公，0代表母
 }

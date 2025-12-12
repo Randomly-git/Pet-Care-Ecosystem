@@ -27,6 +27,9 @@ public class Pet {
     @Column(name = "birthday")
     private LocalDate birthday;
 
+    @Column(name = "gender")
+    private Boolean gender; // 1代表公，0代表母
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -38,5 +41,11 @@ public class Pet {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+    }
+
+    // 添加便捷方法获取性别文字描述
+    public String getGenderText() {
+        if (gender == null) return "未知";
+        return gender ? "公" : "母";
     }
 }

@@ -20,4 +20,7 @@ public class PetResponse {
     // 可以添加统计信息
     private Long statusRecordCount;
     private Long activityRecordCount;
+
+    private Boolean gender;
+    private String genderText;
 }
