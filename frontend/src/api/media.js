@@ -23,31 +23,51 @@ export const uploadMedia = async (file, userId, businessType = 'MOMENT', busines
       throw new Error('用户ID不能为空')
     }
 
+    console.log('开始上传媒体文件:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      userId,
+      businessType,
+      businessId
+    })
+
     // 创建 FormData
     const formData = new FormData()
     formData.append('file', file)
     formData.append('userId', userId)
 
     if (businessType) {
-      formData.append('businessType', businessType)
+      formData.append('relatedType', businessType)
     }
 
     if (businessId) {
-      formData.append('businessId', businessId)
+      formData.append('relatedId', businessId)
+    }
+
+    console.log('发送媒体上传请求到:', `${MEDIA_BASE_URL}/upload`)
+    console.log('FormData内容:')
+    for (let [key, value] of formData.entries()) {
+      console.log(`- ${key}:`, value)
     }
 
     // 通过代理服务器调用媒体微服务
-    const response = await fetch(`${MEDIA_BASE_URL}/media/upload`, {
+    const response = await fetch(`${MEDIA_BASE_URL}/upload`, {
       method: 'POST',
       body: formData
     })
 
+    console.log('媒体上传响应状态:', response.status, response.statusText)
+
     if (!response.ok) {
       const errorText = await response.text()
+      console.error('媒体上传失败响应:', errorText)
       throw new Error(`上传文件失败: ${response.status} - ${errorText}`)
     }
 
-    return await response.json()
+    const result = await response.json()
+    console.log('媒体上传成功:', result)
+    return result
   } catch (error) {
     console.error('上传文件失败:', error)
     throw error
@@ -56,20 +76,41 @@ export const uploadMedia = async (file, userId, businessType = 'MOMENT', busines
 
 /**
  * 批量上传媒体文件
- * @param {FileList} files - 要上传的文件列表
- * @param {number} userId - 用户ID
- * @param {string} [businessType] - 业务类型
- * @param {number} [businessId] - 业务ID
+ * @param {FileList|Object} filesOrOptions - 要上传的文件列表，或包含所有参数的对象
+ * @param {number} [userId] - 用户ID（当第一个参数为文件列表时使用）
+ * @param {string} [businessType] - 业务类型（当第一个参数为文件列表时使用）
+ * @param {number} [businessId] - 业务ID（当第一个参数为文件列表时使用）
  * @returns {Promise} 上传结果数组
  */
-export const uploadMultipleMedia = async (files, userId, businessType = 'MOMENT', businessId = null) => {
+export const uploadMultipleMedia = async (filesOrOptions, userId, businessType = 'MOMENT', businessId = null) => {
   try {
+    let files, finalUserId, finalBusinessType, finalBusinessId
+
+    // 判断参数形式
+    if (Array.isArray(filesOrOptions) || (filesOrOptions && typeof filesOrOptions === 'object' && filesOrOptions.length !== undefined)) {
+      // 传统的多参数形式
+      files = filesOrOptions
+      finalUserId = userId
+      finalBusinessType = businessType
+      finalBusinessId = businessId
+    } else {
+      // 对象参数形式
+      files = filesOrOptions.files
+      finalUserId = filesOrOptions.userId
+      finalBusinessType = filesOrOptions.relatedType || filesOrOptions.businessType || 'MOMENT'
+      finalBusinessId = filesOrOptions.relatedId || filesOrOptions.businessId || null
+    }
+
     if (!files || files.length === 0) {
       throw new Error('请选择要上传的文件')
     }
 
+    if (!finalUserId) {
+      throw new Error('用户ID不能为空')
+    }
+
     const uploadPromises = Array.from(files).map(file =>
-      uploadMedia(file, userId, businessType, businessId)
+      uploadMedia(file, finalUserId, finalBusinessType, finalBusinessId)
     )
 
     const results = await Promise.all(uploadPromises)

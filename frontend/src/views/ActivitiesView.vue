@@ -341,7 +341,7 @@
       <el-form
         ref="editFormRef"
         :model="editForm"
-        :rules="addFormRules"
+        :rules="editFormRules"
         label-width="100px"
       >
         <el-form-item label="宠物名称" prop="petId">
@@ -605,6 +605,30 @@ const addFormRules = {
   ]
 }
 
+// 编辑表单验证规则
+const editFormRules = {
+  activityId: [{ required: true, message: '请选择活动类型', trigger: 'change' }],
+  activityDate: [
+    {
+      validator: (rule, value, callback) => {
+        // 日期是可选字段，如果不提供则使用当前时间
+        if (!value) {
+          callback()
+        } else {
+          // 验证日期格式
+          try {
+            new Date(value)
+            callback()
+          } catch (error) {
+            callback(new Error('日期格式不正确'))
+          }
+        }
+      },
+      trigger: 'change'
+    }
+  ]
+}
+
 // 宠物表单验证规则
 const petFormRules = {
   name: [{ required: true, message: '请输入宠物名称', trigger: 'blur' }],
@@ -684,21 +708,15 @@ const filteredRecords = computed(() => {
   if (selectedActivityTypes.value.length > 0) {
     console.log('筛选前记录数量:', filtered.length)
     console.log('选择的活动类型:', selectedActivityTypes.value)
-    console.log('用户活动数据:', userActivities.value)
 
     filtered = filtered.filter(record => {
-      // 根据activityId找到对应的activityKindId
-      const activity = userActivities.value.find(a => a.activityId === record.activityId)
-      const shouldInclude = activity && selectedActivityTypes.value.includes(activity.activityKindId)
-
-      if (!activity) {
-        console.log('未找到活动，record.activityId:', record.activityId)
-      }
+      // 直接使用活动记录中的activityKindId
+      const shouldInclude = selectedActivityTypes.value.includes(record.activityKindId)
 
       console.log('记录筛选结果:', {
         recordId: record.activityRecordId,
-        recordActivityId: record.activityId,
-        foundActivity: activity,
+        recordActivityKindId: record.activityKindId,
+        recordActivityName: record.activityName,
         shouldInclude,
         selectedTypes: selectedActivityTypes.value
       })
@@ -870,8 +888,15 @@ const loadUserPets = async () => {
     console.log('加载到的宠物数据:', userPets.value)
 
     // 默认选中所有宠物
+    console.log('loadUserPets: 检查是否需要设置默认选中的宠物')
+    console.log('loadUserPets: selectedPetIds.value.length:', selectedPetIds.value.length)
+    console.log('loadUserPets: userPets.value.length:', userPets.value.length)
+
     if (selectedPetIds.value.length === 0 && userPets.value.length > 0) {
-      selectedPetIds.value = userPets.value.map(pet => pet.petId || pet.id)
+      const petIds = userPets.value.map(pet => pet.petId || pet.id)
+      console.log('loadUserPets: 设置默认选中的宠物ID:', petIds)
+      selectedPetIds.value = petIds
+      console.log('loadUserPets: 设置后的selectedPetIds.value:', selectedPetIds.value)
     }
   } catch (error) {
     console.error('加载用户宠物失败:', error)
@@ -908,8 +933,13 @@ const loadActivityRecords = async () => {
   try {
     loading.value = true
 
+    console.log('loadActivityRecords: 开始加载活动记录')
+    console.log('loadActivityRecords: 选择的宠物ID:', selectedPetIds.value)
+    console.log('loadActivityRecords: 日期范围:', dateRange.value)
+
     // 获取所有选中宠物的活动记录
     if (selectedPetIds.value.length === 0) {
+      console.log('loadActivityRecords: 没有选择宠物，清空活动记录')
       activityRecords.value = []
       return
     }
@@ -917,10 +947,13 @@ const loadActivityRecords = async () => {
     const { getActivityRecordsByPetIds } = await import('@/api/activities')
 
     // 批量获取活动记录
+    console.log('loadActivityRecords: 开始调用API获取活动记录')
     const recordsResponse = await getActivityRecordsByPetIds(selectedPetIds.value, {
       startDate: dateRange.value[0] ? new Date(dateRange.value[0]).toISOString() : null,
       endDate: dateRange.value[1] ? new Date(dateRange.value[1]).toISOString() : null
     })
+
+    console.log('loadActivityRecords: API原始响应:', recordsResponse)
 
     // 处理API响应格式
     if (recordsResponse && recordsResponse.data) {
@@ -931,7 +964,8 @@ const loadActivityRecords = async () => {
       activityRecords.value = []
     }
 
-    console.log('加载到的活动记录:', activityRecords.value)
+    console.log('loadActivityRecords: 处理后的活动记录:', activityRecords.value)
+    console.log('loadActivityRecords: 活动记录数量:', activityRecords.value.length)
   } catch (error) {
     console.error('加载活动记录失败:', error)
     activityRecords.value = []
@@ -941,9 +975,23 @@ const loadActivityRecords = async () => {
 }
 
 const refreshData = async () => {
-  await Promise.all([loadUserPets(), loadUserActivities(), loadActivityRecords()])
-  // 在加载完宠物列表后，加载所有宠物的活动统计数据
+  console.log('refreshData: 开始刷新数据')
+
+  // 1. 首先加载宠物数据，这样才能设置selectedPetIds
+  await loadUserPets()
+  console.log('refreshData: 宠物数据加载完成，selectedPetIds:', selectedPetIds.value)
+
+  // 2. 加载用户活动数据
+  await loadUserActivities()
+  console.log('refreshData: 用户活动数据加载完成')
+
+  // 3. 然后加载活动记录（依赖selectedPetIds）
+  await loadActivityRecords()
+  console.log('refreshData: 活动记录加载完成')
+
+  // 4. 最后加载宠物活动统计数据
   await loadPetActivityStats()
+  console.log('refreshData: 宠物活动统计数据加载完成')
 }
 
 const handlePetSelectionChange = () => {
@@ -1035,9 +1083,10 @@ const submitAddForm = async () => {
 
 const editRecord = (record) => {
   try {
-    // 找到对应的活动记录，获取活动种类ID
-    const activity = userActivities.value.find(a => a.activityId === record.activityId)
-    const activityKindId = activity ? activity.activityKindId : null
+    console.log('editRecord: 编辑活动记录:', record)
+
+    // 活动记录中已经包含了activityKindId，直接使用
+    const activityKindId = record.activityKindId
 
     // 找到宠物名称
     const pet = getPetInfo(record.petId)
@@ -1047,11 +1096,12 @@ const editRecord = (record) => {
       activityRecordId: record.activityRecordId || record.id,
       petId: record.petId,
       petName: pet.name || '未知宠物',
-      activityId: activityKindId, // 使用活动种类ID
+      activityId: activityKindId, // 直接使用活动记录中的activityKindId
       activityDate: record.activityDate ? new Date(record.activityDate).toISOString().slice(0, 19).replace('T', ' ') : '',
       description: record.activityDescription || record.description || ''
     }
 
+    console.log('editRecord: 填充的编辑表单数据:', editForm.value)
     showEditDialog.value = true
   } catch (error) {
     console.error('编辑记录失败:', error)
@@ -1066,27 +1116,63 @@ const submitEditForm = async () => {
     await editFormRef.value.validate()
     submitting.value = true
 
-    // 根据活动种类ID找到对应的实际活动ID
     const selectedActivityKindId = editForm.value.activityId
+    console.log('submitEditForm: 选择的activityKindId:', selectedActivityKindId)
+
+    // 根据活动种类ID找到对应的实际活动ID
     const matchingActivity = userActivities.value.find(activity =>
       activity.activityKindId === selectedActivityKindId
     )
 
-    if (!matchingActivity) {
-      throw new Error(`找不到对应的活动记录，活动种类ID: ${selectedActivityKindId}`)
-    }
+    console.log('submitEditForm: 找到的匹配活动:', matchingActivity)
 
     // 格式化日期为API要求的格式 yyyy-MM-dd'T'HH:mm:ss
     const activityDate = new Date(editForm.value.activityDate)
     const formattedDate = activityDate.toISOString().slice(0, 19) // 保留 'T'
 
-      // 导入API并更新记录
+    // 导入API并更新记录
     const { updateActivityRecord } = await import('@/api/activities')
-    await updateActivityRecord(editForm.value.activityRecordId, {
-      newActivityId: matchingActivity.activityId, // 使用实际的活动ID
-      description: editForm.value.description,
-      date: formattedDate
-    })
+
+    // 确保description字段不为空（API要求必需字段）
+    const description = editForm.value.description || '无描述'
+
+    console.log('submitEditForm: 使用的description:', description)
+
+    if (matchingActivity) {
+      // 找到了具体的活动，使用现有的API
+      console.log('submitEditForm: 使用具体活动ID更新:', matchingActivity.activityId)
+      await updateActivityRecord(editForm.value.activityRecordId, {
+        newActivityId: matchingActivity.activityId,
+        description: description,
+        date: formattedDate
+      })
+    } else {
+      // 没有找到具体活动，需要先创建一个对应的活动
+      console.log('submitEditForm: 没有找到具体活动，先创建新活动')
+
+      const { createActivity } = await import('@/api/activities')
+      const activityTypeName = getActivityKindName(selectedActivityKindId)
+
+      // 创建一个新的活动
+      const newActivity = await createActivity({
+        activityName: activityTypeName, // 使用活动种类名称作为活动名称
+        activityKindId: selectedActivityKindId,
+        userId: currentUserId.value
+      })
+
+      console.log('submitEditForm: 创建的新活动:', newActivity)
+
+      // 使用新创建的活动ID更新记录
+      if (newActivity && newActivity.activityId) {
+        await updateActivityRecord(editForm.value.activityRecordId, {
+          newActivityId: newActivity.activityId,
+          description: description,
+          date: formattedDate
+        })
+      } else {
+        throw new Error('创建新活动失败，无法获取活动ID')
+      }
+    }
 
     ElMessage.success('活动记录更新成功！')
     showEditDialog.value = false

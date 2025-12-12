@@ -4,7 +4,7 @@ package com.petcare.media.controller;
 import com.petcare.media.dto.ApiResponse;
 import com.petcare.media.dto.MediaResponse;
 import com.petcare.media.entity.MediaFile;
-import com.petcare.media.service.MediaServiceLocal;
+import com.petcare.media.service.MediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,11 +15,11 @@ import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/v1/media") // 统一使用 /api/v1 前缀
+@RequestMapping("/api/media")
 @RequiredArgsConstructor
 public class MediaController {
 
-    private final MediaServiceLocal mediaService;
+    private final MediaService mediaService;
 
     // POST /api/media/upload
     @PostMapping("/upload")

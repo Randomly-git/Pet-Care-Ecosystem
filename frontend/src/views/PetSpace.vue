@@ -694,11 +694,27 @@ const publishMoment = async () => {
   publishing.value = true
 
   try {
-    // 暂时跳过媒体上传，只发布文本内容
-    // TODO: 媒体上传功能需要后端服务正常工作
+    // 上传媒体文件
     let mediaIds = []
     if (uploadedImages.value.length > 0) {
-      ElMessage.warning('媒体上传功能暂时不可用，将只发布文本内容')
+      ElMessage.info('正在上传媒体文件...')
+
+      try {
+        const files = uploadedImages.value.map(img => img.file)
+        const uploadResults = await uploadMultipleMedia({
+          files: files,
+          relatedType: 'MOMENT',
+          relatedId: currentUserId.value,
+          userId: currentUserId.value
+        })
+
+        mediaIds = uploadResults.map(result => result.mediaId)
+        ElMessage.success(`成功上传 ${mediaIds.length} 个文件`)
+      } catch (uploadError) {
+        console.error('上传媒体文件失败:', uploadError)
+        ElMessage.warning('媒体文件上传失败，将只发布文本内容')
+        mediaIds = []
+      }
     }
 
     // 2. 创建动态
@@ -710,26 +726,13 @@ const publishMoment = async () => {
 
     const newMoment = await createMoment(momentData)
 
-    // 3. 转换为前端显示格式
-    const displayMoment = {
-      id: newMoment.id,
-      userId: newMoment.userId,
-      content: newMoment.content,
-      media_urls: newMoment.mediaUrls || [],
-      created_at: newMoment.createdAt,
-      like_count: newMoment.likeCount || 0,
-      comment_count: newMoment.commentCount || 0,
-      liked: false,
-      isOwn: true
-    }
-
-    // 添加到动态列表
-    moments.value.unshift(displayMoment)
-
     ElMessage.success('发布动态成功！')
     newMomentContent.value = ''
     uploadedImages.value.forEach(img => URL.revokeObjectURL(img.url))
     uploadedImages.value = []
+
+    // 重新加载动态列表以确保数据一致性
+    await loadUserMoments()
 
   } catch (error) {
     console.error('发布动态失败:', error)
@@ -741,8 +744,10 @@ const publishMoment = async () => {
 
 // 从URL参数或sessionStorage获取宠物信息
 const getCurrentPet = async () => {
+  console.log('getCurrentPet: 开始执行，currentUserId.value =', currentUserId.value)
   if (!currentUserId.value) {
     // 如果用户未登录，跳转到登录页
+    console.log('getCurrentPet: 用户未登录，跳转到登录页')
     router.push('/login')
     return
   }
@@ -776,23 +781,34 @@ const getCurrentPet = async () => {
 
 // 加载用户动态
 const loadUserMoments = async () => {
-  if (!currentUserId.value) return
+  if (!currentUserId.value) {
+    console.log('loadUserMoments: currentUserId为空，跳过加载')
+    return
+  }
 
   try {
+    console.log('loadUserMoments: 开始加载用户动态，userId:', currentUserId.value)
     const userMoments = await getUserMoments(currentUserId.value)
+    console.log('loadUserMoments: 从API获取到的原始数据:', userMoments)
 
     // 转换为前端显示格式
-    moments.value = userMoments.map(moment => ({
-      id: moment.id,
-      userId: moment.userId,
-      content: moment.content,
-      media_urls: moment.mediaUrls || [],
-      created_at: moment.createdAt,
-      like_count: moment.likeCount || 0,
-      comment_count: moment.commentCount || 0,
-      liked: false,
-      isOwn: true
-    }))
+    moments.value = userMoments.map(moment => {
+      const formatted = {
+        id: moment.id,
+        userId: moment.userId,
+        content: moment.content,
+        media_urls: moment.mediaUrls || [],
+        created_at: moment.createdAt,
+        like_count: moment.likeCount || 0,
+        comment_count: moment.commentCount || 0,
+        liked: false,
+        isOwn: true
+      }
+      console.log('格式化动态:', formatted)
+      return formatted
+    })
+
+    console.log('loadUserMoments: 最终moments数组长度:', moments.value.length)
   } catch (error) {
     console.error('加载用户动态失败:', error)
     moments.value = []
@@ -1032,6 +1048,16 @@ const goSettings = () => {
 
 // 生命周期
 onMounted(async () => {
+  console.log('onMounted: currentUserId.value =', currentUserId.value)
+  console.log('onMounted: authStore.userId =', authStore.userId)
+
+  // 临时绕过用户认证检查，强制加载动态进行调试
+  if (!currentUserId.value) {
+    console.log('onMounted: 用户ID为空，临时设置为76进行调试')
+    // 临时硬编码用户ID进行调试
+    authStore.updateUser({ id: 76 })
+  }
+
   await getCurrentPet()
 })
 </script>

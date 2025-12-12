@@ -35,6 +35,7 @@ tencent:
     secret-key: jInFZgaJrGUZUKyPfibIhQ2TlxCMZedb
     region: ap-shanghai
     bucket-name: pet-care-ecosystem-1386623384
+    static-website-url: https://pet-care-ecosystem-1386623384.cos-website.ap-shanghai.myqcloud.com
 
 logging:
   level:

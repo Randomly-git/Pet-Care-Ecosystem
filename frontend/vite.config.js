@@ -61,6 +61,12 @@ export default defineConfig(({ mode }) => {
             return path.replace('/api/community', '/api/v1')
           },
           secure: false
+        },
+        // 媒体文件访问
+        '/uploads': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+          secure: false
         }
       }
     },

@@ -222,7 +222,7 @@ import { useAuthStore } from '@/stores/auth'
 import { Picture, Close, Star, ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
-import { createMoment, deleteMoment as deleteMomentApi, toggleLike as toggleLikeApi, createComment, getMomentComments } from '@/api/community'
+import { createMoment, deleteMoment as deleteMomentApi, toggleLike as toggleLikeApi, createComment, getMomentComments, getUserMoments } from '@/api/community'
 import { uploadMultipleMedia } from '@/api/media'
 import { getUserPets } from '@/api/pets'
 
@@ -301,11 +301,28 @@ const publishPost = async () => {
   publishing.value = true
 
   try {
-    // 暂时跳过媒体上传，只发布文本内容
-    // TODO: 媒体上传功能需要后端服务正常工作
+    // 上传媒体文件
     let mediaIds = []
+    let mediaUrls = []
     if (uploadedImages.value.length > 0) {
-      ElMessage.warning('媒体上传功能暂时不可用，将只发布文本内容')
+      ElMessage.info('正在上传媒体文件...')
+      try {
+        const files = uploadedImages.value.map(img => img.file)
+        const uploadResults = await uploadMultipleMedia({
+          files: files,
+          relatedType: 'MOMENT',
+          relatedId: authStore.userId,
+          userId: authStore.userId
+        })
+        mediaIds = uploadResults.map(result => result.mediaId)
+        // 保存媒体URL用于前端显示
+        mediaUrls = uploadResults.map(result => result.data.fileUrl)
+        ElMessage.success(`成功上传 ${mediaIds.length} 个文件`)
+      } catch (uploadError) {
+        console.error('上传媒体文件失败:', uploadError)
+        ElMessage.warning('媒体文件上传失败，将只发布文本内容')
+        mediaIds = []
+      }
     }
 
     // 2. 创建动态
@@ -324,7 +341,8 @@ const publishPost = async () => {
       userName: userName.value,
       userAvatar: userAvatar.value,
       content: newMoment.content,
-      media_urls: newMoment.mediaUrls || [],
+      // 使用上传成功后的媒体URL而不是后端返回的空数组
+      media_urls: mediaUrls,
       created_at: newMoment.createdAt,
       like_count: newMoment.likeCount || 0,
       comment_count: newMoment.commentCount || 0,
@@ -443,15 +461,40 @@ const deleteMoment = async (momentId) => {
 }
 
 const loadMoments = async () => {
-  // 这里应该加载所有用户的动态，目前先加载自己的
-  // TODO: 实现获取所有关注用户的动态
+  console.log('loadMoments: 开始加载动态，authStore.userId =', authStore.userId)
+
+  if (!authStore.userId) {
+    console.log('loadMoments: 用户未登录，临时设置为76')
+    // 临时硬编码用户ID
+    authStore.updateUser({ id: 76 })
+  }
+
   loading.value = true
   try {
-    // 暂时显示自己的动态
-    const userPets = await getUserPets(authStore.userId)
-    // 可以从其他地方获取动态列表
+    // 加载用户的动态列表
+    console.log('loadMoments: 调用getUserMoments，userId =', authStore.userId)
+    const userMoments = await getUserMoments(authStore.userId)
+    console.log('loadMoments: 获取到的用户动态:', userMoments)
+
+    // 转换为前端显示格式
+    moments.value = userMoments.map(moment => ({
+      id: moment.id,
+      userId: moment.userId,
+      content: moment.content,
+      media_urls: moment.mediaUrls || [],
+      created_at: moment.createdAt,
+      like_count: moment.likeCount || 0,
+      comment_count: moment.commentCount || 0,
+      liked: false,
+      isOwn: moment.userId === authStore.userId,
+      userName: `用户${moment.userId}`, // 临时显示
+      userAvatar: ''
+    }))
+
+    console.log('loadMoments: 格式化后的moments数组长度:', moments.value.length)
   } catch (error) {
     console.error('加载动态失败:', error)
+    moments.value = []
   } finally {
     loading.value = false
   }

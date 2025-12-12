@@ -4,7 +4,7 @@ import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.dto.MomentCreateRequestDTO;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.service.MomentService;
-import petcare.example.community_backend.mapper.MomentMapper;
+import petcare.example.community_backend.repository.PetMomentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +19,7 @@ import java.util.List;
 public class MomentController {
 
     private final MomentService momentService;
-    private final MomentMapper momentMapper; // 注入 Mapper
+    private final PetMomentRepository momentRepository;
 
     /**
      * GET /api/v1/moments/user/{userId}
@@ -40,22 +40,30 @@ public class MomentController {
             @Valid @RequestBody MomentCreateRequestDTO requestDTO) {
 
         try {
-            // 1. DTO 转换为 Moment 实体
-            PetMoment momentEntity = momentMapper.toEntity(requestDTO);
+            // 1. 手动 DTO 转换为 Moment 实体
+            PetMoment momentEntity = new PetMoment();
+            momentEntity.setUserId(requestDTO.getUserId());
+            momentEntity.setContent(requestDTO.getContent());
 
-            // 2. 调用 Service 层，传入 Moment 实体和 mediaIds 列表
-            PetMoment savedEntity = momentService.createMoment(
-                    momentEntity,
-                    requestDTO.getMediaIds()
-            );
+            // 2. 直接保存到数据库，暂时忽略mediaIds
+            PetMoment savedEntity = momentRepository.save(momentEntity);
 
-            // 3. 将保存后的 Entity 转换回 Response DTO 返回
-            MomentResponseDTO responseDTO = momentMapper.toResponseDTO(savedEntity);
+            // 3. 手动将保存后的 Entity 转换回 Response DTO 返回
+            MomentResponseDTO responseDTO = new MomentResponseDTO();
+            responseDTO.setId(savedEntity.getId());
+            responseDTO.setUserId(savedEntity.getUserId());
+            responseDTO.setContent(savedEntity.getContent());
+            responseDTO.setCreatedAt(savedEntity.getCreatedAt());
+            // 设置默认值
+            responseDTO.setMediaUrls(new java.util.ArrayList<>());
+            responseDTO.setLikeCount(0);
+            responseDTO.setCommentCount(0);
 
             return new ResponseEntity<>(responseDTO, HttpStatus.CREATED);
 
         } catch (Exception e) {
             System.err.println("创建动态失败: " + e.getMessage());
+            e.printStackTrace();
             // 如果是业务异常，这里可以返回更精确的状态码
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }

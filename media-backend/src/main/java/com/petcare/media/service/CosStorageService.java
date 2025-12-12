@@ -28,6 +28,9 @@ public class CosStorageService {
     @Value("${tencent.cos.region}")
     private String region;
 
+    @Value("${tencent.cos.static-website-url}")
+    private String staticWebsiteUrl;
+
     public String uploadFile(MultipartFile file, String filePath) throws IOException {
         String originalFileName = file.getOriginalFilename();
         String fileExtension = "";
@@ -44,7 +47,7 @@ public class CosStorageService {
             PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, key, tempFile);
             PutObjectResult putObjectResult = cosClient.putObject(putObjectRequest);
 
-            String fileUrl = "https://" + bucketName + ".cos." + region + ".myqcloud.com/" + key;
+            String fileUrl = staticWebsiteUrl + "/" + key;
             log.info("文件上传成功: {}, ETag: {}", fileUrl, putObjectResult.getETag());
 
             return fileUrl;
@@ -64,7 +67,10 @@ public class CosStorageService {
 
     public void deleteFile(String fileUrl) {
         try {
-            String prefix = "https://" + bucketName + ".cos." + region + ".myqcloud.com/";
+            String cleanedStaticWebsiteUrl = staticWebsiteUrl.endsWith("/")
+                    ? staticWebsiteUrl.substring(0, staticWebsiteUrl.length() - 1)
+                    : staticWebsiteUrl;
+            String prefix = cleanedStaticWebsiteUrl + "/";
             String key = fileUrl.replace(prefix, "");
 
             cosClient.deleteObject(bucketName, key);

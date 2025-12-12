@@ -5,7 +5,7 @@
 import request from './index'
 
 // 社区微服务的基础路径（通过前端代理服务器）
-const COMMUNITY_BASE_URL = '/api/community'
+const COMMUNITY_BASE_URL = '/community'
 
 /**
  * 创建新动态
@@ -25,21 +25,24 @@ export const createMoment = async (momentData) => {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/moments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(momentData)
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`创建动态失败: ${response.status} - ${errorText}`)
+    // 处理mediaIds参数：确保为null而不是空数组
+    const requestData = {
+      userId: momentData.userId,
+      content: momentData.content,
+      mediaIds: momentData.mediaIds && momentData.mediaIds.length > 0 ? momentData.mediaIds : null
     }
 
-    return await response.json()
+    console.log('发送创建动态请求:', requestData)
+
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/moments`,
+      method: 'POST',
+      data: requestData
+    })
+
+    console.log('动态创建成功:', response)
+    return response
   } catch (error) {
     console.error('创建动态失败:', error)
     throw error
@@ -57,15 +60,16 @@ export const getUserMoments = async (userId) => {
       throw new Error('用户ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/moments/user/${userId}`)
+    console.log('获取用户动态, userId:', userId)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`获取用户动态失败: ${response.status} - ${errorText}`)
-    }
+    // 使用统一的request模块
+    const moments = await request({
+      url: `${COMMUNITY_BASE_URL}/moments/user/${userId}`,
+      method: 'GET'
+    })
 
-    return await response.json()
+    console.log('获取到的用户动态:', moments)
+    return moments
   } catch (error) {
     console.error('获取用户动态失败:', error)
     throw error
@@ -83,17 +87,13 @@ export const deleteMoment = async (momentId) => {
       throw new Error('动态ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/moments/${momentId}`, {
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/moments/${momentId}`,
       method: 'DELETE'
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`删除动态失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.text()
+    return response
   } catch (error) {
     console.error('删除动态失败:', error)
     throw error
@@ -119,21 +119,14 @@ export const createComment = async (commentData) => {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/comments`, {
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/comments`,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(commentData)
+      data: commentData
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`创建评论失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.json()
+    return response
   } catch (error) {
     console.error('创建评论失败:', error)
     throw error
@@ -151,15 +144,13 @@ export const getMomentComments = async (momentId) => {
       throw new Error('动态ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/comments/moment/${momentId}`)
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/comments/moment/${momentId}`,
+      method: 'GET'
+    })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`获取评论失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.json()
+    return response
   } catch (error) {
     console.error('获取评论失败:', error)
     throw error
@@ -177,17 +168,13 @@ export const deleteComment = async (commentId) => {
       throw new Error('评论ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/comments/${commentId}`, {
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/comments/${commentId}`,
       method: 'DELETE'
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`删除评论失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.text()
+    return response
   } catch (error) {
     console.error('删除评论失败:', error)
     throw error
@@ -212,21 +199,14 @@ export const toggleLike = async (likeData) => {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/likes`, {
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/likes`,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(likeData)
+      data: likeData
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`点赞操作失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.text()
+    return response
   } catch (error) {
     console.error('点赞操作失败:', error)
     throw error
@@ -250,21 +230,14 @@ export const toggleFollow = async (followData) => {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/follows`, {
+    // 使用统一的request模块
+    const response = await request({
+      url: `${COMMUNITY_BASE_URL}/follows`,
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(followData)
+      data: followData
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`关注操作失败: ${response.status} - ${errorText}`)
-    }
-
-    return await response.text()
+    return response
   } catch (error) {
     console.error('关注操作失败:', error)
     throw error
@@ -282,15 +255,12 @@ export const getFollowersCount = async (userId) => {
       throw new Error('用户ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/follows/followers/count/${userId}`)
+    // 使用统一的request模块
+    const countText = await request({
+      url: `${COMMUNITY_BASE_URL}/follows/followers/count/${userId}`,
+      method: 'GET'
+    })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`获取粉丝数失败: ${response.status} - ${errorText}`)
-    }
-
-    const countText = await response.text()
     return parseInt(countText, 10)
   } catch (error) {
     console.error('获取粉丝数失败:', error)
@@ -309,15 +279,12 @@ export const getFollowingCount = async (userId) => {
       throw new Error('用户ID不能为空')
     }
 
-    // 通过代理服务器调用社区微服务
-    const response = await fetch(`${COMMUNITY_BASE_URL}/follows/following/count/${userId}`)
+    // 使用统一的request模块
+    const countText = await request({
+      url: `${COMMUNITY_BASE_URL}/follows/following/count/${userId}`,
+      method: 'GET'
+    })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`获取关注数失败: ${response.status} - ${errorText}`)
-    }
-
-    const countText = await response.text()
     return parseInt(countText, 10)
   } catch (error) {
     console.error('获取关注数失败:', error)
