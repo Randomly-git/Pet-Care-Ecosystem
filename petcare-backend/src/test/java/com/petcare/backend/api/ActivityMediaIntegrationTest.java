@@ -17,8 +17,8 @@ import java.util.UUID;
 
 public class ActivityMediaIntegrationTest {
 
-    private static final String BASE_URL = "http://localhost:8080"; // 根据实际服务地址修改
-    private static final String MEDIA_BASE_URL = "http://localhost:8082"; // 媒体服务地址
+    private static final String BASE_URL = "http://localhost:8082"; // 根据实际服务地址修改
+    private static final String MEDIA_BASE_URL = "http://localhost:8081"; // 媒体服务地址
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)

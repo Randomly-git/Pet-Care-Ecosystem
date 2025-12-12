@@ -23,7 +23,7 @@ public class MediaServiceClient {
 
     private final RestTemplate restTemplate;
 
-    @Value("${media.service.url:http://localhost:8082}")
+    @Value("${media.service.url:http://localhost:8081}")
     private String mediaServiceUrl;
 
     public MediaServiceClient(RestTemplate restTemplate) {
