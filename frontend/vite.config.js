@@ -41,11 +41,15 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false
         },
+        '/api/status': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+          secure: false
+        },
         // 媒体后端 API
         '/api/media': {
           target: 'http://localhost:8081',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/media/, '/api/v1/media'),
           secure: false
         },
         // 社区后端 API

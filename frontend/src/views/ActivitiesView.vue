@@ -8,8 +8,47 @@
       <div class="hero-container">
         <div class="hero-content">
           <div class="hero-emoji">🐾</div>
-          <h2 class="hero-title">活动记录</h2>
-          <p class="hero-subtitle">记录和管理宠物的日常活动与健康数据</p>
+          <h2 class="hero-title">宠物活动中心</h2>
+          <p class="hero-subtitle">记录和管理爱宠的每一个精彩瞬间</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 记录类型切换卡片 -->
+    <section class="record-switch-section">
+      <div class="container">
+        <div class="record-type-cards">
+          <div
+            class="record-type-card"
+            :class="{ active: currentRecordType === 'activity' }"
+            @click="switchToActivity"
+          >
+            <div class="card-icon">
+              <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="card-content">
+              <h3>活动记录</h3>
+              <p>记录宠物的日常活动和特殊时刻</p>
+              <div class="card-count">{{ activityCount }}</div>
+            </div>
+            <div class="card-indicator"></div>
+          </div>
+
+          <div
+            class="record-type-card"
+            :class="{ active: currentRecordType === 'status' }"
+            @click="switchToStatus"
+          >
+            <div class="card-icon">
+              <i class="fas fa-heartbeat"></i>
+            </div>
+            <div class="card-content">
+              <h3>状态记录</h3>
+              <p>追踪宠物的健康和状态变化</p>
+              <div class="card-count">{{ statusCount }}</div>
+            </div>
+            <div class="card-indicator"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -17,47 +56,49 @@
     <!-- 主要内容区域 -->
     <div class="main-content">
       <div class="container">
-        <!-- 宠物管理栏 -->
-        <div class="pets-section">
-          <div class="section-header">
-            <h3 class="section-title">我的宠物</h3>
-            <div class="pets-count">共 {{ userPets.length }} 只宠物</div>
-          </div>
-
-          <div class="pets-grid">
-            <!-- 宠物卡片 -->
-            <div
-              v-for="pet in userPets"
-              :key="pet.id || pet.petId"
-              class="pet-card"
-              :class="{ active: selectedPetIds.includes(pet.id || pet.petId) }"
-              @click="togglePetSelection(pet.id || pet.petId)"
-            >
-              <div class="pet-avatar">
-                <el-avatar :size="48" :src="pet.avatar_url">
-                  {{ pet.name.charAt(0) }}
-                </el-avatar>
-                <div class="pet-status-dot" v-if="selectedPetIds.includes(pet.id || pet.petId)"></div>
-              </div>
-              <div class="pet-info">
-                <div class="pet-name">{{ pet.name }}</div>
-                <div class="pet-details">{{ pet.species || pet.type }} · {{ pet.breed }}</div>
-              </div>
-              <div class="pet-activities">
-                <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
-                <div class="activity-label">活动</div>
-              </div>
+        <!-- 活动记录内容 -->
+        <div v-if="currentRecordType === 'activity'" class="activity-content">
+          <!-- 宠物管理栏 -->
+          <div class="pets-section">
+            <div class="section-header">
+              <h3 class="section-title">我的宠物</h3>
+              <div class="pets-count">共 {{ userPets.length }} 只宠物</div>
             </div>
 
-            <!-- 添加宠物卡片 -->
-            <div class="pet-card add-pet-card" @click="showAddPetDialog = true">
-              <div class="add-pet-content">
-                <div class="add-icon">+</div>
-                <div class="add-text">添加宠物</div>
+            <div class="pets-grid">
+              <!-- 宠物卡片 -->
+              <div
+                v-for="pet in userPets"
+                :key="pet.id || pet.petId"
+                class="pet-card"
+                :class="{ active: selectedPetIds.includes(pet.id || pet.petId) }"
+                @click="togglePetSelection(pet.id || pet.petId)"
+              >
+                <div class="pet-avatar">
+                  <el-avatar :size="48" :src="pet.avatar_url">
+                    {{ pet.name.charAt(0) }}
+                  </el-avatar>
+                  <div class="pet-status-dot" v-if="selectedPetIds.includes(pet.id || pet.petId)"></div>
+                </div>
+                <div class="pet-info">
+                  <div class="pet-name">{{ pet.name }}</div>
+                  <div class="pet-details">{{ pet.species || pet.type }} · {{ pet.breed }}</div>
+                </div>
+                <div class="pet-activities">
+                  <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
+                  <div class="activity-label">活动</div>
+                </div>
+              </div>
+
+              <!-- 添加宠物卡片 -->
+              <div class="pet-card add-pet-card" @click="showAddPetDialog = true">
+                <div class="add-pet-content">
+                  <div class="add-icon">+</div>
+                  <div class="add-text">添加宠物</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
         <!-- 操作栏 -->
         <div class="action-bar">
@@ -188,6 +229,30 @@
                         {{ record.activityDescription }}
                       </div>
 
+                      <!-- 活动记录媒体文件显示 -->
+                      <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
+                        <div class="media-preview">
+                          <div
+                            v-for="media in record.mediaFiles.slice(0, 4)"
+                            :key="media.mediaId"
+                            class="media-item"
+                            @click.stop="previewMedia(media)"
+                          >
+                            <img
+                              v-if="media.fileType.startsWith('image/')"
+                              :src="media.fileUrl"
+                              :alt="media.fileName"
+                            />
+                            <div v-else class="file-icon">
+                              <i class="fas fa-file"></i>
+                            </div>
+                          </div>
+                          <div v-if="record.mediaFiles.length > 4" class="more-media">
+                            +{{ record.mediaFiles.length - 4 }}
+                          </div>
+                        </div>
+                      </div>
+
                       <div class="record-actions">
                         <el-button size="small" @click.stop="editRecord(record)">
                           编辑
@@ -195,6 +260,165 @@
                         <el-button size="small" type="danger" @click.stop="deleteRecord(record)">
                           删除
                         </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- 状态记录内容 -->
+        <div v-else-if="currentRecordType === 'status'" class="status-content">
+          <!-- 状态记录操作栏 -->
+          <div class="status-action-bar">
+            <div class="action-left">
+              <el-select
+                v-model="selectedPetIds"
+                multiple
+                placeholder="选择宠物"
+                style="width: 200px"
+                @change="handleStatusPetSelectionChange"
+              >
+                <el-option
+                  v-for="pet in userPets"
+                  :key="pet.id || pet.petId"
+                  :label="pet.name"
+                  :value="pet.id || pet.petId"
+                />
+              </el-select>
+
+              <el-date-picker
+                v-model="statusDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                @change="handleStatusDateRangeChange"
+                size="default"
+                style="width: 240px; margin-left: 12px"
+              />
+            </div>
+
+            <div class="action-right">
+              <el-button type="success" @click="showAddStatusDialog = true">
+                <el-icon><Plus /></el-icon>
+                添加状态记录
+              </el-button>
+              <el-button @click="refreshStatusData">
+                <el-icon><Refresh /></el-icon>
+                刷新
+              </el-button>
+            </div>
+          </div>
+
+          <!-- 状态记录时间线 -->
+          <div class="status-timeline-section">
+            <div v-if="statusLoading" class="loading-container">
+              <el-skeleton :rows="5" animated />
+            </div>
+
+            <div v-else-if="filteredStatusRecords.length === 0" class="empty-state">
+              <el-empty description="暂无状态记录">
+                <el-button type="primary" @click="showAddStatusDialog = true">
+                  创建第一条状态记录
+                </el-button>
+              </el-empty>
+            </div>
+
+            <div v-else class="status-timeline">
+              <div
+                v-for="(group, date) in groupedStatusRecords"
+                :key="date"
+                class="timeline-group"
+              >
+                <div class="timeline-date">
+                  <div class="date-badge">{{ formatDate(date) }}</div>
+                </div>
+
+                <div class="timeline-items">
+                  <div
+                    v-for="record in group"
+                    :key="record.statusRecordId"
+                    class="timeline-item status-item"
+                    @click="editStatusRecord(record)"
+                  >
+                    <div class="timeline-marker">
+                      <div class="marker-dot status-dot"></div>
+                      <div class="marker-line"></div>
+                    </div>
+
+                    <div class="timeline-content">
+                      <div class="record-card status-record-card">
+                        <div class="record-header">
+                          <div class="pet-info">
+                            <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
+                              {{ getPetInfo(record.petId).name.charAt(0) }}
+                            </el-avatar>
+                            <div class="pet-details">
+                              <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
+                              <div class="status-type">{{ record.statusName }}</div>
+                            </div>
+                          </div>
+                          <div class="record-status-info">
+                            <div class="record-time">{{ formatTime(record.startDate) }}</div>
+                            <div class="status-duration" v-if="record.endDate">
+                              至 {{ formatTime(record.endDate) }}
+                            </div>
+                            <div class="status-active" v-else>
+                              <span class="active-indicator"></span>
+                              进行中
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="record-description" v-if="record.statusDescription">
+                          {{ record.statusDescription }}
+                        </div>
+
+                        <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
+                          <div class="media-preview">
+                            <div
+                              v-for="media in record.mediaFiles.slice(0, 3)"
+                              :key="media.mediaId"
+                              class="media-item"
+                              @click.stop="previewMedia(media)"
+                            >
+                              <img
+                                v-if="media.fileType.startsWith('image/')"
+                                :src="media.fileUrl"
+                                :alt="media.fileName"
+                              />
+                              <div v-else class="file-icon">
+                                <i class="fas fa-file"></i>
+                              </div>
+                            </div>
+                            <div v-if="record.mediaFiles.length > 3" class="more-media">
+                              +{{ record.mediaFiles.length - 3 }}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="record-actions">
+                          <el-button size="small" @click.stop="editStatusRecord(record)">
+                            编辑
+                          </el-button>
+                          <el-button
+                            v-if="!record.endDate"
+                            size="small"
+                            type="warning"
+                            @click.stop="stopStatusRecord(record)"
+                          >
+                            停止
+                          </el-button>
+                          <el-button size="small" type="danger" @click.stop="deleteStatusRecord(record)">
+                            删除
+                          </el-button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -321,6 +545,26 @@
           />
         </el-form-item>
 
+        <el-form-item label="上传媒体文件">
+          <el-upload
+            ref="activityUploadRef"
+            :auto-upload="false"
+            :on-change="handleActivityFileChange"
+            :limit="5"
+            :file-list="activityFileList"
+            action="#"
+            :accept="'image/*,video/*,.pdf,.doc,.docx'"
+            multiple
+          >
+            <el-button>选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持图片、视频、PDF、Word文档，最多5个文件，每个文件不超过10MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+
         </el-form>
 
       <template #footer>
@@ -377,6 +621,54 @@
             :rows="4"
             placeholder="请输入活动描述..."
           />
+        </el-form-item>
+
+        <el-form-item label="上传媒体文件">
+          <el-upload
+            ref="editActivityUploadRef"
+            :auto-upload="false"
+            :on-change="handleEditActivityFileChange"
+            :limit="5"
+            :file-list="editActivityFileList"
+            action="#"
+            :accept="'image/*,video/*,.pdf,.doc,.docx'"
+            multiple
+          >
+            <el-button>选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                上传新文件将替换现有文件，支持图片、视频、PDF、Word文档
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+
+        <!-- 已关联的媒体文件显示 -->
+        <el-form-item v-if="editForm.mediaFiles && editForm.mediaFiles.length > 0" label="已上传文件">
+          <div class="existing-media">
+            <div
+              v-for="media in editForm.mediaFiles"
+              :key="media.mediaId"
+              class="media-item-small"
+            >
+              <img
+                v-if="media.fileType.startsWith('image/')"
+                :src="media.fileUrl"
+                :alt="media.fileName"
+                @click="previewMedia(media)"
+              />
+              <div v-else class="file-icon-small" @click="previewMedia(media)">
+                <i class="fas fa-file"></i>
+              </div>
+              <el-button
+                size="small"
+                type="danger"
+                @click="removeMediaFromEdit(media)"
+              >
+                删除
+              </el-button>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
 
@@ -489,6 +781,176 @@
       </template>
     </el-dialog>
 
+    <!-- 添加状态记录对话框 -->
+    <el-dialog
+      v-model="showAddStatusDialog"
+      title="添加状态记录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="addStatusFormRef"
+        :model="addStatusForm"
+        :rules="addStatusFormRules"
+        label-width="100px"
+      >
+        <el-form-item label="选择宠物" prop="petId">
+          <el-select v-model="addStatusForm.petId" placeholder="请选择宠物" style="width: 100%">
+            <el-option
+              v-for="pet in userPets"
+              :key="pet.id || pet.petId"
+              :label="pet.name"
+              :value="pet.id || pet.petId"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="状态类型" prop="statusId">
+          <el-select v-model="addStatusForm.statusId" placeholder="选择状态类型" style="width: 100%">
+            <el-option
+              v-for="status in userStatuses"
+              :key="status.statusId"
+              :label="status.statusName"
+              :value="status.statusId"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="开始日期" prop="startDate">
+          <el-date-picker
+            v-model="addStatusForm.startDate"
+            type="date"
+            placeholder="选择开始日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="状态描述" prop="description">
+          <el-input
+            v-model="addStatusForm.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入状态描述..."
+          />
+        </el-form-item>
+
+        <el-form-item label="上传文件">
+          <el-upload
+            ref="statusUploadRef"
+            :auto-upload="false"
+            :on-change="handleStatusFileChange"
+            :limit="1"
+            :file-list="statusFileList"
+            action="#"
+            :accept="'image/*,.pdf,.doc,.docx'"
+          >
+            <el-button>选择文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持图片、PDF、Word文档，文件大小不超过10MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="showAddStatusDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitAddStatusForm" :loading="submittingStatus">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑状态记录对话框 -->
+    <el-dialog
+      v-model="showEditStatusDialog"
+      title="编辑状态记录"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="editStatusFormRef"
+        :model="editStatusForm"
+        :rules="editStatusFormRules"
+        label-width="100px"
+      >
+        <el-form-item label="宠物名称" prop="petId">
+          <el-input v-model="editStatusForm.petName" disabled placeholder="宠物名称" />
+        </el-form-item>
+
+        <el-form-item label="状态类型" prop="statusId">
+          <el-select v-model="editStatusForm.statusId" placeholder="选择状态类型" style="width: 100%">
+            <el-option
+              v-for="status in userStatuses"
+              :key="status.statusId"
+              :label="status.statusName"
+              :value="status.statusId"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="开始日期" prop="startDate">
+          <el-date-picker
+            v-model="editStatusForm.startDate"
+            type="date"
+            placeholder="选择开始日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="结束日期" prop="endDate">
+          <el-date-picker
+            v-model="editStatusForm.endDate"
+            type="date"
+            placeholder="选择结束日期（可选）"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
+          />
+        </el-form-item>
+
+        <el-form-item label="状态描述" prop="description">
+          <el-input
+            v-model="editStatusForm.description"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入状态描述..."
+          />
+        </el-form-item>
+
+        <el-form-item label="更新文件">
+          <el-upload
+            ref="editStatusUploadRef"
+            :auto-upload="false"
+            :on-change="handleEditStatusFileChange"
+            :limit="1"
+            :file-list="editStatusFileList"
+            action="#"
+            :accept="'image/*,.pdf,.doc,.docx'"
+          >
+            <el-button>选择新文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">
+                上传新文件将替换现有文件，支持图片、PDF、Word文档
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="showEditStatusDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitEditStatusForm" :loading="submittingStatus">
+          更新
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 使用统一的布局底部 -->
     <AppFooter />
   </div>
@@ -505,6 +967,7 @@ import {
   Plus,
   Refresh
 } from '@element-plus/icons-vue'
+import * as statusApi from '@/api/status'
 
 const authStore = useAuthStore()
 
@@ -535,6 +998,42 @@ const dateRange = ref([])
 // 存储每个宠物的总活动记录数（用于卡片显示）
 const petActivityStats = ref({})
 
+// 记录类型切换
+const currentRecordType = ref('activity') // 'activity' 或 'status'
+
+// 状态记录相关数据
+const statusLoading = ref(false)
+const submittingStatus = ref(false)
+const showAddStatusDialog = ref(false)
+const showEditStatusDialog = ref(false)
+const statusRecords = ref([])
+const userStatuses = ref([])
+const statusDateRange = ref([])
+const statusFileList = ref([])
+const editStatusFileList = ref([])
+
+// 状态记录表单数据
+const addStatusFormRef = ref()
+const editStatusFormRef = ref()
+const addStatusForm = ref({
+  petId: null,
+  statusId: null,
+  startDate: '',
+  description: '',
+  file: null
+})
+
+const editStatusForm = ref({
+  statusRecordId: null,
+  petId: null,
+  petName: '',
+  statusId: null,
+  startDate: '',
+  endDate: null,
+  description: '',
+  file: null
+})
+
 // 表单数据
 const addFormRef = ref()
 const editFormRef = ref()
@@ -552,8 +1051,15 @@ const editForm = ref({
   petName: '',
   activityId: null,
   activityDate: '',
-  description: ''
+  description: '',
+  mediaFiles: []
 })
+
+// 活动记录媒体文件相关数据
+const activityFileList = ref([])
+const editActivityFileList = ref([])
+const activityUploadRef = ref()
+const editActivityUploadRef = ref()
 
 // 宠物表单数据
 const petFormRef = ref()
@@ -660,6 +1166,18 @@ const newActivityFormRules = {
   ]
 }
 
+// 状态记录表单验证规则
+const addStatusFormRules = {
+  petId: [{ required: true, message: '请选择宠物', trigger: 'change' }],
+  statusId: [{ required: true, message: '请选择状态类型', trigger: 'change' }],
+  startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }]
+}
+
+const editStatusFormRules = {
+  statusId: [{ required: true, message: '请选择状态类型', trigger: 'change' }],
+  startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }]
+}
+
 // 活动类型 - 匹配数据库中的实际活动种类
 const activityTypes = ref([
   { label: '喂养', value: 1 },
@@ -742,6 +1260,42 @@ const groupedRecords = computed(() => {
   return groups
 })
 
+// 状态记录相关计算属性
+const activityCount = computed(() => activityRecords.value.length)
+
+const statusCount = computed(() => statusRecords.value.length)
+
+const filteredStatusRecords = computed(() => {
+  let filtered = statusRecords.value
+
+  // 按选择的宠物过滤
+  if (selectedPetIds.value.length > 0) {
+    filtered = filtered.filter(record => selectedPetIds.value.includes(record.petId))
+  }
+
+  // 按日期范围过滤
+  if (statusDateRange.value && statusDateRange.value.length === 2) {
+    const [startDate, endDate] = statusDateRange.value
+    filtered = filtered.filter(record => {
+      const recordDate = record.startDate
+      return recordDate >= startDate && recordDate <= endDate
+    })
+  }
+
+  return filtered.sort((a, b) => new Date(b.startDate) - new Date(a.startDate))
+})
+
+const groupedStatusRecords = computed(() => {
+  const groups = {}
+  filteredStatusRecords.value.forEach(record => {
+    const date = record.startDate
+    if (!groups[date]) {
+      groups[date] = []
+    }
+    groups[date].push(record)
+  })
+  return groups
+})
 
 // 方法
 const formatDate = (dateStr) => {
@@ -945,6 +1499,7 @@ const loadActivityRecords = async () => {
     }
 
     const { getActivityRecordsByPetIds } = await import('@/api/activities')
+    const { getRelatedMedia } = await import('@/api/media')
 
     // 批量获取活动记录
     console.log('loadActivityRecords: 开始调用API获取活动记录')
@@ -956,15 +1511,41 @@ const loadActivityRecords = async () => {
     console.log('loadActivityRecords: API原始响应:', recordsResponse)
 
     // 处理API响应格式
+    let records = []
     if (recordsResponse && recordsResponse.data) {
-      activityRecords.value = Array.isArray(recordsResponse.data) ? recordsResponse.data : []
+      records = Array.isArray(recordsResponse.data) ? recordsResponse.data : []
     } else if (Array.isArray(recordsResponse)) {
-      activityRecords.value = recordsResponse
-    } else {
-      activityRecords.value = []
+      records = recordsResponse
     }
 
-    console.log('loadActivityRecords: 处理后的活动记录:', activityRecords.value)
+    // 为每个活动记录获取关联的媒体文件
+    console.log('loadActivityRecords: 开始获取媒体文件信息')
+    const recordsWithMedia = await Promise.all(
+      records.map(async (record) => {
+        try {
+          const mediaResponse = await getRelatedMedia('activity', record.activityRecordId || record.id)
+          const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
+          console.log(`活动记录 ${record.activityRecordId || record.id} 的媒体文件:`, mediaFiles)
+          return {
+            ...record,
+            mediaFiles: mediaFiles,
+            mediaCount: mediaFiles.length,
+            firstMediaUrl: mediaFiles.length > 0 ? mediaFiles[0].fileUrl : null
+          }
+        } catch (mediaError) {
+          console.error(`获取活动记录 ${record.activityRecordId || record.id} 的媒体文件失败:`, mediaError)
+          return {
+            ...record,
+            mediaFiles: [],
+            mediaCount: 0,
+            firstMediaUrl: null
+          }
+        }
+      })
+    )
+
+    activityRecords.value = recordsWithMedia
+    console.log('loadActivityRecords: 处理后的活动记录（含媒体）:', activityRecords.value)
     console.log('loadActivityRecords: 活动记录数量:', activityRecords.value.length)
   } catch (error) {
     console.error('加载活动记录失败:', error)
@@ -1011,6 +1592,7 @@ const submitAddForm = async () => {
 
     // 导入API
     const { createActivityRecord, createActivityRecordByKind } = await import('@/api/activities')
+    const { uploadMedia } = await import('@/api/media')
 
     // 为每个选中的宠物创建活动记录
     const createPromises = []
@@ -1040,7 +1622,22 @@ const submitAddForm = async () => {
           userId: Number(currentUserId.value) // 新增：添加userId
         }
         console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用活动种类创建记录:`, recordData)
-        createPromises.push(createActivityRecordByKind(petId, recordData))
+        const result = await createActivityRecordByKind(petId, recordData)
+
+        // 如果有媒体文件，上传媒体
+        if (activityFileList.value.length > 0 && result && result.activityRecordId) {
+          for (const fileItem of activityFileList.value) {
+            if (fileItem.raw) {
+              try {
+                await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
+                console.log('媒体上传成功:', fileItem.name)
+              } catch (uploadError) {
+                console.error('媒体上传失败:', uploadError)
+                ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
+              }
+            }
+          }
+        }
       } else {
         // 使用具体活动ID创建记录（原有方式）
         recordData = {
@@ -1050,12 +1647,24 @@ const submitAddForm = async () => {
           userId: Number(currentUserId.value) // 新增：添加userId
         }
         console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用具体活动创建记录:`, recordData)
-        createPromises.push(createActivityRecord(petId, recordData))
+        const result = await createActivityRecord(petId, recordData)
+
+        // 如果有媒体文件，上传媒体
+        if (activityFileList.value.length > 0 && result && result.activityRecordId) {
+          for (const fileItem of activityFileList.value) {
+            if (fileItem.raw) {
+              try {
+                await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
+                console.log('媒体上传成功:', fileItem.name)
+              } catch (uploadError) {
+                console.error('媒体上传失败:', uploadError)
+                ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
+              }
+            }
+          }
+        }
       }
     }
-
-    // 等待所有创建操作完成
-    await Promise.all(createPromises)
 
     ElMessage.success(`成功为 ${selectedPets.length} 只宠物添加活动记录！`)
     showAddDialog.value = false
@@ -1068,6 +1677,7 @@ const submitAddForm = async () => {
       activityDate: '',
       description: ''
     }
+    activityFileList.value = []
 
     // 刷新活动记录列表
     await loadActivityRecords()
@@ -1098,9 +1708,11 @@ const editRecord = (record) => {
       petName: pet.name || '未知宠物',
       activityId: activityKindId, // 直接使用活动记录中的activityKindId
       activityDate: record.activityDate ? new Date(record.activityDate).toISOString().slice(0, 19).replace('T', ' ') : '',
-      description: record.activityDescription || record.description || ''
+      description: record.activityDescription || record.description || '',
+      mediaFiles: record.mediaFiles || [] // 初始化媒体文件数组
     }
 
+    editActivityFileList.value = []
     console.log('editRecord: 填充的编辑表单数据:', editForm.value)
     showEditDialog.value = true
   } catch (error) {
@@ -1132,6 +1744,7 @@ const submitEditForm = async () => {
 
     // 导入API并更新记录
     const { updateActivityRecord } = await import('@/api/activities')
+    const { uploadMedia } = await import('@/api/media')
 
     // 确保description字段不为空（API要求必需字段）
     const description = editForm.value.description || '无描述'
@@ -1171,6 +1784,21 @@ const submitEditForm = async () => {
         })
       } else {
         throw new Error('创建新活动失败，无法获取活动ID')
+      }
+    }
+
+    // 如果有新的媒体文件，上传媒体
+    if (editActivityFileList.value.length > 0) {
+      for (const fileItem of editActivityFileList.value) {
+        if (fileItem.raw) {
+          try {
+            await uploadMedia(fileItem.raw, currentUserId.value, 'activity', editForm.value.activityRecordId)
+            console.log('媒体上传成功:', fileItem.name)
+          } catch (uploadError) {
+            console.error('媒体上传失败:', uploadError)
+            ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已更新`)
+          }
+        }
       }
     }
 
@@ -1330,7 +1958,7 @@ const submitPetForm = async () => {
       name: petForm.value.name.trim(),
       species: petForm.value.type, // 前端type映射到后端species
       breed: petForm.value.breed.trim(),
-      // 注意：后端Pet实体没有age和gender字段，只有species和birthday
+      gender: petForm.value.gender === 'male' ? true : petForm.value.gender === 'female' ? false : null, // 转换为Boolean类型
       userId: Number(currentUserId.value), // 确保userId是数字类型
       birthday: petForm.value.birthday
     }
@@ -1402,6 +2030,312 @@ const submitPetForm = async () => {
   }
 }
 
+// 状态记录相关方法
+const switchToActivity = () => {
+  currentRecordType.value = 'activity'
+}
+
+const switchToStatus = () => {
+  currentRecordType.value = 'status'
+  loadStatusData()
+}
+
+const handleStatusPetSelectionChange = () => {
+  // 状态记录的筛选逻辑已在computed中实现
+}
+
+const handleStatusDateRangeChange = () => {
+  // 状态记录的筛选逻辑已在computed中实现
+}
+
+const loadStatusData = async () => {
+  try {
+    await Promise.all([
+      loadUserStatuses(),
+      loadStatusRecords()
+    ])
+  } catch (error) {
+    console.error('加载状态数据失败:', error)
+  }
+}
+
+const loadUserStatuses = async () => {
+  if (!currentUserId.value) return
+
+  try {
+    const response = await statusApi.getUserStatuses(currentUserId.value)
+    if (response && response.data) {
+      userStatuses.value = Array.isArray(response.data) ? response.data : []
+    } else if (Array.isArray(response)) {
+      userStatuses.value = response
+    } else {
+      userStatuses.value = []
+    }
+    console.log('加载到的用户状态:', userStatuses.value)
+  } catch (error) {
+    console.error('加载用户状态失败:', error)
+    userStatuses.value = []
+  }
+}
+
+const loadStatusRecords = async () => {
+  if (!currentUserId.value || selectedPetIds.value.length === 0) {
+    statusRecords.value = []
+    return
+  }
+
+  try {
+    statusLoading.value = true
+    const promises = selectedPetIds.value.map(petId =>
+      statusApi.getStatusRecords(petId, {
+        startDate: statusDateRange.value[0],
+        endDate: statusDateRange.value[1]
+      })
+    )
+
+    const responses = await Promise.all(promises)
+    const allRecords = responses.flatMap(response => {
+      if (response && response.data) {
+        return Array.isArray(response.data) ? response.data : []
+      }
+      return Array.isArray(response) ? response : []
+    })
+
+    statusRecords.value = allRecords
+    console.log('加载到的状态记录:', statusRecords.value)
+  } catch (error) {
+    console.error('加载状态记录失败:', error)
+    statusRecords.value = []
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+const refreshStatusData = async () => {
+  console.log('refreshStatusData: 开始刷新状态数据')
+  await loadStatusData()
+}
+
+const handleStatusFileChange = (file, fileList) => {
+  statusFileList.value = fileList
+  if (file.raw) {
+    addStatusForm.value.file = file.raw
+  }
+}
+
+const handleEditStatusFileChange = (file, fileList) => {
+  editStatusFileList.value = fileList
+  if (file.raw) {
+    editStatusForm.value.file = file.raw
+  }
+}
+
+const submitAddStatusForm = async () => {
+  if (!addStatusFormRef.value) return
+
+  try {
+    await addStatusFormRef.value.validate()
+    submittingStatus.value = true
+
+    const recordData = {
+      statusId: addStatusForm.value.statusId,
+      petId: addStatusForm.value.petId,
+      startDate: addStatusForm.value.startDate,
+      description: addStatusForm.value.description,
+      userId: currentUserId.value
+    }
+
+    if (addStatusForm.value.file) {
+      recordData.file = addStatusForm.value.file
+    }
+
+    console.log('创建状态记录:', recordData)
+    const result = await statusApi.createStatusRecord(recordData)
+
+    ElMessage.success('状态记录创建成功！')
+    showAddStatusDialog.value = false
+
+    // 重置表单
+    addStatusForm.value = {
+      petId: null,
+      statusId: null,
+      startDate: '',
+      description: '',
+      file: null
+    }
+    statusFileList.value = []
+
+    await loadStatusRecords()
+  } catch (error) {
+    console.error('创建状态记录失败:', error)
+    ElMessage.error('创建状态记录失败: ' + error.message)
+  } finally {
+    submittingStatus.value = false
+  }
+}
+
+const editStatusRecord = (record) => {
+  try {
+    console.log('editStatusRecord: 编辑状态记录:', record)
+
+    const pet = getPetInfo(record.petId)
+
+    editStatusForm.value = {
+      statusRecordId: record.statusRecordId,
+      petId: record.petId,
+      petName: pet.name || '未知宠物',
+      statusId: record.statusId,
+      startDate: record.startDate,
+      endDate: record.endDate,
+      description: record.statusDescription || '',
+      file: null
+    }
+
+    editStatusFileList.value = []
+    showEditStatusDialog.value = true
+  } catch (error) {
+    console.error('编辑状态记录失败:', error)
+    ElMessage.error('无法编辑该状态记录')
+  }
+}
+
+const submitEditStatusForm = async () => {
+  if (!editStatusFormRef.value) return
+
+  try {
+    await editStatusFormRef.value.validate()
+    submittingStatus.value = true
+
+    const updateData = {
+      description: editStatusForm.value.description,
+      startDate: editStatusForm.value.startDate,
+      endDate: editStatusForm.value.endDate
+    }
+
+    if (editStatusForm.value.file) {
+      updateData.file = editStatusForm.value.file
+      updateData.userId = currentUserId.value
+    }
+
+    console.log('更新状态记录:', editStatusForm.value.statusRecordId, updateData)
+    await statusApi.updateStatusRecord(editStatusForm.value.statusRecordId, updateData)
+
+    ElMessage.success('状态记录更新成功！')
+    showEditStatusDialog.value = false
+
+    await loadStatusRecords()
+  } catch (error) {
+    console.error('更新状态记录失败:', error)
+    ElMessage.error('更新状态记录失败: ' + error.message)
+  } finally {
+    submittingStatus.value = false
+  }
+}
+
+const stopStatusRecord = async (record) => {
+  try {
+    await ElMessageBox.confirm('确定要停止这条状态记录吗？', '确认停止', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const endDate = new Date().toISOString().split('T')[0]
+    await statusApi.stopStatusRecord(record.statusRecordId, endDate)
+
+    ElMessage.success('状态记录已停止')
+    await loadStatusRecords()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('停止状态记录失败:', error)
+      ElMessage.error('停止状态记录失败: ' + error.message)
+    }
+  }
+}
+
+const deleteStatusRecord = async (record) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条状态记录吗？删除后无法恢复。', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    await statusApi.deleteStatusRecord(record.statusRecordId)
+
+    ElMessage.success('状态记录删除成功')
+    await loadStatusRecords()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除状态记录失败:', error)
+      ElMessage.error('删除状态记录失败: ' + error.message)
+    }
+  }
+}
+
+const previewMedia = (media) => {
+  if (media.fileType.startsWith('image/')) {
+    // 对于图片文件，添加预览参数避免直接下载
+    const previewUrl = media.fileUrl + (media.fileUrl.includes('?') ? '&' : '?') + 'preview=true'
+    window.open(previewUrl, '_blank')
+  } else if (media.fileType.startsWith('video/')) {
+    // 对于视频文件，在浏览器中播放
+    window.open(media.fileUrl, '_blank')
+  } else {
+    ElMessage.info('非图片/视频文件暂不支持预览，将直接下载')
+    window.open(media.fileUrl, '_blank')
+  }
+}
+
+// 处理编辑对话框中的媒体文件移除
+const removeMediaFromEdit = (mediaId) => {
+  const index = editForm.mediaFiles.findIndex(m => m.mediaId === mediaId)
+  if (index > -1) {
+    editForm.mediaFiles.splice(index, 1)
+  }
+}
+
+// 处理活动记录文件选择变化
+const handleActivityFileChange = (file, fileList) => {
+  activityFileList.value = fileList
+  if (file.raw) {
+    addForm.value.file = file.raw
+  }
+}
+
+// 处理编辑活动记录文件选择变化
+const handleEditActivityFileChange = (file, fileList) => {
+  editActivityFileList.value = fileList
+  if (file.raw) {
+    editForm.value.file = file.raw
+  }
+}
+
+// 活动记录上传前的处理
+const beforeActivityUpload = (file) => {
+  const isValid = file.size / 1024 / 1024 < 50 // 50MB限制
+  if (!isValid) {
+    ElMessage.error('文件大小不能超过 50MB!')
+    return false
+  }
+  return true
+}
+
+// 处理活动记录上传成功
+const handleActivityUploadSuccess = (response, file) => {
+  if (response.code === 200) {
+    ElMessage.success('媒体文件上传成功!')
+    // 上传成功后可以预览或处理文件
+  } else {
+    ElMessage.error('上传失败: ' + response.message)
+  }
+}
+
+// 处理活动记录上传错误
+const handleActivityUploadError = (error) => {
+  ElMessage.error('上传过程中发生错误')
+  console.error('Upload error:', error)
+}
 
 // 生命周期
 onMounted(async () => {
@@ -1926,5 +2860,342 @@ watch([currentUserId], () => {
   .marker-line {
     display: none;
   }
+}
+
+/* ===== 记录类型切换卡片 ===== */
+.record-switch-section {
+  padding: 2rem 0;
+}
+
+.record-type-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.record-type-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.record-type-card:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.record-type-card.active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  transform: translateY(-2px);
+}
+
+.record-type-card.active .card-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.record-type-card.active .card-icon {
+  background: #3b82f6;
+  color: white;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.card-content p {
+  margin: 0 0 1rem 0;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.card-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #3b82f6;
+}
+
+/* ===== 状态记录样式 ===== */
+.status-content {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.status-action-bar {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.status-timeline-section {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.status-item {
+  border-left: 3px solid #10b981;
+}
+
+.status-dot {
+  background: #10b981;
+  width: 14px;
+  height: 14px;
+}
+
+.status-record-card {
+  border-left: 3px solid #10b981;
+}
+
+.record-status-info {
+  text-align: right;
+}
+
+.record-status-info .record-time {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.status-duration {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.status-active {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.active-indicator {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.record-media {
+  margin-bottom: 1rem;
+}
+
+.media-preview {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.media-item {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.media-item:hover {
+  border-color: #3b82f6;
+  transform: scale(1.05);
+}
+
+.media-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 1.2rem;
+}
+
+.more-media {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* ===== 响应式设计 - 记录类型切换卡片 ===== */
+@media (max-width: 768px) {
+  .record-type-cards {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .record-type-card {
+    padding: 1.5rem;
+  }
+
+  .card-icon {
+    font-size: 2rem;
+    width: 50px;
+    height: 50px;
+  }
+
+  .card-content h3 {
+    font-size: 1.125rem;
+  }
+
+  .card-content p {
+    font-size: 0.8rem;
+  }
+
+  .card-count {
+    font-size: 1.25rem;
+  }
+}
+
+/* 活动记录媒体文件样式 */
+.media-item-small {
+  width: 50px;
+  height: 50px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  position: relative;
+  display: inline-block;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.media-item-small:hover {
+  border-color: #3b82f6;
+  transform: scale(1.05);
+}
+
+.media-item-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.file-icon-small {
+  width: 100%;
+  height: 100%;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.file-icon-small:hover {
+  background: #e2e8f0;
+  color: #3b82f6;
+}
+
+.existing-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.existing-media .media-item-small {
+  position: relative;
+}
+
+.existing-media .el-button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 10px;
+  z-index: 10;
 }
 </style>

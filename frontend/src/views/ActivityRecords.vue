@@ -705,11 +705,10 @@ const submitPetForm = async () => {
     // 构建符合API要求的宠物数据
     const petData = {
       name: petForm.value.name.trim(),
-      type: petForm.value.type,
+      species: petForm.value.type, // 修改为species字段
       breed: petForm.value.breed.trim(),
-      gender: petForm.value.gender,
-      age: new Date().getFullYear() - new Date(petForm.value.birthday).getFullYear(), // 计算年龄
-      userId: currentUserId.value, // 添加当前用户ID
+      gender: petForm.value.gender === 'male' ? true : petForm.value.gender === 'female' ? false : null, // 转换为Boolean类型
+      userId: Number(currentUserId.value), // 确保userId是数字类型
       birthday: petForm.value.birthday
     }
 

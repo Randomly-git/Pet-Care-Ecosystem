@@ -134,7 +134,7 @@
               <div class="moment-content">
                 <p>{{ moment.content }}</p>
 
-                <!-- 图片展示 -->
+                <!-- 媒体文件展示 -->
                 <div v-if="moment.media_urls && moment.media_urls.length" class="moment-images">
                   <div
                     v-for="(url, index) in moment.media_urls"
@@ -142,7 +142,21 @@
                     class="image-item"
                     :class="getImageClass(moment.media_urls.length)"
                   >
-                    <img :src="url" :alt="`图片${index + 1}`" @click="previewImage(url)" />
+                    <!-- 判断是否为视频文件 -->
+                    <video
+                      v-if="isVideoUrl(url)"
+                      :src="url"
+                      controls
+                      preload="metadata"
+                      @click="openInNewTab(url)"
+                    />
+                    <!-- 图片文件 -->
+                    <img
+                      v-else
+                      :src="url"
+                      :alt="`图片${index + 1}`"
+                      @click="previewImage(url)"
+                    />
                   </div>
                 </div>
               </div>
@@ -292,6 +306,19 @@ const previewImage = (url) => {
   previewVisible.value = true
 }
 
+// 判断URL是否为视频文件
+const isVideoUrl = (url) => {
+  if (!url) return false
+  const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv']
+  const lowerUrl = url.toLowerCase()
+  return videoExtensions.some(ext => lowerUrl.includes(ext))
+}
+
+// 在新标签页打开媒体文件
+const openInNewTab = (url) => {
+  window.open(url, '_blank')
+}
+
 const publishPost = async () => {
   if (!newPostContent.value.trim()) {
     ElMessage.warning('请输入动态内容')
@@ -301,7 +328,17 @@ const publishPost = async () => {
   publishing.value = true
 
   try {
-    // 上传媒体文件
+    // 1. 先创建动态（不包含媒体）
+    const momentData = {
+      userId: authStore.userId,
+      content: newPostContent.value.trim(),
+      mediaIds: [] // 先创建空的动态
+    }
+
+    const newMoment = await createMoment(momentData)
+    console.log('动态创建成功:', newMoment)
+
+    // 2. 上传媒体文件并关联到新创建的动态
     let mediaIds = []
     let mediaUrls = []
     if (uploadedImages.value.length > 0) {
@@ -311,7 +348,7 @@ const publishPost = async () => {
         const uploadResults = await uploadMultipleMedia({
           files: files,
           relatedType: 'MOMENT',
-          relatedId: authStore.userId,
+          relatedId: newMoment.id, // 使用真实的动态ID
           userId: authStore.userId
         })
         mediaIds = uploadResults.map(result => result.mediaId)
@@ -325,16 +362,7 @@ const publishPost = async () => {
       }
     }
 
-    // 2. 创建动态
-    const momentData = {
-      userId: authStore.userId,
-      content: newPostContent.value.trim(),
-      mediaIds: mediaIds
-    }
-
-    const newMoment = await createMoment(momentData)
-
-    // 3. 转换为前端显示格式
+    // 4. 转换为前端显示格式
     const displayMoment = {
       id: newMoment.id,
       userId: newMoment.userId,
@@ -707,38 +735,53 @@ onMounted(() => {
 
 .moment-images {
   display: grid;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .moment-images.single {
   grid-template-columns: 1fr;
-  max-width: 400px;
+  max-width: 600px; /* 增加单张图片的最大宽度 */
+}
+
+.moment-images.single img {
+  height: 400px; /* 单张图片高度更大，占据主要画面 */
 }
 
 .moment-images.grid-2 {
   grid-template-columns: repeat(2, 1fr);
+  max-width: 500px;
 }
 
 .moment-images.grid-3 {
   grid-template-columns: repeat(3, 1fr);
+  max-width: 450px;
 }
 
 .image-item img {
   width: 100%;
-  height: 200px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .image-item img:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 .moment-images.grid-2 img,
 .moment-images.grid-3 img {
-  height: 150px;
+  height: 180px; /* 增加网格中图片的高度 */
+}
+
+/* 视频文件特殊处理 */
+.image-item video {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Moment Actions */
