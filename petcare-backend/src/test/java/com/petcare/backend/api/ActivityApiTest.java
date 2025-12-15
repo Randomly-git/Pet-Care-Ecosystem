@@ -10,7 +10,7 @@ import java.time.format.DateTimeFormatter;
 
 public class ActivityApiTest {
 
-    private static final String BASE_URL = "http://localhost:8080/api/activities";
+    private static final String BASE_URL = "http://localhost:8082/api/activities";
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     public static void main(String[] args) {
@@ -30,13 +30,13 @@ public class ActivityApiTest {
 //        testGetActivitiesByUserId(testUserId);
 //
 //        // 3. 测试获取用户活动列表（带种类筛选）
-//        testGetActivitiesByUserIdWithKind(testUserId, testActivityKindId);
+        testGetActivitiesByUserIdWithKind(testUserId, testActivityKindId);
 //
 //        // 4. 测试获取活动详情
 //        testGetActivityById(testActivityId);
 //
 //        // 5. 测试创建新活动
-          testCreateActivity(testActivityKindId,testUserId);
+          //testCreateActivity(testActivityKindId,testUserId);
 //
 //        // 6. 测试更新活动
 //        testUpdateActivity();
