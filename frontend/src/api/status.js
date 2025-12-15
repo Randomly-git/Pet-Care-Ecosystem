@@ -203,29 +203,24 @@ export const getActiveStatusRecord = async (petId, targetDate) => {
 }
 
 /**
- * 创建状态记录
+ * 创建状态记录（支持文件上传）
  * @param {Object} recordData - 状态记录数据
- * @param {number} recordData.petId - 宠物ID
  * @param {number} recordData.statusId - 状态ID
- * @param {number} recordData.userId - 用户ID
+ * @param {number} recordData.petId - 宠物ID
  * @param {string} recordData.startDate - 开始时间 yyyy-MM-dd
  * @param {string} [recordData.description] - 状态描述（可选）
  * @param {File} [recordData.file] - 上传的文件（可选）
+ * @param {number} recordData.userId - 用户ID
  * @returns {Promise} 创建结果响应
  */
 export const createStatusRecord = async (recordData) => {
   try {
     // 验证必需字段
-    const requiredFields = ['petId', 'statusId', 'userId', 'startDate']
-    const missingFields = requiredFields.filter(field => !recordData[field])
+    const requiredFields = ['statusId', 'petId', 'startDate', 'userId']
+    const missingFields = requiredFields.filter(field => recordData[field] === undefined || recordData[field] === null)
 
     if (missingFields.length > 0) {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
-    }
-
-    // 验证宠物ID
-    if (typeof recordData.petId !== 'number' || recordData.petId <= 0) {
-      throw new Error('宠物ID必须是正整数')
     }
 
     // 验证状态ID
@@ -233,40 +228,34 @@ export const createStatusRecord = async (recordData) => {
       throw new Error('状态ID必须是正整数')
     }
 
+    // 验证宠物ID
+    if (typeof recordData.petId !== 'number' || recordData.petId <= 0) {
+      throw new Error('宠物ID必须是正整数')
+    }
+
     // 验证用户ID
     if (typeof recordData.userId !== 'number' || recordData.userId <= 0) {
       throw new Error('用户ID必须是正整数')
     }
 
-    // 验证描述长度（如果提供）
-    if (recordData.description && recordData.description.length > 500) {
-      throw new Error('状态描述长度不能超过500个字符')
-    }
-
-    // 验证日期格式（可选，如果提供就验证）
-    if (recordData.startDate) {
-      const datePattern = /^\d{4}-\d{2}-\d{2}$/
-      if (!datePattern.test(recordData.startDate)) {
-        throw new Error('开始时间格式不正确，请使用 yyyy-MM-dd 格式')
-      }
+    // 验证日期格式
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/
+    if (!datePattern.test(recordData.startDate)) {
+      throw new Error('开始时间格式不正确，请使用 yyyy-MM-dd 格式')
     }
 
     // 构建FormData
     const formData = new FormData()
     formData.append('statusId', recordData.statusId)
     formData.append('petId', recordData.petId)
+    formData.append('startDate', recordData.startDate)
     formData.append('userId', recordData.userId)
-    
-    // 如果提供了开始时间，则添加
-    if (recordData.startDate) {
-      formData.append('startDate', recordData.startDate)
-    }
-    
+
     // 可选字段
     if (recordData.description) {
       formData.append('description', recordData.description)
     }
-    
+
     if (recordData.file) {
       formData.append('file', recordData.file)
     }
@@ -287,11 +276,14 @@ export const createStatusRecord = async (recordData) => {
 }
 
 /**
- * 更新状态记录
+ * 更新状态记录（支持文件更新）
  * @param {number} statusRecordId - 状态记录ID
  * @param {Object} updateData - 更新数据
- * @param {number} [updateData.statusId] - 新的状态ID
- * @param {string} [updateData.statusDescription] - 新的状态描述
+ * @param {string} [updateData.description] - 新的状态描述
+ * @param {string} [updateData.startDate] - 新的开始日期 yyyy-MM-dd
+ * @param {string} [updateData.endDate] - 新的结束日期 yyyy-MM-dd
+ * @param {File} [updateData.file] - 新的媒体文件（可选）
+ * @param {number} [updateData.userId] - 用户ID（仅上传文件时需要）
  * @returns {Promise} 更新结果响应
  */
 export const updateStatusRecord = async (statusRecordId, updateData) => {
@@ -300,20 +292,47 @@ export const updateStatusRecord = async (statusRecordId, updateData) => {
       throw new Error('状态记录ID不能为空')
     }
 
-    // 如果提供状态ID，验证其有效性
-    if (updateData.statusId && (typeof updateData.statusId !== 'number' || updateData.statusId <= 0)) {
-      throw new Error('状态ID必须是正整数')
+    // 构建FormData
+    const formData = new FormData()
+
+    // 可选字段
+    if (updateData.description !== undefined) {
+      formData.append('description', updateData.description)
     }
 
-    // 验证描述长度（如果提供）
-    if (updateData.statusDescription && updateData.statusDescription.length > 500) {
-      throw new Error('状态描述长度不能超过500个字符')
+    if (updateData.startDate) {
+      // 验证日期格式
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/
+      if (!datePattern.test(updateData.startDate)) {
+        throw new Error('开始日期格式不正确，请使用 yyyy-MM-dd 格式')
+      }
+      formData.append('startDate', updateData.startDate)
+    }
+
+    if (updateData.endDate) {
+      // 验证日期格式
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/
+      if (!datePattern.test(updateData.endDate)) {
+        throw new Error('结束日期格式不正确，请使用 yyyy-MM-dd 格式')
+      }
+      formData.append('endDate', updateData.endDate)
+    }
+
+    if (updateData.file) {
+      formData.append('file', updateData.file)
+    }
+
+    if (updateData.userId) {
+      formData.append('userId', updateData.userId)
     }
 
     const response = await request({
       url: `/status/records/${statusRecordId}`,
       method: 'PUT',
-      data: updateData
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
     return response
   } catch (error) {
@@ -398,6 +417,33 @@ export const getStatusRecordsByPetIds = async (petIds, searchParams = {}) => {
     return response
   } catch (error) {
     console.error('批量获取状态记录失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 为状态记录上传媒体文件
+ * @param {number} statusRecordId - 状态记录ID
+ * @param {FormData} formData 包含file和userId
+ * @returns {Promise} 上传结果
+ */
+export const uploadStatusMedia = async (statusRecordId, formData) => {
+  try {
+    if (!statusRecordId) {
+      throw new Error('状态记录ID不能为空')
+    }
+
+    const response = await request({
+      url: `/status/records/${statusRecordId}/media`,
+      method: 'POST',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response
+  } catch (error) {
+    console.error('为状态记录上传媒体文件失败:', error)
     throw error
   }
 }

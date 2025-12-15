@@ -23,6 +23,11 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
+    // 处理FormData - 移除Content-Type让浏览器自动设置
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+
     // 添加请求时间戳
     config.metadata = { startTime: new Date() }
 

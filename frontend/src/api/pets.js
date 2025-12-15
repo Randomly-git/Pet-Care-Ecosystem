@@ -93,18 +93,17 @@ export const updatePet = async (petId, petData) => {
     }
 
     // 验证宠物类型（如果提供）
-    if (petData.type) {
+    if (petData.species) {
       const validTypes = ['dog', 'cat', 'bird', 'fish', 'other']
-      if (!validTypes.includes(petData.type)) {
-        throw new Error(`无效的宠物类型: ${petData.type}`)
+      if (!validTypes.includes(petData.species)) {
+        throw new Error(`无效的宠物类型: ${petData.species}`)
       }
     }
 
-    // 验证性别（如果提供）
-    if (petData.gender) {
-      const validGenders = ['male', 'female', 'unknown']
-      if (!validGenders.includes(petData.gender)) {
-        throw new Error(`无效的性别: ${petData.gender}`)
+    // 验证性别（如果提供）- 现在是Boolean类型
+    if (petData.gender !== undefined && petData.gender !== null) {
+      if (typeof petData.gender !== 'boolean') {
+        throw new Error(`性别字段必须是Boolean类型: true(公), false(母), null(未知)`)
       }
     }
 
