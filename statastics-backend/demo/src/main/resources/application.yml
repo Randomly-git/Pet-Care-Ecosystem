@@ -1,0 +1,16 @@
+server:
+  port: 8085  # 使用不同端口，避免冲突
+
+spring:
+  application:
+    name: activity-stats-service
+
+# 活动服务配置
+activity:
+  service:
+    base-url: http://localhost:8082  # 你的活动服务地址
+
+# 日志配置
+logging:
+  level:
+    com.example.stats: DEBUG
