@@ -17,17 +17,17 @@ import java.util.UUID;
 
 public class ActivityMediaIntegrationTest {
 
-    private static final String BASE_URL = "http://localhost:8082"; // 根据实际服务地址修改
-    private static final String MEDIA_BASE_URL = "http://localhost:8081"; // 媒体服务地址
+    private static final String BASE_URL = "http://localhost:9000"; // 根据实际服务地址修改
+    private static final String MEDIA_BASE_URL = "http://localhost:9000"; // 媒体服务地址
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .build();
 
     // 测试参数（统一控制）
-    private static final Long PET_ID = 393L;
-    private static final Long USER_ID = 32L;
-    private static final Long ACTIVITY_ID = 419L;
+    private static final Long PET_ID = 1L;
+    private static final Long USER_ID = 1L;
+    private static final Long ACTIVITY_ID = 1L;
     private static final String DESCRIPTION = "测试活动记录";
 
     // 测试文件路径
@@ -46,20 +46,20 @@ public class ActivityMediaIntegrationTest {
         System.out.println("=== 开始测试活动记录媒体集成接口 ===\n");
 
         // 测试1：创建带文件的活动记录
-        //Long recordId = testCreateActivityRecordWithFile();
+//          Long recordId = testCreateActivityRecordWithFile();
 
 //        if (recordId != null) {
 //            // 等待文件上传完成
 //            Thread.sleep(2000);
 //
 //            // 测试2：搜索活动记录（查看媒体文件）
-              //testSearchActivityRecords();
+              testSearchActivityRecords();
 //
 //            // 测试3：更新活动记录（更换文件）
 //            testUpdateActivityRecordWithFile(recordId);
 //
 //            // 测试4：删除活动记录（验证媒体文件也被删除）
-              testDeleteActivityRecord(79L);
+              //testDeleteActivityRecord(79L);
 //        }
 
         System.out.println("\n=== 测试完成 ===");

@@ -1,9 +1,18 @@
 # 在文件开头或合适的位置添加
+#server:
+#  port: 8082  # 添加这一行，与前端配置保持一致
+#  address: 0.0.0.0  # 可选，允许外部访问
+
 server:
-  port: 8082  # 添加这一行，与前端配置保持一致
-  address: 0.0.0.0  # 可选，允许外部访问
+  port: 0 # 随机端口
 
 spring:
+  application:
+    name: petcare-backend # 这个名字要和网关配置里的 lb:// 后面一致
+    cloud:
+      nacos:
+        discovery:
+          server-addr: 127.0.0.1:8848
   datasource:
     url: jdbc:mysql://47.100.240.111:3306/pet_space_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: root

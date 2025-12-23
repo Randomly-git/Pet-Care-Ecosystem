@@ -17,10 +17,13 @@ public class ActivityClient {
 
     private final RestTemplate restTemplate;
 
-    // 使用活动服务期望的日期时间格式
-    private static final DateTimeFormatter DATE_TIME_FORMATTER =
-            DateTimeFormatter.ISO_LOCAL_DATE_TIME; // 格式: "2025-10-01T00:00:00"
+    // 1. 修改为微服务名称
+    private final String activityServiceUrl = "http://petcare-backend";
 
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+            DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+    // 2. 如果该微服务只有一个 RestTemplate Bean，直接注入即可
     public ActivityClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
@@ -29,34 +32,30 @@ public class ActivityClient {
                                                       LocalDateTime startDate,
                                                       LocalDateTime endDate) {
         try {
-            // 构建URL
+            // 3. 拼接 URL
             StringBuilder urlBuilder = new StringBuilder();
-            urlBuilder.append("http://localhost:8082/api/activities/records/pet/").append(petId);
+            urlBuilder.append(activityServiceUrl).append("/api/activities/records/pet/").append(petId);
 
             boolean hasParam = false;
-
             if (activityKindId != null) {
                 urlBuilder.append("?activityKindId=").append(activityKindId);
                 hasParam = true;
             }
 
             if (startDate != null) {
-                String formattedStartDate = formatDateTime(startDate);
                 urlBuilder.append(hasParam ? "&" : "?")
-                        .append("startDate=").append(formattedStartDate);
+                        .append("startDate=").append(formatDateTime(startDate));
                 hasParam = true;
             }
 
             if (endDate != null) {
-                String formattedEndDate = formatDateTime(endDate);
                 urlBuilder.append(hasParam ? "&" : "?")
-                        .append("endDate=").append(formattedEndDate);
+                        .append("endDate=").append(formatDateTime(endDate));
             }
 
             String url = urlBuilder.toString();
             System.out.println("调用活动服务URL: " + url);
 
-            // 发送请求
             ResponseEntity<List<ActivityRecordDTO>> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
@@ -66,53 +65,19 @@ public class ActivityClient {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 return response.getBody();
-            } else {
-                System.out.println("获取活动记录失败，状态码: " + response.getStatusCode());
-                return Collections.emptyList();
             }
+            return Collections.emptyList();
 
         } catch (Exception e) {
             System.out.println("调用活动服务异常: " + e.getMessage());
-            e.printStackTrace();
             return Collections.emptyList();
         }
     }
 
-    /**
-     * 格式化日期时间为活动服务期望的格式
-     * 根据你的活动服务日志，期望格式可能是: "2025-10-01T00:00:00"
-     */
     private String formatDateTime(LocalDateTime dateTime) {
-        if (dateTime == null) {
-            return null;
-        }
-
-        // 尝试几种常见格式
-        try {
-            // 格式1: ISO格式 (2025-10-01T00:00:00)
-            return dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
-            // 如果不行，可以尝试其他格式：
-            // 格式2: 带毫秒 (2025-10-01T00:00:00.000)
-            // return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
-
-            // 格式3: 不带秒 (2025-10-01T00:00)
-            // return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
-        } catch (Exception e) {
-            System.err.println("日期格式转换错误: " + e.getMessage());
-            return dateTime.toString(); // 回退到默认格式
-        }
-    }
-
-    /**
-     * URL编码（处理特殊字符）
-     */
-    private String encodeUrlParam(String value) {
-        if (value == null) return "";
-
-        // 对日期时间字符串进行URL编码
-        return value.replace(":", "%3A")
-                .replace(" ", "%20")
-                .replace("+", "%2B");
+        if (dateTime == null) return null;
+        // 注意：RestTemplate 发送 GET 请求时，会自动对参数值进行 URL 编码
+        // 只要格式化正确即可
+        return dateTime.format(DATE_TIME_FORMATTER);
     }
 }

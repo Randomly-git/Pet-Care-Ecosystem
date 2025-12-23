@@ -1,7 +1,13 @@
 server:
-  port: 8084
+  port: 0 # 随机端口
 
 spring:
+  application:
+    name: community-backend # 这个名字要和网关配置里的 lb:// 后面一致
+    cloud:
+      nacos:
+        discovery:
+          server-addr: 127.0.0.1:8848
   datasource:
     url: jdbc:mysql://47.100.240.111:3306/pet_space_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
     username: root
@@ -31,9 +37,9 @@ logging:
 app:
   # 媒体服务地址，根据实际部署情况修改
   media-service:
-    url: http://localhost:8081
+    url: http://media-backend
   user-service:
-    url: http://localhost:8082  # 指向petcare-backend
+    url: http://petcare-backend  # 指向petcare-backend
 
 # CORS配置
 web:

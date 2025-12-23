@@ -8,5 +8,5 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "pet.service")
 public class PetServiceConfig {
-    private String baseUrl = "http://localhost:8082";
+    private String baseUrl = "http://petcare-backend";
 }

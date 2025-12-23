@@ -5,6 +5,7 @@ import com.example.demo.dto.QwenRequest;
 import com.example.demo.dto.QwenResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
@@ -19,7 +20,7 @@ public class QwenApiClient {
     private final QwenConfig qwenConfig;
     private final ObjectMapper objectMapper;
 
-    public QwenApiClient(QwenConfig qwenConfig, RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public QwenApiClient(QwenConfig qwenConfig, @Qualifier("normalRestTemplate") RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.qwenConfig = qwenConfig;
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;

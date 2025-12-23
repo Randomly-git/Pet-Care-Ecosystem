@@ -1,0 +1,30 @@
+server:
+  port: 0 # 随机端口
+
+spring:
+  application:
+    name: llm-backend # 这个名字要和网关配置里的 lb:// 后面一致
+    cloud:
+      nacos:
+        discovery:
+          server-addr: 127.0.0.1:8848
+
+# 服务接口地址配置
+pet:
+  service:
+    base-url: http://petcare-backend
+
+# 大模型 API 配置
+qwen:
+  api-key: sk-972a298500904e809a415aa9f153caac
+  base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  model: qwen3-max
+  timeout: 30000
+
+# 日志配置
+logging:
+  level:
+    com:
+      example:
+        demo: DEBUG
+    root: INFO

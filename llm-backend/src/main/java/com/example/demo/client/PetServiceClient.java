@@ -1,6 +1,7 @@
 package com.example.demo.client;
 
 import com.example.demo.dto.response.StatusRecordDTO;
+import org.springframework.beans.factory.annotation.Qualifier; // 必须导入
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +15,10 @@ import java.util.List;
 public class PetServiceClient {
 
     private final RestTemplate restTemplate;
-    private final String petServiceBaseUrl = "http://localhost:8082"; // 宠物服务地址
+    private final String petServiceBaseUrl = "http://petcare-backend";
 
-    public PetServiceClient(RestTemplate restTemplate) {
+    // 修改点：添加 @Qualifier 指定使用带负载均衡的 Bean
+    public PetServiceClient(@Qualifier("loadBalancedRestTemplate") RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
@@ -25,6 +27,7 @@ public class PetServiceClient {
      */
     public List<StatusRecordDTO> getPetStatusRecords(Long petId) {
         try {
+            // 因为使用了 @LoadBalanced 的 restTemplate，这里可以使用服务名 petcare-backend
             String url = petServiceBaseUrl + "/api/status/records/pet/" + petId;
 
             System.out.println("调用宠物服务URL: " + url);
@@ -37,16 +40,12 @@ public class PetServiceClient {
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                System.out.println("成功获取到 " + response.getBody().size() + " 条状态记录");
                 return response.getBody();
-            } else {
-                System.out.println("获取状态记录失败，状态码: " + response.getStatusCode());
-                return Collections.emptyList();
             }
+            return Collections.emptyList();
 
         } catch (Exception e) {
-            System.out.println("调用宠物服务异常: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("调用宠物服务异常: " + e.getMessage());
             return Collections.emptyList();
         }
     }

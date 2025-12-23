@@ -17,8 +17,12 @@ public class ApiTestUtil {
     public static ResponseEntity<String> testGet(String url) {
         log.info("=== 测试 GET 请求: {} ===", url);
         try {
-            ResponseEntity<String> response =
-                    restTemplate.exchange(url, HttpMethod.GET, null, String.class);
+            HttpHeaders headers = new HttpHeaders();
+            // 强制要求保持连接，防止 Netty 过快断开
+            headers.set(HttpHeaders.CONNECTION, "keep-alive");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             logRawJsonResponse(response);
             return response;
         } catch (Exception e) {
