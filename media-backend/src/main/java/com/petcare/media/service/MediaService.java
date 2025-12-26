@@ -10,6 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -19,6 +24,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 @RequiredArgsConstructor // 推荐使用构造器注入，配合 final 字段
+@CacheConfig(cacheNames = "media") // 统一缓存前缀
 public class MediaService {
 
     private final MediaRepository mediaRepository; // 使用 final 字段
@@ -27,9 +33,13 @@ public class MediaService {
     // --- 核心业务逻辑方法 ---
 
     /**
-     * 上传媒体文件 (主体方法，接收 RelatedType 枚举)
+     * 上传媒体文件 - 成功后清除用户和业务相关的列表缓存
      */
     @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(key = "'user:' + #userId"),
+            @CacheEvict(key = "'related:' + #relatedType + ':' + #relatedId")
+    })
     public MediaFile uploadMediaFile(MultipartFile file, Long userId,
                                      RelatedType relatedType, Long relatedId) {
         // 1. 验证文件
@@ -84,29 +94,12 @@ public class MediaService {
     }
 
 
-    /**
-     * 上传媒体文件（Controller 调用方法，接收 String 类型参数）
-     */
-    public MediaFile uploadMediaFile(MultipartFile file, Long userId,
-                                     String relatedTypeStr, Long relatedId) {
-        try {
-            String cleanedType = relatedTypeStr.toUpperCase().trim();
-            // 解决局部变量冲突，将 RelatedType.valueOf 结果赋给临时变量
-            RelatedType type = RelatedType.valueOf(cleanedType);
 
-            // 正确调用主体方法
-            return uploadMediaFile(file, userId, type, relatedId);
-
-        } catch (IllegalArgumentException e) {
-            log.error("❌ 枚举转换失败 - 输入: '{}', 错误: {}", relatedTypeStr, e.getMessage());
-            throw new MediaServiceException("无效的关联类型: " + relatedTypeStr +
-                    "，有效值: " + String.join(", ", getValidRelatedTypes()));
-        }
-    }
 
     /**
      * 根据ID获取媒体文件信息
      */
+    @Cacheable(key = "'id:' + #mediaId", unless = "#result == null")
     public MediaFile getMediaFileById(Long mediaId) {
         return mediaRepository.findById(mediaId)
                 .orElseThrow(() -> new MediaServiceException("媒体文件不存在, ID: " + mediaId));
@@ -115,7 +108,9 @@ public class MediaService {
     /**
      * 获取宠物的所有媒体文件
      */
+    @Cacheable(key = "'user:' + #userId")
     public List<MediaFile> getMediaFilesByUserId(Long userId) {
+
         return mediaRepository.findByUserId(userId);
     }
 
@@ -129,6 +124,7 @@ public class MediaService {
     /**
      * 获取特定业务记录的媒体文件（字符串类型参数）
      */
+    @Cacheable(key = "'related:' + #relatedTypeStr.toUpperCase() + ':' + #relatedId")
     public List<MediaFile> getMediaFilesByRelated(String relatedTypeStr, Long relatedId) {
         try {
             RelatedType relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
@@ -158,6 +154,7 @@ public class MediaService {
      * 删除单个媒体文件
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(allEntries = true)
     public void deleteMediaFile(Long mediaId) {
         MediaFile mediaFile = getMediaFileById(mediaId);
 
@@ -281,7 +278,8 @@ public class MediaService {
      * @param newRelatedId 新的关联 ID（如 Moment ID）
      * @return 更新成功的记录数
      */
-    @Transactional(rollbackFor = Exception.class) // 这是一个写操作，需要事务
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(allEntries = true)
     public int batchUpdateRelatedId(List<Long> mediaIds, String relatedTypeStr, Long newRelatedId) {
         if (mediaIds == null || mediaIds.isEmpty()) {
             return 0;
@@ -319,5 +317,25 @@ public class MediaService {
                 filesToUpdate.size(), relatedTypeStr, newRelatedId);
 
         return filesToUpdate.size();
+    }
+
+    /**
+     * 上传媒体文件（Controller 调用方法，接收 String 类型参数）
+     */
+    public MediaFile uploadMediaFile(MultipartFile file, Long userId,
+                                     String relatedTypeStr, Long relatedId) {
+        try {
+            String cleanedType = relatedTypeStr.toUpperCase().trim();
+            // 解决局部变量冲突，将 RelatedType.valueOf 结果赋给临时变量
+            RelatedType type = RelatedType.valueOf(cleanedType);
+
+            // 正确调用主体方法
+            return uploadMediaFile(file, userId, type, relatedId);
+
+        } catch (IllegalArgumentException e) {
+            log.error("❌ 枚举转换失败 - 输入: '{}', 错误: {}", relatedTypeStr, e.getMessage());
+            throw new MediaServiceException("无效的关联类型: " + relatedTypeStr +
+                    "，有效值: " + String.join(", ", getValidRelatedTypes()));
+        }
     }
 }

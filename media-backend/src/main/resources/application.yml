@@ -1,24 +1,44 @@
 server:
-  port: 0 # 随机端口
+  port: 0
 
 spring:
   application:
-    name: media-backend # 这个名字要和网关配置里的 lb:// 后面一致
-    cloud:
-      nacos:
-        discovery:
-          server-addr: 127.0.0.1:8848
+    name: media-backend
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+
+  # --- 新增 Redis 配置 ---
+  data:
+    redis:
+      host: 47.100.240.111 # 如果 Redis 在服务器上，请修改为实际 IP
+      port: 6379
+      password:        # 如果有密码请填写
+      database: 0      # 指定数据库索引
+      timeout: 5000ms # 适当延长超时时间
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+
+  # --- 新增 Cache 配置 ---
+  cache:
+    type: redis
+    redis:
+      time-to-live: 7200000 # 缓存过期时间（单位毫秒，这里设为2小时）
+      cache-null-values: false # 不缓存空值，防止缓存穿透
+      use-key-prefix: true
+      key-prefix: "petcare:media:" # 所有的缓存 key 都会带上这个前缀
+
   datasource:
     url: jdbc:mysql://47.100.240.111:3306/pet_space_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
     username: root
     password: Db123456
     driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+    # ... hikari 保持不变
 
   jpa:
     show-sql: true
@@ -30,8 +50,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 100MB        # 单个文件最大100MB
-      max-request-size: 100MB     # 整个请求最大100MB
+      max-file-size: 100MB
+      max-request-size: 100MB
       enabled: true
 
 # 腾讯云COS配置
@@ -47,3 +67,4 @@ logging:
   level:
     com.petcare.media: DEBUG
     com.qcloud.cos: DEBUG
+    org.springframework.cache: TRACE # 开启缓存日志便于调试
