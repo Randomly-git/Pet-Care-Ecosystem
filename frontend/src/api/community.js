@@ -4,8 +4,9 @@
 
 import request from './index'
 
-// 社区微服务的基础路径（通过前端代理服务器）
-const COMMUNITY_BASE_URL = '/community'
+// 社区微服务的基础路径（通过网关路由）
+// 注意：不包含/api前缀，因为index.js已经配置了baseURL为/api
+const COMMUNITY_BASE_URL = '/v1'
 
 /**
  * 创建新动态

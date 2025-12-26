@@ -86,14 +86,15 @@ public class MediaServiceFacade {
 
     /**
      * 批量更新媒体文件的 relatedId，实现文件关联。
-     * API: PUT /api/media/associate/batch
-     * * @param mediaIds 前端预上传后返回的媒体文件ID列表
+     * API: PATCH /api/media/batch/related
+     * @param mediaIds 前端预上传后返回的媒体文件ID列表
      * @param relatedType 业务类型 (例如: "MOMENT")
      * @param newRelatedId 新的关联业务 ID (例如: Moment ID)
      * @return 成功关联的文件数量 (业务层面)
      */
     public int batchUpdateRelatedId(List<Long> mediaIds, String relatedType, Long newRelatedId) {
-        String url = String.format("%s/api/media/associate/batch", mediaServiceUrl);
+        // 修复：使用正确的API路径 /api/media/batch/related
+        String url = String.format("%s/api/media/batch/related", mediaServiceUrl);
 
         // 创建请求体 DTO
         MediaBatchUpdateRequest requestBody = new MediaBatchUpdateRequest(mediaIds, relatedType, newRelatedId);
@@ -104,10 +105,10 @@ public class MediaServiceFacade {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<MediaBatchUpdateRequest> requestEntity = new HttpEntity<>(requestBody, headers);
 
-            // 2. 发送 PUT 请求 (更新操作)
+            // 2. 发送 PATCH 请求 (更新操作)
             ResponseEntity<String> response = restTemplate.exchange(
                     url,
-                    HttpMethod.PUT,
+                    HttpMethod.PATCH,  // 修复：使用PATCH而不是PUT
                     requestEntity,
                     String.class
             );
@@ -232,35 +233,36 @@ public class MediaServiceFacade {
             return Collections.emptyMap();
         }
 
-        // 1. 构造 API URL，使用逗号分隔的 ID 列表
-        String idsString = relatedIds.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(","));
-        String url = String.format("%s/api/v1/media/related/batch?relatedType=%s&relatedIds=%s",
-                mediaServiceUrl, relatedType, idsString);
+        Map<Long, List<MediaResponse>> result = new java.util.HashMap<>();
 
-        try {
-            // 2. 发送 GET 请求
-            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        // 临时方案：由于媒体服务未提供批量查询API，使用循环调用单个查询API
+        // TODO: 等媒体服务提供批量查询API后，改为单次批量调用以提高性能
+        for (Long relatedId : relatedIds) {
+            try {
+                // 构造单个查询的API URL
+                String url = String.format("%s/api/media/related/%s/%d",
+                        mediaServiceUrl, relatedType, relatedId);
 
-            // 3. 检查状态码并解析响应体：ApiResponse<List<MediaResponse>>
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
-                        response.getBody(),
-                        new TypeReference<ApiResponse<List<MediaResponse>>>() {}
-                );
+                // 发送 GET 请求
+                ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
-                // 4. 将 List<MediaResponse> 转换为 Map<RelatedId, List<MediaResponse>> 方便 MomentService 使用
-                if (apiResponse.isSuccess() && apiResponse.getData() != null) {
-                    return apiResponse.getData().stream()
-                            .collect(Collectors.groupingBy(MediaResponse::getRelatedId));
+                // 检查状态码并解析响应体
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
+                            response.getBody(),
+                            new TypeReference<ApiResponse<List<MediaResponse>>>() {}
+                    );
+
+                    if (apiResponse.isSuccess() && apiResponse.getData() != null) {
+                        result.put(relatedId, apiResponse.getData());
+                    }
                 }
+            } catch (Exception e) {
+                // 单个查询失败不影响其他ID，仅记录警告日志
+                log.warn("⚠️ 调用媒体服务查询单个文件失败. Type: {}, ID: {}", relatedType, relatedId, e);
             }
-        } catch (Exception e) {
-            log.error("❌ 调用媒体服务批量查询文件失败. Type: {}, IDs: {}", relatedType, idsString, e);
-            // 降级：返回空 Map
-            return Collections.emptyMap();
         }
-        return Collections.emptyMap();
+
+        return result;
     }
 }

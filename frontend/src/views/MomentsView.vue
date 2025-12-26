@@ -237,7 +237,7 @@ import { Picture, Close, Star, ChatDotRound, MoreFilled } from '@element-plus/ic
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import { createMoment, deleteMoment as deleteMomentApi, toggleLike as toggleLikeApi, createComment, getMomentComments, getUserMoments } from '@/api/community'
-import { uploadMultipleMedia } from '@/api/media'
+import { uploadMultipleMedia, getRelatedMedia } from '@/api/media'
 import { getUserPets } from '@/api/pets'
 
 const authStore = useAuthStore()
@@ -504,21 +504,49 @@ const loadMoments = async () => {
     const userMoments = await getUserMoments(authStore.userId)
     console.log('loadMoments: 获取到的用户动态:', userMoments)
 
-    // 转换为前端显示格式
-    moments.value = userMoments.map(moment => ({
-      id: moment.id,
-      userId: moment.userId,
-      content: moment.content,
-      media_urls: moment.mediaUrls || [],
-      created_at: moment.createdAt,
-      like_count: moment.likeCount || 0,
-      comment_count: moment.commentCount || 0,
-      liked: false,
-      isOwn: moment.userId === authStore.userId,
-      userName: `用户${moment.userId}`, // 临时显示
-      userAvatar: ''
-    }))
+    // 获取每个动态的媒体文件（类似ActivitiesView的处理方式）
+    const momentsWithMedia = await Promise.all(
+      userMoments.map(async (moment) => {
+        try {
+          const mediaResponse = await getRelatedMedia('MOMENT', moment.id)
+          const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
+          console.log(`动态 ${moment.id} 的媒体文件:`, mediaFiles)
 
+          return {
+            id: moment.id,
+            userId: moment.userId,
+            content: moment.content,
+            media_urls: mediaFiles.map(m => m.fileUrl), // 转换为URL数组
+            mediaFiles: mediaFiles, // 保存完整的媒体文件信息
+            created_at: moment.createdAt,
+            like_count: moment.likeCount || 0,
+            comment_count: moment.commentCount || 0,
+            liked: false,
+            isOwn: moment.userId === authStore.userId,
+            userName: `用户${moment.userId}`,
+            userAvatar: ''
+          }
+        } catch (mediaError) {
+          console.error(`获取动态 ${moment.id} 的媒体文件失败:`, mediaError)
+          return {
+            id: moment.id,
+            userId: moment.userId,
+            content: moment.content,
+            media_urls: [],
+            mediaFiles: [],
+            created_at: moment.createdAt,
+            like_count: moment.likeCount || 0,
+            comment_count: moment.commentCount || 0,
+            liked: false,
+            isOwn: moment.userId === authStore.userId,
+            userName: `用户${moment.userId}`,
+            userAvatar: ''
+          }
+        }
+      })
+    )
+
+    moments.value = momentsWithMedia
     console.log('loadMoments: 格式化后的moments数组长度:', moments.value.length)
   } catch (error) {
     console.error('加载动态失败:', error)

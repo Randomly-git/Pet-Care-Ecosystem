@@ -88,6 +88,18 @@
                   <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
                   <div class="activity-label">活动</div>
                 </div>
+                <!-- AI状态总结按钮 -->
+                <div class="pet-ai-action" @click.stop>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="getAIStatusSummary(pet.id || pet.petId, pet.name)"
+                    :loading="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId)"
+                    :icon="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId) ? 'Loading' : 'MagicStick'"
+                  >
+                    ✨ AI总结
+                  </el-button>
+                </div>
               </div>
 
               <!-- 添加宠物卡片 -->
@@ -951,6 +963,33 @@
       </template>
     </el-dialog>
 
+    <!-- AI状态总结对话框 -->
+    <el-dialog
+      v-model="showAISummaryDialog"
+      :title="`✨ ${currentPetName}的AI状态分析`"
+      width="600px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="aiSummaryLoading" element-loading-text="AI正在分析中...">
+        <div v-if="aiSummaryContent" class="ai-summary-content">
+          <div class="ai-summary-header">
+            <el-icon class="ai-icon"><MagicStick /></el-icon>
+            <span>AI智能分析报告</span>
+          </div>
+          <div class="ai-summary-text" v-html="formattedAISummary"></div>
+        </div>
+        <div v-else-if="!aiSummaryLoading" class="ai-empty">
+          <el-empty description="暂无分析数据" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showAISummaryDialog = false">关闭</el-button>
+        <el-button type="primary" @click="copyAISummary" v-if="aiSummaryContent">
+          复制报告
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 使用统一的布局底部 -->
     <AppFooter />
   </div>
@@ -965,9 +1004,11 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import {
   Plus,
-  Refresh
+  Refresh,
+  MagicStick
 } from '@element-plus/icons-vue'
 import * as statusApi from '@/api/status'
+import { getPetStatusSummary } from '@/api/llm'
 
 const authStore = useAuthStore()
 
@@ -978,6 +1019,13 @@ const showAddDialog = ref(false)
 const showEditDialog = ref(false)
 const showAddPetDialog = ref(false)
 const submittingPet = ref(false)
+
+// AI状态总结相关
+const showAISummaryDialog = ref(false)
+const aiSummaryLoading = ref(false)
+const aiSummaryContent = ref('')
+const currentPetName = ref('')
+const currentAnalyzingPetId = ref(null)
 
 // 创建新活动相关
 const showCreateActivityDialog = ref(false)
@@ -2353,6 +2401,72 @@ const clearActivityTypeFilter = () => {
   console.log('清除活动类型筛选')
 }
 
+// AI状态总结相关方法
+const formattedAISummary = computed(() => {
+  if (!aiSummaryContent.value) return ''
+  // 将换行符转换为HTML换行，移除markdown星号，格式化列表
+  return aiSummaryContent.value
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*/g, '')
+    .replace(/- /g, '• ')
+    .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+})
+
+const getAIStatusSummary = async (petId, petName) => {
+  console.log(`开始获取宠物 ${petName} (ID: ${petId}) 的AI状态总结`)
+
+  aiSummaryLoading.value = true
+  currentAnalyzingPetId.value = petId
+  currentPetName.value = petName
+  showAISummaryDialog.value = true
+  aiSummaryContent.value = ''
+
+  try {
+    const result = await getPetStatusSummary(petId)
+    console.log('AI状态总结返回:', result)
+
+    // 处理不同的响应格式
+    if (result && result.summary) {
+      aiSummaryContent.value = result.summary
+      ElMessage.success('AI分析完成！')
+    } else if (typeof result === 'string') {
+      aiSummaryContent.value = result
+      ElMessage.success('AI分析完成！')
+    } else if (result && result.data) {
+      aiSummaryContent.value = result.data.summary || result.data
+      ElMessage.success('AI分析完成！')
+    } else {
+      aiSummaryContent.value = '暂无分析数据，请确保该宠物有足够的活动记录'
+      ElMessage.warning('AI分析数据不足')
+    }
+  } catch (error) {
+    console.error('获取AI状态总结失败:', error)
+
+    // 确保对话框在错误时也能正常显示
+    let errorMsg = '分析失败，请稍后重试'
+    if (error.response) {
+      errorMsg = `服务错误: ${error.response.status}`
+    } else if (error.message) {
+      errorMsg = `网络错误: ${error.message}`
+    }
+
+    aiSummaryContent.value = `❌ ${errorMsg}\n\n请检查：\n1. 网关是否正常运行（端口9000）\n2. LLM服务是否启动（端口8086）\n3. 网络连接是否正常`
+    ElMessage.error('获取AI分析失败')
+  } finally {
+    // 确保无论成功或失败都关闭loading
+    aiSummaryLoading.value = false
+    currentAnalyzingPetId.value = null
+  }
+}
+
+const copyAISummary = () => {
+  navigator.clipboard.writeText(aiSummaryContent.value).then(() => {
+    ElMessage.success('报告已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
 // 监听器
 watch([currentUserId], () => {
   if (currentUserId.value) {
@@ -3197,5 +3311,48 @@ watch([currentUserId], () => {
   font-size: 12px;
   border-radius: 10px;
   z-index: 10;
+}
+
+/* ===== AI状态总结样式 ===== */
+.pet-ai-action {
+  margin-top: 0.5rem;
+}
+
+.ai-summary-content {
+  padding: 1rem;
+}
+
+.ai-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #409eff;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e4e7ed;
+}
+
+.ai-icon {
+  font-size: 1.5rem;
+}
+
+.ai-summary-text {
+  line-height: 1.8;
+  color: #333;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.ai-summary-text :deep(strong) {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.ai-empty {
+  padding: 2rem;
+  text-align: center;
 }
 </style>

@@ -37,7 +37,10 @@
       "Bash(./start-all.sh:*)",
       "Bash(node test_navigation:*)",
       "Bash(npm install:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(cp:*)",
+      "Bash(where mvn:*)",
+      "Bash(\"d:\\\\Tongji_Projects\\\\microservice\\\\Pet-Care-Ecosystem\\\\community-backend\\\\mvnw.cmd\" spring-boot:run)"
     ],
     "deny": [],
     "ask": []

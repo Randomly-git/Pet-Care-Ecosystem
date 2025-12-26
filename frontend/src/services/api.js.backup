@@ -246,14 +246,14 @@ export const uploadAPI = {
 
 // 社区服务API
 export const communityAPI = {
-  // 动态相关（通过网关路由，路径改为 /api/v1）
+  // 动态相关（通过前端代理）
   getMomentsByUser: (userId) => {
-    const endpoint = `/api/v1/moments/user/${userId}`
+    const endpoint = `/api/community/moments/user/${userId}`
     return fetch(endpoint).then(res => res.json())
   },
 
   createMoment: (userId, content, mediaIds = []) => {
-    const endpoint = '/api/v1/moments'
+    const endpoint = '/api/community/moments'
     return fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -268,7 +268,7 @@ export const communityAPI = {
   },
 
   deleteMoment: (momentId) => {
-    const endpoint = `/api/v1/moments/${momentId}`
+    const endpoint = `/api/community/moments/${momentId}`
     return fetch(endpoint, {
       method: 'DELETE'
     }).then(res => res.ok)
@@ -276,12 +276,12 @@ export const communityAPI = {
 
   // 评论相关
   getCommentsByMoment: (momentId) => {
-    const endpoint = `/api/v1/comments/moment/${momentId}`
+    const endpoint = `/api/community/comments/moment/${momentId}`
     return fetch(endpoint).then(res => res.json())
   },
 
   createComment: (userId, momentId, content, parentId = null) => {
-    const endpoint = '/api/v1/comments'
+    const endpoint = '/api/community/comments'
     const requestBody = {
       userId,
       momentId,
@@ -300,7 +300,7 @@ export const communityAPI = {
   },
 
   deleteComment: (commentId) => {
-    const endpoint = `/api/v1/comments/${commentId}`
+    const endpoint = `/api/community/comments/${commentId}`
     return fetch(endpoint, {
       method: 'DELETE'
     }).then(res => res.ok)
@@ -308,7 +308,7 @@ export const communityAPI = {
 
   // 点赞相关
   toggleLike: (userId, targetType, targetId) => {
-    const endpoint = '/api/v1/likes'
+    const endpoint = '/api/community/likes'
     return fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -324,7 +324,7 @@ export const communityAPI = {
 
   // 关注相关
   toggleFollow: (followerId, followedId) => {
-    const endpoint = '/api/v1/follows'
+    const endpoint = '/api/community/follows'
     return fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -338,12 +338,12 @@ export const communityAPI = {
   },
 
   getFollowersCount: (userId) => {
-    const endpoint = `/api/v1/follows/followers/count/${userId}`
+    const endpoint = `/api/community/follows/followers/count/${userId}`
     return fetch(endpoint).then(res => res.text()).then(text => parseInt(text))
   },
 
   getFollowingCount: (userId) => {
-    const endpoint = `/api/v1/follows/following/count/${userId}`
+    const endpoint = `/api/community/follows/following/count/${userId}`
     return fetch(endpoint).then(res => res.text()).then(text => parseInt(text))
   }
 }
