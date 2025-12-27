@@ -1,16 +1,35 @@
-### 社区微服务 API 文档 (Community-Backend)
+## 🍃 社区微服务 API 调用说明 (已优化)
 
-本微服务负责处理用户发布宠物动态（Moment）的核心 CRUD 操作。所有 API 均以 `/api/v1/moments` 为根路径。
+**根路径：** `/api/v1/moments`
 
-| **模块** | **方法**   | **路径**                                   | **描述**           | **请求体示例 (JSON)**                                        | **响应体 (DTO)**                        |
-| -------- | ---------- | ------------------------------------------ | ------------------ | ------------------------------------------------------------ | --------------------------------------- |
-| **动态** | **POST**   | `/api/v1/moments`                          | 创建新动态         | `{"userId": 1, "content": "我的宠物真可爱！", "mediaIds": [101, 102]}` | `MomentResponseDTO`                     |
-|          | **GET**    | `/api/v1/moments/user/{userId}`            | 获取用户动态列表   | 无                                                           | `List<MomentResponseDTO>`               |
-|          | **DELETE** | `/api/v1/moments/{momentId}`               | 删除指定动态       | 无                                                           | `200 OK` (成功)                         |
-| **评论** | **POST**   | `/api/v1/comments`                         | 创建评论或回复     | **评论：** `{"userId": 1, "momentId": 50, "content": "赞！"}` **回复：** `{"userId": 2, "momentId": 50, "content": "谢谢！", "parentId": 10}` | `CommentResponseDTO`                    |
-|          | **GET**    | `/api/v1/comments/moment/{momentId}`       | 获取动态下所有评论 | 无                                                           | `List<CommentResponseDTO>` (含嵌套回复) |
-|          | **DELETE** | `/api/v1/comments/{commentId}`             | 删除评论及回复     | 无                                                           | `200 OK` (成功)                         |
-| **点赞** | **POST**   | `/api/v1/likes`                            | 切换点赞状态       | **动态：** `{"userId": 1, "targetType": "MOMENT", "targetId": 50}` **评论：** `{"userId": 1, "targetType": "COMMENT", "targetId": 10}` | `200 OK` (成功/取消成功)                |
-| **关注** | **POST**   | `/api/v1/follows`                          | 关注/取消关注      | `{"followerId": 1, "followedId": 2}`                         | `200 OK` (关注成功/取消关注成功)        |
-|          | **GET**    | `/api/v1/follows/followers/count/{userId}` | 获取粉丝数         | 无                                                           | `Long` (粉丝数)                         |
-|          | **GET**    | `/api/v1/follows/following/count/{userId}` | 获取关注数         | 无                                                           | `Long` (关注数)                         |
+### 1. 核心改进说明
+
+- **数据聚合**：获取动态列表时，后端已自动请求媒体服务、点赞服务和评论服务。
+- **`MomentResponseDTO` 增强**：响应体中直接包含 `mediaUrls` (List), `likeCount` (int), `commentCount` (int)。**前端无需再针对每条动态去补查图片。**
+
+### 2. 动态 (Moments) 接口
+
+| **方法**   | **路径**         | **说明**                             | **请求体 / 关键字段**                         |
+| ---------- | ---------------- | ------------------------------------ | --------------------------------------------- |
+| **POST**   | `/`              | **发布动态**。支持关联图片。         | `userId`, `content`, `mediaIds` (已上传的 ID) |
+| **GET**    | `/user/{userId}` | **获取用户动态**。返回完整聚合数据。 | 返回 `List<MomentResponseDTO>` (含图片 URL)   |
+| **DELETE** | `/{momentId}`    | **级联删除**。自动清理相关资源。     | 自动删除该动态的评论、点赞和媒体文件          |
+
+### 3. 互动与社交接口 (保持结构完整)
+
+| **模块** | **方法** | **路径**                         | **描述**                                         |
+| -------- | -------- | -------------------------------- | ------------------------------------------------ |
+| **评论** | **POST** | `/api/v1/comments`               | 支持顶级评论和回复（通过 `parentId`）。          |
+|          | **GET**  | `/api/v1/comments/moment/{id}`   | 获取动态评论树，返回 `CommentResponseDTO` 列表。 |
+| **点赞** | **POST** | `/api/v1/likes`                  | 统一开关：支持 `MOMENT` 和 `COMMENT` 类型。      |
+| **关注** | **POST** | `/api/v1/follows`                | 用户间关注/取消关注。                            |
+|          | **GET**  | `/api/v1/follows/count/{userId}` | 获取粉丝/关注数统计。                            |
+
+### 💡 给前端同学的特别提醒
+
+1. **发布流程变动**：
+   - 第一步：循环调用媒体服务的 `/upload`，收集所有的 `mediaId`。
+   - 第二步：调用社区服务的 `POST /api/v1/moments`，将 `mediaIds` 放在数组里发送。
+2. **展示逻辑变动**：
+   - 调用 `GET /api/v1/moments/user/{userId}` 拿到列表后，直接读取 `moment.mediaUrls` 渲染图片即可。
+   - **禁止** 在循环渲染动态时再去调用媒体服务的接口，避免触发 500 错误和性能瓶颈。

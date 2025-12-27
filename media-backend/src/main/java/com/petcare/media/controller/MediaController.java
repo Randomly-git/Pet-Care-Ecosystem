@@ -8,7 +8,10 @@ import com.petcare.media.service.MediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import com.petcare.media.dto.MediaBatchUpdateRequest;
 import org.springframework.http.ResponseEntity;
@@ -94,7 +97,7 @@ public class MediaController {
      * API: 批量更新媒体文件的 relatedId，完成文件与业务实体的关联。
      * 使用 @Valid 触发 MediaBatchUpdateRequest 的校验规则。
      */
-    @PatchMapping("/batch/related")
+    @PostMapping("/batch/related")
     public ResponseEntity<ApiResponse<Integer>> batchUpdateRelatedId(@Valid @RequestBody MediaBatchUpdateRequest request) {
         try {
             int updatedCount = mediaService.batchUpdateRelatedId(
@@ -110,5 +113,27 @@ public class MediaController {
             // 系统错误：使用 50000 作为业务状态码，并传入错误信息
             return ResponseEntity.internalServerError().body(ApiResponse.error(50000, "批量关联失败: " + e.getMessage()));
         }
+    }
+
+    /**
+     * GET /api/media/batch?relatedType=MOMENT&relatedIds=1,2,3
+     * 批量获取关联媒体文件，用于解决前端 N+1 查询问题
+     */
+    @GetMapping("/batch")
+    public ApiResponse<Map<Long, List<MediaResponse>>> getMediaFilesBatch(
+            @RequestParam String relatedType,
+            @RequestParam List<Long> relatedIds) {
+
+        // 调用 service 获取数据映射 Map<RelatedId, List<MediaFile>>
+        Map<Long, List<MediaFile>> mediaMap = mediaService.getMediaFilesBatch(relatedType, relatedIds);
+
+        // 转换为 Map<Long, List<MediaResponse>>
+        Map<Long, List<MediaResponse>> responseMap = mediaMap.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().stream().map(MediaResponse::fromEntity).collect(Collectors.toList())
+                ));
+
+        return ApiResponse.success(responseMap);
     }
 }

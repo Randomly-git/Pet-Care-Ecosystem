@@ -320,96 +320,55 @@ const openInNewTab = (url) => {
 }
 
 const publishPost = async () => {
-  if (!newPostContent.value.trim()) {
-    ElMessage.warning('请输入动态内容')
-    return
-  }
-
+  if (!newPostContent.value.trim()) return
   publishing.value = true
 
   try {
-    // 1. 先创建动态（不包含媒体）
+    let mediaIds = []
+    let mediaUrls = []
+
+    // 1. 如果有图片，先上传
+    if (uploadedImages.value.length > 0) {
+      const files = uploadedImages.value.map(img => img.file)
+      const uploadResults = await uploadMultipleMedia({
+        files: files,
+        relatedType: 'TEMP', // 初始为临时文件
+        relatedId: 0,
+        userId: authStore.userId
+      })
+
+      // 收集上传成功的 ID 和 URL
+      mediaIds = uploadResults.map(r => r.mediaId)
+      mediaUrls = uploadResults.map(r => r.fileUrl)
+    }
+
+    // 2. 一次性发布动态（包含图片 ID 列表）
     const momentData = {
       userId: authStore.userId,
       content: newPostContent.value.trim(),
-      mediaIds: [] // 先创建空的动态
+      mediaIds: mediaIds // 后端 MomentService 会自动处理这些 ID 的关联
     }
 
     const newMoment = await createMoment(momentData)
-    console.log('动态创建成功:', newMoment)
 
-    // 2. 上传媒体文件并关联到新创建的动态
-    let mediaIds = []
-    let mediaUrls = []
-    if (uploadedImages.value.length > 0) {
-      ElMessage.info('正在上传媒体文件...')
-      try {
-        const files = uploadedImages.value.map(img => img.file)
-        const uploadResults = await uploadMultipleMedia({
-          files: files,
-          relatedType: 'MOMENT',
-          relatedId: newMoment.id, // 使用真实的动态ID
-          userId: authStore.userId
-        })
-        mediaIds = uploadResults.map(result => result.mediaId)
-        // 保存媒体URL用于前端显示
-        mediaUrls = uploadResults.map(result => result.data.fileUrl)
-        ElMessage.success(`成功上传 ${mediaIds.length} 个文件`)
-      } catch (uploadError) {
-        console.error('上传媒体文件失败:', uploadError)
-        ElMessage.warning('媒体文件上传失败，将只发布文本内容')
-        mediaIds = []
-      }
-    }
-
-    // 4. 转换为前端显示格式
-    const displayMoment = {
-      id: newMoment.id,
-      userId: newMoment.userId,
+    // 3. 将新动态添加到列表顶端
+    moments.value.unshift({
+      ...newMoment,
+      media_urls: mediaUrls, // 使用刚才上传成功的 URL 立即显示
+      isOwn: true,
       userName: userName.value,
       userAvatar: userAvatar.value,
-      content: newMoment.content,
-      // 使用上传成功后的媒体URL而不是后端返回的空数组
-      media_urls: mediaUrls,
-      created_at: newMoment.createdAt,
-      like_count: newMoment.likeCount || 0,
-      comment_count: newMoment.commentCount || 0,
-      liked: false,
-      isOwn: true,
       showComments: false,
-      commentText: '',
       comments: []
-    }
-
-    // 添加到动态列表
-    moments.value.unshift(displayMoment)
-
-    ElMessage.success('发布成功！')
-    newPostContent.value = ''
-    uploadedImages.value = []
-    showPostOptions.value = false
-
-  } catch (error) {
-    console.error('发布动态失败:', error)
-    ElMessage.error('发布失败: ' + error.message)
-  } finally {
-    publishing.value = false
-  }
-}
-
-const toggleLike = async (moment) => {
-  try {
-    await toggleLikeApi({
-      userId: authStore.userId,
-      targetType: 'MOMENT',
-      targetId: moment.id
     })
 
-    moment.liked = !moment.liked
-    moment.like_count = moment.liked ? (moment.like_count + 1) : (moment.like_count - 1)
+    ElMessage.success('发布成功！')
+    // 重置表单...
   } catch (error) {
-    console.error('点赞失败:', error)
-    ElMessage.error('操作失败')
+    console.error('发布失败:', error)
+    ElMessage.error('发布失败')
+  } finally {
+    publishing.value = false
   }
 }
 
@@ -489,67 +448,32 @@ const deleteMoment = async (momentId) => {
 }
 
 const loadMoments = async () => {
-  console.log('loadMoments: 开始加载动态，authStore.userId =', authStore.userId)
-
-  if (!authStore.userId) {
-    console.log('loadMoments: 用户未登录，临时设置为76')
-    // 临时硬编码用户ID
-    authStore.updateUser({ id: 76 })
-  }
-
+  console.log('loadMoments: 开始加载动态');
   loading.value = true
   try {
-    // 加载用户的动态列表
-    console.log('loadMoments: 调用getUserMoments，userId =', authStore.userId)
+    // 1. 只调用这一个接口，后端已经聚合了图片、点赞、评论数
     const userMoments = await getUserMoments(authStore.userId)
-    console.log('loadMoments: 获取到的用户动态:', userMoments)
 
-    // 获取每个动态的媒体文件（类似ActivitiesView的处理方式）
-    const momentsWithMedia = await Promise.all(
-      userMoments.map(async (moment) => {
-        try {
-          const mediaResponse = await getRelatedMedia('MOMENT', moment.id)
-          const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
-          console.log(`动态 ${moment.id} 的媒体文件:`, mediaFiles)
+    // 2. 直接映射数据，注意：后端返回的是驼峰命名 mediaUrls
+    moments.value = userMoments.map(moment => ({
+      id: moment.id,
+      userId: moment.userId,
+      content: moment.content,
+      // 直接使用后端传来的 mediaUrls，不需要再次请求 api/media
+      media_urls: moment.mediaUrls || [],
+      created_at: moment.createdAt,
+      like_count: moment.likeCount || 0,
+      comment_count: moment.commentCount || 0,
+      liked: false, // 之后可以从后端获取真实点赞状态
+      isOwn: moment.userId === authStore.userId,
+      userName: moment.authorName || `用户${moment.userId}`,
+      userAvatar: moment.authorAvatarUrl || ''
+    }))
 
-          return {
-            id: moment.id,
-            userId: moment.userId,
-            content: moment.content,
-            media_urls: mediaFiles.map(m => m.fileUrl), // 转换为URL数组
-            mediaFiles: mediaFiles, // 保存完整的媒体文件信息
-            created_at: moment.createdAt,
-            like_count: moment.likeCount || 0,
-            comment_count: moment.commentCount || 0,
-            liked: false,
-            isOwn: moment.userId === authStore.userId,
-            userName: `用户${moment.userId}`,
-            userAvatar: ''
-          }
-        } catch (mediaError) {
-          console.error(`获取动态 ${moment.id} 的媒体文件失败:`, mediaError)
-          return {
-            id: moment.id,
-            userId: moment.userId,
-            content: moment.content,
-            media_urls: [],
-            mediaFiles: [],
-            created_at: moment.createdAt,
-            like_count: moment.likeCount || 0,
-            comment_count: moment.commentCount || 0,
-            liked: false,
-            isOwn: moment.userId === authStore.userId,
-            userName: `用户${moment.userId}`,
-            userAvatar: ''
-          }
-        }
-      })
-    )
-
-    moments.value = momentsWithMedia
-    console.log('loadMoments: 格式化后的moments数组长度:', moments.value.length)
+    console.log('loadMoments: 动态加载并格式化完成');
   } catch (error) {
-    console.error('加载动态失败:', error)
+    console.error('加载动态失败:', error);
+    ElMessage.error('加载动态失败')
     moments.value = []
   } finally {
     loading.value = false

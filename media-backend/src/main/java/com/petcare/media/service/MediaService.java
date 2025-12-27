@@ -18,7 +18,9 @@ import org.springframework.cache.annotation.Caching;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -127,10 +129,11 @@ public class MediaService {
     @Cacheable(key = "'related:' + #relatedTypeStr.toUpperCase() + ':' + #relatedId")
     public List<MediaFile> getMediaFilesByRelated(String relatedTypeStr, Long relatedId) {
         try {
-            RelatedType relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
-            return getMediaFilesByRelated(relatedType, relatedId);
-        } catch (IllegalArgumentException e) {
-            throw new MediaServiceException("无效的关联类型: " + relatedTypeStr);
+            RelatedType relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase().trim());
+            return mediaRepository.findByRelatedTypeAndRelatedId(relatedType, relatedId);
+        } catch (Exception e) {
+            log.error("获取媒体关联失败: type={}, id={}", relatedTypeStr, relatedId);
+            return Collections.emptyList(); // 遇到错误返回空列表，确保前端不崩溃
         }
     }
 
@@ -279,43 +282,28 @@ public class MediaService {
      * @return 更新成功的记录数
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(allEntries = true)
     public int batchUpdateRelatedId(List<Long> mediaIds, String relatedTypeStr, Long newRelatedId) {
-        if (mediaIds == null || mediaIds.isEmpty()) {
-            return 0;
-        }
+        // 1. 解析目标类型
+        RelatedType targetType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
 
-        RelatedType relatedType;
-        try {
-            // 校验并转换 RelatedType
-            relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            log.error("无效的关联类型: {}", relatedTypeStr);
-            throw new IllegalArgumentException("无效的关联类型: " + relatedTypeStr);
-        }
-
-        // 1. 批量查询待更新的 MediaFile 实体
+        // 2. 查询这些文件
         List<MediaFile> filesToUpdate = mediaRepository.findAllById(mediaIds);
 
-        // 2. 批量更新实体属性
         for (MediaFile mediaFile : filesToUpdate) {
-            // 确保更新后的文件类型与请求的类型一致，避免错误关联
-            if (mediaFile.getRelatedType() == relatedType) {
+            // 🚀 核心修改：允许从 TEMP 转换为任何目标类型
+            if (mediaFile.getRelatedType() == RelatedType.TEMP || mediaFile.getRelatedType() == targetType) {
+
+                // 将 TEMP 更新为真实的业务类型（如 MOMENT）
+                mediaFile.setRelatedType(targetType);
                 mediaFile.setRelatedId(newRelatedId);
-                // relatedType 理论上在上传时已设定，这里不重复设置，保持数据一致性
+
             } else {
-                // 可选：如果上传时的 relatedType 与本次关联的类型不匹配，可以跳过或抛出异常
-                log.warn("媒体文件ID: {} 的上传类型({}) 与本次关联类型({}) 不匹配，已跳过。",
-                        mediaFile.getMediaId(), mediaFile.getRelatedType().name(), relatedTypeStr);
+                // 如果本来是头像(USER_AVATAR)却被关联到动态，这属于非法操作，抛异常回滚
+                throw new IllegalArgumentException("媒体文件类型冲突，无法关联");
             }
         }
 
-        // 3. 批量保存更新后的实体
         mediaRepository.saveAll(filesToUpdate);
-
-        log.info("✅ 成功将 {} 个媒体文件关联到 RelatedType: {}, RelatedId: {}",
-                filesToUpdate.size(), relatedTypeStr, newRelatedId);
-
         return filesToUpdate.size();
     }
 
@@ -338,4 +326,23 @@ public class MediaService {
                     "，有效值: " + String.join(", ", getValidRelatedTypes()));
         }
     }
+
+    /**
+     * 批量获取媒体文件 (解决 N+1 问题)
+     */
+    public Map<Long, List<MediaFile>> getMediaFilesBatch(String relatedTypeStr, List<Long> relatedIds) {
+        try {
+            // 鲁棒性处理：转大写、去空格
+            RelatedType type = RelatedType.valueOf(relatedTypeStr.toUpperCase().trim());
+            List<MediaFile> allFiles = mediaRepository.findByRelatedTypeAndRelatedIdIn(type, relatedIds);
+
+            // 按 relatedId 分组
+            return allFiles.stream().collect(Collectors.groupingBy(MediaFile::getRelatedId));
+        } catch (IllegalArgumentException e) {
+            log.error("无效的关联类型: {}", relatedTypeStr);
+            return Collections.emptyMap(); // 返回空 Map 而不是抛出 500
+        }
+    }
+
+
 }

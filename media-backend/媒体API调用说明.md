@@ -145,3 +145,20 @@
 | `500 Internal Server Error` | `ApiResponse<Void>` | 删除操作失败。         |
 
 ### 
+
+
+
+### 1. 核心 DTO 变动
+
+- **`MediaBatchUpdateRequest`**: 用于在创建动态后，将临时上传的图片正式关联到动态 ID。
+- **`MediaResponse`**: 包含 `fileUrl`（COS 访问地址）和 `relatedId`（关联的业务 ID）。
+
+### 2. 接口列表
+
+| **方法**   | **路径**               | **说明**                                 | **关键参数**                              |
+| ---------- | ---------------------- | ---------------------------------------- | ----------------------------------------- |
+| **POST**   | `/upload`              | **文件预上传**。获取 `mediaId`。         | `file`, `userId`, `relatedType='TEMP'`    |
+| **PATCH**  | `/batch/related`       | **批量关联**。将图片绑定到动态。         | `mediaIds`, `newRelatedId`, `relatedType` |
+| **GET**    | `/batch`               | **[新增] 批量获取**。支持一次查多个 ID。 | `relatedType`, `relatedIds` (逗号分隔)    |
+| **GET**    | `/related/{type}/{id}` | 获取单个业务实体的媒体。                 | `relatedType`, `relatedId`                |
+| **DELETE** | `/related/{type}/{id}` | 删除关联的所有文件及云端存储。           | `relatedType`, `relatedId`                |

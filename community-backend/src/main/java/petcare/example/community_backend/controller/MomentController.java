@@ -4,8 +4,9 @@ import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.dto.MomentCreateRequestDTO;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.service.MomentService;
-import petcare.example.community_backend.repository.PetMomentRepository;
+import petcare.example.community_backend.mapper.MomentMapper; // 确保导入了 Mapper
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,72 +16,40 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/moments")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", maxAge = 3600, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
+@Slf4j
+@CrossOrigin(origins = "*")
 public class MomentController {
 
     private final MomentService momentService;
-    private final PetMomentRepository momentRepository;
+    private final MomentMapper momentMapper; // 必须注入 Mapper
 
-    /**
-     * GET /api/v1/moments/user/{userId}
-     * 获取特定用户的动态列表 (返回 DTO)
-     */
     @GetMapping("/user/{userId}")
     public List<MomentResponseDTO> getMomentsByUserId(@PathVariable Long userId) {
         return momentService.getMomentsByUserId(userId);
     }
 
-    /**
-     * POST /api/v1/moments
-     * 创建动态 (接收 DTO，使用 application/json)
-     * **已修改：** 改为接收 JSON 请求体，其中包含预上传的 mediaIds。
-     */
     @PostMapping
-    public ResponseEntity<MomentResponseDTO> createMoment(
-            @Valid @RequestBody MomentCreateRequestDTO requestDTO) {
-
+    public ResponseEntity<MomentResponseDTO> createMoment(@Valid @RequestBody MomentCreateRequestDTO requestDTO) {
         try {
-            // 1. 手动 DTO 转换为 Moment 实体
-            PetMoment momentEntity = new PetMoment();
-            momentEntity.setUserId(requestDTO.getUserId());
-            momentEntity.setContent(requestDTO.getContent());
+            // 1. 创建动态并关联媒体
+            PetMoment savedMoment = momentService.createNewMoment(requestDTO);
 
-            // 2. 直接保存到数据库，暂时忽略mediaIds
-            PetMoment savedEntity = momentRepository.save(momentEntity);
+            // 2. 转换并手动填充 mediaUrls (因为刚刚关联成功，数据库里已经有了)
+            // 或者直接从 requestDTO.getMediaIds 获取（如果你能拿到 URL 的话）
+            // 最稳妥的方法是重新查一次该动态的 DTO，这样数据最准确
+            MomentResponseDTO responseDTO = momentMapper.toResponseDTO(savedMoment);
 
-            // 3. 手动将保存后的 Entity 转换回 Response DTO 返回
-            MomentResponseDTO responseDTO = new MomentResponseDTO();
-            responseDTO.setId(savedEntity.getId());
-            responseDTO.setUserId(savedEntity.getUserId());
-            responseDTO.setContent(savedEntity.getContent());
-            responseDTO.setCreatedAt(savedEntity.getCreatedAt());
-            // 设置默认值
-            responseDTO.setMediaUrls(new java.util.ArrayList<>());
-            responseDTO.setLikeCount(0);
-            responseDTO.setCommentCount(0);
-
+            // 暂时由于是刚创建，如果是预上传，mediaUrls 可以根据业务逻辑填充或让前端重新刷新
             return new ResponseEntity<>(responseDTO, HttpStatus.CREATED);
-
         } catch (Exception e) {
-            System.err.println("创建动态失败: " + e.getMessage());
-            e.printStackTrace();
-            // 如果是业务异常，这里可以返回更精确的状态码
+            log.error("创建动态失败", e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    /**
-     * DELETE /api/v1/moments/{momentId}
-     * 删除动态
-     */
     @DeleteMapping("/{momentId}")
     public ResponseEntity<String> deleteMoment(@PathVariable Long momentId) {
         boolean deleted = momentService.deleteMoment(momentId);
-
-        if (deleted) {
-            return ResponseEntity.ok("删除成功");
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("动态不存在或删除失败");
-        }
+        return deleted ? ResponseEntity.ok("删除成功") : ResponseEntity.notFound().build();
     }
 }

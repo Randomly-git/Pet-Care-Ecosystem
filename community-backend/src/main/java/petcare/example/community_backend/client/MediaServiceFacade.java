@@ -11,10 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import petcare.example.community_backend.client.dto.ApiResponse;
 import petcare.example.community_backend.client.dto.MediaResponse;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -92,54 +89,7 @@ public class MediaServiceFacade {
      * @param newRelatedId 新的关联业务 ID (例如: Moment ID)
      * @return 成功关联的文件数量 (业务层面)
      */
-    public int batchUpdateRelatedId(List<Long> mediaIds, String relatedType, Long newRelatedId) {
-        // 修复：使用正确的API路径 /api/media/batch/related
-        String url = String.format("%s/api/media/batch/related", mediaServiceUrl);
 
-        // 创建请求体 DTO
-        MediaBatchUpdateRequest requestBody = new MediaBatchUpdateRequest(mediaIds, relatedType, newRelatedId);
-
-        try {
-            // 1. 设置请求头为 application/json
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<MediaBatchUpdateRequest> requestEntity = new HttpEntity<>(requestBody, headers);
-
-            // 2. 发送 PATCH 请求 (更新操作)
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.PATCH,  // 修复：使用PATCH而不是PUT
-                    requestEntity,
-                    String.class
-            );
-
-            // 3. 检查 HTTP 状态码
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                log.error("❌ 远程调用媒体服务批量关联失败。URL: {}, Status: {}, Body: {}", url, response.getStatusCode(), response.getBody());
-                // 抛出异常，触发 MomentService 事务回滚
-                throw new RuntimeException("媒体文件批量关联失败，HTTP 状态码: " + response.getStatusCode());
-            }
-
-            // 4. 解析业务响应。假设返回 ApiResponse<Integer>，其中 Integer 为成功更新数量
-            ApiResponse<Integer> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<Integer>>() {}
-            );
-
-            if (apiResponse.isSuccess() && apiResponse.getData() != null) {
-                log.info("✅ 成功关联 {} 个媒体文件. Type: {}, ID: {}", apiResponse.getData(), relatedType, newRelatedId);
-                return apiResponse.getData();
-            } else {
-                log.error("❌ 媒体服务业务返回批量关联失败. Message: {}", apiResponse.getMessage());
-                throw new RuntimeException("媒体文件批量关联业务失败: " + apiResponse.getMessage());
-            }
-
-        } catch (Exception e) {
-            log.error("❌ 调用媒体服务批量关联文件发生异常. Type: {}, ID: {}", relatedType, newRelatedId, e);
-            // 抛出异常，触发 MomentService 事务回滚
-            throw new RuntimeException("媒体文件批量关联远程调用异常: " + e.getMessage(), e);
-        }
-    }
 
 
     /**
@@ -150,40 +100,12 @@ public class MediaServiceFacade {
      * @param relatedId 业务 ID (例如: Moment ID)
      * @return 删除是否成功 (业务层面)
      */
-    public boolean deleteRelatedFiles(String relatedType, Long relatedId) {
-        String url = String.format("%s/api/media/related/%s/%d",
-                mediaServiceUrl, relatedType, relatedId);
-
+    public void deleteRelatedFiles(String relatedType, Long relatedId) {
+        String url = String.format("%s/api/media/related/%s/%d", mediaServiceUrl, relatedType, relatedId);
         try {
-            // 使用 exchange 方法发送 DELETE 请求
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url, HttpMethod.DELETE, null, String.class);
-
-            // 1. 检查 HTTP 状态码
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                log.error("❌ 远程调用媒体服务删除失败。URL: {}, Status: {}", url, response.getStatusCode());
-                return false;
-            }
-
-            // 2. 解析业务响应
-            ApiResponse<Void> apiResponse = objectMapper.readValue(
-                    response.getBody(),
-                    new TypeReference<ApiResponse<Void>>() {}
-            );
-
-            // 3. 检查业务响应是否成功
-            if (apiResponse.isSuccess()) {
-                log.info("✅ 成功删除关联媒体文件. Type: {}, ID: {}", relatedType, relatedId);
-                return true;
-            } else {
-                log.warn("⚠️ 媒体服务业务返回删除失败. Message: {}", apiResponse.getMessage());
-                return false;
-            }
-
+            restTemplate.delete(url);
         } catch (Exception e) {
-            log.error("❌ 调用媒体服务删除文件发生异常. Type: {}, ID: {}", relatedType, relatedId, e);
-            // 远程服务宕机、网络问题或 JSON 解析异常
-            return false;
+            log.error("❌ 删除媒体文件失败: {}", e.getMessage());
         }
     }
 
@@ -265,4 +187,72 @@ public class MediaServiceFacade {
 
         return result;
     }
+
+    /**
+     * 批量查询：一次请求获取所有动态的媒体文件
+     */
+    public Map<Long, List<MediaResponse>> getMediaFilesBatch(String relatedType, List<Long> relatedIds) {
+        if (relatedIds == null || relatedIds.isEmpty()) return Collections.emptyMap();
+
+        // 构建 URL: /api/media/batch?relatedType=MOMENT&relatedIds=1,2,3
+        String idsParam = relatedIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        String url = String.format("%s/api/media/batch?relatedType=%s&relatedIds=%s",
+                mediaServiceUrl, relatedType, idsParam);
+
+        try {
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                ApiResponse<List<MediaResponse>> apiResponse = objectMapper.readValue(
+                        response.getBody(), new TypeReference<ApiResponse<List<MediaResponse>>>() {});
+
+                if (apiResponse.isSuccess() && apiResponse.getData() != null) {
+                    // 在客户端按 relatedId 分组
+                    return apiResponse.getData().stream()
+                            .collect(Collectors.groupingBy(MediaResponse::getRelatedId));
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ 批量调用媒体服务失败: {}", e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
+
+    public int batchUpdateRelatedId(List<Long> mediaIds, String relatedType, Long newRelatedId) {
+        // 1. 将 PATCH 改为 POST (前提是媒体服务的 Controller 也改成了 @PostMapping)
+        String url = String.format("%s/api/media/batch/related", mediaServiceUrl);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("mediaIds", mediaIds);
+        body.put("relatedType", relatedType);
+        body.put("newRelatedId", newRelatedId);
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+            // 使用 POST 替代 PATCH 解决底层库不支持的问题
+            // 使用 ResponseEntity<Map> 方便读取 ApiResponse 里的 data
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
+                Integer code = (Integer) responseBody.get("code");
+
+                // 🚀 修改点 3: 必须判断业务状态码 20000
+                if (code != null && code == 20000) {
+                    Object data = responseBody.get("data");
+                    return data instanceof Integer ? (Integer) data : 0;
+                } else {
+                    log.error("❌ 媒体服务业务逻辑失败: {}", responseBody.get("message"));
+                    throw new RuntimeException("媒体关联业务失败: " + responseBody.get("message"));
+                }
+            }
+            return 0;
+        } catch (Exception e) {
+            log.error("❌ 关联媒体失败 (网络或参数异常): {}", e.getMessage());
+            throw new RuntimeException("媒体关联服务异常", e);
+        }
+    }
+
 }
