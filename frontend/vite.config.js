@@ -28,6 +28,19 @@ export default defineConfig(({ mode }) => {
           secure: false,
           // 不需要rewrite，网关会处理路由
         },
+        // GraphQL API直接通过网关
+        '/graphql': {
+          target: 'http://localhost:9000',
+          changeOrigin: true,
+          secure: false,
+          configure: (proxy, options) => {
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              // 移除可能导致CORS问题的头
+              proxyReq.removeHeader('origin')
+              proxyReq.removeHeader('referer')
+            })
+          }
+        },
         // 媒体文件访问也通过网关
         '/uploads': {
           target: 'http://localhost:9000',  // 通过网关访问媒体服务

@@ -100,6 +100,17 @@
                     ✨ AI总结
                   </el-button>
                 </div>
+                <!-- 活动统计按钮 -->
+                <div class="pet-stats-action" @click.stop>
+                  <el-button
+                    type="info"
+                    size="small"
+                    @click="getPetStats(pet.id || pet.petId, pet.name)"
+                    :loading="statsLoading && currentStatsPetId === (pet.id || pet.petId)"
+                  >
+                    📊 统计
+                  </el-button>
+                </div>
               </div>
 
               <!-- 添加宠物卡片 -->
@@ -990,6 +1001,94 @@
       </template>
     </el-dialog>
 
+    <!-- 活动统计对话框 -->
+    <el-dialog
+      v-model="showStatsDialog"
+      :title="`📊 ${currentStatsPetName}的活动统计`"
+      width="700px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="statsLoading" element-loading-text="加载统计数据中...">
+        <div v-if="statsData" class="stats-content">
+          <!-- 统计周期切换 -->
+          <div class="stats-period-selector">
+            <el-radio-group v-model="statsPeriod" @change="handleStatsPeriodChange">
+              <el-radio-button label="MONTHLY">月度统计</el-radio-button>
+              <el-radio-button label="WEEKLY">周度统计</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <!-- 总览统计 -->
+          <div class="stats-overview">
+            <div class="stat-card">
+              <div class="stat-value">{{ statsData.totalActivities || 0 }}</div>
+              <div class="stat-label">总活动数</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ statsData.uniqueActivityTypes || 0 }}</div>
+              <div class="stat-label">活动类型</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">{{ statsData.uniqueActivityKinds || 0 }}</div>
+              <div class="stat-label">活动大类</div>
+            </div>
+          </div>
+
+          <!-- 最频繁活动 -->
+          <div class="stats-frequent" v-if="statsData.mostFrequentActivity">
+            <div class="frequent-item">
+              <span class="frequent-label">最频繁活动:</span>
+              <span class="frequent-value">{{ statsData.mostFrequentActivity }}</span>
+              <span class="frequent-count">{{ statsData.mostFrequentCount || 0 }}次</span>
+            </div>
+            <div class="frequent-item" v-if="statsData.mostFrequentKind">
+              <span class="frequent-label">最频繁大类:</span>
+              <span class="frequent-value">{{ statsData.mostFrequentKind }}</span>
+              <span class="frequent-count">{{ statsData.mostFrequentKindCount || 0 }}次</span>
+            </div>
+          </div>
+
+          <!-- 月度/周度详细统计 -->
+          <div class="stats-detail">
+            <h4>{{ statsPeriod === 'MONTHLY' ? '月度详情' : '周度详情' }}</h4>
+            <div v-if="statsPeriod === 'MONTHLY' && statsData.monthlyStats && statsData.monthlyStats.length > 0" class="stats-list">
+              <div v-for="(month, index) in statsData.monthlyStats.slice().reverse()" :key="index" class="stat-month-item">
+                <div class="month-header">
+                  <span class="month-name">{{ month.yearMonth }}</span>
+                  <span class="month-total">{{ month.totalActivities }}次活动</span>
+                </div>
+                <div class="month-activities" v-if="month.activityTypeCounts">
+                  <div v-for="(count, type) in month.activityTypeCounts" :key="type" class="activity-tag">
+                    {{ type }}: {{ count }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else-if="statsPeriod === 'WEEKLY' && statsData.weeklyStats && statsData.weeklyStats.length > 0" class="stats-list">
+              <div v-for="(week, index) in statsData.weeklyStats.slice().reverse()" :key="index" class="stat-week-item">
+                <div class="week-header">
+                  <span class="week-name">{{ week.weekRange }}</span>
+                  <span class="week-total">{{ week.totalActivities }}次活动</span>
+                </div>
+                <div class="week-activities" v-if="week.activityTypeCounts">
+                  <div v-for="(count, type) in week.activityTypeCounts" :key="type" class="activity-tag">
+                    {{ type }}: {{ count }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无统计数据" :image-size="80" />
+          </div>
+        </div>
+        <div v-else-if="!statsLoading" class="stats-empty">
+          <el-empty description="暂无统计数据" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showStatsDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 使用统一的布局底部 -->
     <AppFooter />
   </div>
@@ -1026,6 +1125,14 @@ const aiSummaryLoading = ref(false)
 const aiSummaryContent = ref('')
 const currentPetName = ref('')
 const currentAnalyzingPetId = ref(null)
+
+// 活动统计相关
+const showStatsDialog = ref(false)
+const statsLoading = ref(false)
+const statsData = ref(null)
+const statsPeriod = ref('MONTHLY') // MONTHLY 或 WEEKLY
+const currentStatsPetId = ref(null)
+const currentStatsPetName = ref('')
 
 // 创建新活动相关
 const showCreateActivityDialog = ref(false)
@@ -2425,15 +2532,19 @@ const getAIStatusSummary = async (petId, petName) => {
     const result = await getPetStatusSummary(petId)
     console.log('AI状态总结返回:', result)
 
-    // 处理不同的响应格式
-    if (result && result.summary) {
+    // GraphQL 返回的数据结构: { petId, name, breed, species, healthAdvice, statusRecords }
+    if (result && result.healthAdvice) {
+      // 使用 GraphQL 返回的 healthAdvice 作为主要内容
+      aiSummaryContent.value = result.healthAdvice
+      ElMessage.success('AI分析完成！')
+    } else if (result && result.summary) {
       aiSummaryContent.value = result.summary
       ElMessage.success('AI分析完成！')
     } else if (typeof result === 'string') {
       aiSummaryContent.value = result
       ElMessage.success('AI分析完成！')
-    } else if (result && result.data) {
-      aiSummaryContent.value = result.data.summary || result.data
+    } else if (result && result.data && result.data.summary) {
+      aiSummaryContent.value = result.data.summary
       ElMessage.success('AI分析完成！')
     } else {
       aiSummaryContent.value = '暂无分析数据，请确保该宠物有足够的活动记录'
@@ -2450,7 +2561,7 @@ const getAIStatusSummary = async (petId, petName) => {
       errorMsg = `网络错误: ${error.message}`
     }
 
-    aiSummaryContent.value = `❌ ${errorMsg}\n\n请检查：\n1. 网关是否正常运行（端口9000）\n2. LLM服务是否启动（端口8086）\n3. 网络连接是否正常`
+    aiSummaryContent.value = `❌ ${errorMsg}\n\n请检查：\n1. 网关是否正常运行（端口9000）\n2. LLM服务是否启动并注册到Nacos\n3. 网络连接是否正常`
     ElMessage.error('获取AI分析失败')
   } finally {
     // 确保无论成功或失败都关闭loading
@@ -2465,6 +2576,51 @@ const copyAISummary = () => {
   }).catch(() => {
     ElMessage.error('复制失败')
   })
+}
+
+// 获取宠物活动统计
+const getPetStats = async (petId, petName) => {
+  console.log(`开始获取宠物 ${petName} (ID: ${petId}) 的活动统计`)
+
+  statsLoading.value = true
+  currentStatsPetId.value = petId
+  currentStatsPetName.value = petName
+  showStatsDialog.value = true
+  statsData.value = null
+
+  try {
+    const { getActivityStats } = await import('@/api/statistics')
+    const result = await getActivityStats(petId, statsPeriod.value)
+    console.log('活动统计返回:', result)
+
+    // 处理不同的响应格式
+    if (result && result.data) {
+      statsData.value = result.data
+    } else if (result) {
+      statsData.value = result
+    } else {
+      statsData.value = null
+      ElMessage.warning('暂无统计数据')
+    }
+  } catch (error) {
+    console.error('获取活动统计失败:', error)
+    ElMessage.error('获取统计数据失败: ' + (error.message || '未知错误'))
+    statsData.value = null
+  } finally {
+    statsLoading.value = false
+    currentStatsPetId.value = null
+  }
+}
+
+// 切换统计周期
+const handleStatsPeriodChange = async () => {
+  if (currentStatsPetName.value) {
+    // 重新获取统计数据
+    const petId = currentStatsPetId.value || statsData.value?.petId
+    if (petId) {
+      await getPetStats(petId, currentStatsPetName.value)
+    }
+  }
 }
 
 // 监听器
@@ -3314,8 +3470,19 @@ watch([currentUserId], () => {
 }
 
 /* ===== AI状态总结样式 ===== */
-.pet-ai-action {
+.pet-ai-action,
+.pet-stats-action {
   margin-top: 0.5rem;
+}
+
+.pet-ai-action,
+.pet-stats-action {
+  width: 100%;
+}
+
+.pet-ai-action .el-button,
+.pet-stats-action .el-button {
+  width: 100%;
 }
 
 .ai-summary-content {
@@ -3353,6 +3520,143 @@ watch([currentUserId], () => {
 
 .ai-empty {
   padding: 2rem;
+  text-align: center;
+}
+
+/* ===== 活动统计弹窗样式 ===== */
+.stats-content {
+  padding: 0.5rem 0;
+}
+
+.stats-period-selector {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.stats-overview {
+  display: flex;
+  justify-content: space-around;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 8px;
+}
+
+.stat-card {
+  text-align: center;
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #f97316;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.stats-frequent {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.frequent-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.frequent-label {
+  color: #64748b;
+  font-size: 0.9rem;
+  min-width: 80px;
+}
+
+.frequent-value {
+  color: #f97316;
+  font-weight: 600;
+  flex: 1;
+}
+
+.frequent-count {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  background: #e2e8f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.stats-detail {
+  margin-top: 1rem;
+}
+
+.stats-detail h4 {
+  color: #334155;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.stats-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.stat-month-item,
+.stat-week-item {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.month-header,
+.week-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.month-name,
+.week-name {
+  font-weight: 600;
+  color: #334155;
+}
+
+.month-total,
+.week-total {
+  color: #f97316;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.month-activities,
+.week-activities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.activity-tag {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  color: #9a3412;
+  padding: 0.3rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stats-empty {
+  padding: 3rem;
   text-align: center;
 }
 </style>
