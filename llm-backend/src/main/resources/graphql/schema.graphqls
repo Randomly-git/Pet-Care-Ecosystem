@@ -1,0 +1,37 @@
+type Query {
+    petHealthAnalysis(petId: ID!): PetHealthAnalysis
+}
+
+type PetHealthAnalysis {
+    petId: ID!
+    name: String!
+    breed: String!
+    species: String!
+
+    # 健康状态记录
+    statusRecords: [StatusRecord]
+
+    # AI健康建议
+    healthAdvice: String!
+}
+
+type StatusRecord {
+    statusName: String!
+    description: String
+    startDate: String
+}
+
+# 可以注释掉或删除Article和Link类型，但保持Schema兼容
+type Article {
+    title: String!
+    url: String!
+    snippet: String
+    source: String
+}
+
+type Link {
+    title: String!
+    url: String!
+}
+
+scalar ID
