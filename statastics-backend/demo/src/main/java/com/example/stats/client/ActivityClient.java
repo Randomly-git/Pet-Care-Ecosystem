@@ -17,6 +17,9 @@ public class ActivityClient {
 
     private final RestTemplate restTemplate;
 
+    // 修改为通过网关调用
+    //private final String activityServiceUrl = "http://localhost:9000";  // 通过网关
+
     // 1. 修改为微服务名称
     private final String activityServiceUrl = "http://petcare-backend";
 

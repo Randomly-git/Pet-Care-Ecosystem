@@ -32,12 +32,4 @@ public class ActivityRecordDTO {
     @JsonProperty("activityDate")
     private LocalDateTime activityDate;
 
-    @JsonProperty("mediaFiles")
-    private List<String> mediaFiles;
-
-    @JsonProperty("mediaCount")
-    private Integer mediaCount;
-
-    @JsonProperty("firstMediaUrl")
-    private String firstMediaUrl;
 }

@@ -14,7 +14,7 @@ spring:
     redis:
       host: 47.100.240.111 # 如果 Redis 在服务器上，请修改为实际 IP
       port: 6379
-      password:        # 如果有密码请填写
+      password: Sun20040921        # 如果有密码请填写
       database: 0      # 指定数据库索引
       timeout: 5000ms # 适当延长超时时间
       lettuce:
