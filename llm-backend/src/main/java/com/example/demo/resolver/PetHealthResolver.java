@@ -3,6 +3,7 @@ package com.example.demo.resolver;
 import com.example.demo.dto.PetHealthData;
 import graphql.kickstart.tools.GraphQLQueryResolver;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,9 +18,21 @@ import java.util.concurrent.Executors;
 @Component
 public class PetHealthResolver implements GraphQLQueryResolver {
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final ExecutorService executor = Executors.newFixedThreadPool(3); // 减少线程数
+    // 1. 定义两个 RestTemplate
+    private final RestTemplate loadBalancedRestTemplate; // 用于调用内部服务
+    private final RestTemplate normalRestTemplate;       // 用于调用通义千问 API
+    private final ObjectMapper objectMapper;
+    private final ExecutorService executor = Executors.newFixedThreadPool(3);
+
+    // 2. 通过构造函数注入
+    public PetHealthResolver(
+            @Qualifier("loadBalancedRestTemplate") RestTemplate loadBalancedRestTemplate,
+            @Qualifier("normalRestTemplate") RestTemplate normalRestTemplate,
+            ObjectMapper objectMapper) {
+        this.loadBalancedRestTemplate = loadBalancedRestTemplate;
+        this.normalRestTemplate = normalRestTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     // 只保留Qwen API Key
     private static final String QWEN_API_KEY = "sk-972a298500904e809a415aa9f153caac";
@@ -82,9 +95,9 @@ public class PetHealthResolver implements GraphQLQueryResolver {
     // === 以下是具体的API调用方法 ===
 
     private Map<String, Object> getPetInfo(String petId) {
-        String url = "http://localhost:9000/api/pets/" + petId;
+        String url = "http://petcare-backend/api/pets/" + petId;
         try {
-            JsonNode response = restTemplate.getForObject(url, JsonNode.class);
+            JsonNode response = loadBalancedRestTemplate.getForObject(url, JsonNode.class);
             if (response != null && response.get("success").asBoolean()) {
                 JsonNode data = response.get("data");
                 Map<String, Object> petInfo = new HashMap<>();
@@ -100,9 +113,9 @@ public class PetHealthResolver implements GraphQLQueryResolver {
     }
 
     private List<Map<String, Object>> getStatusRecords(String petId) {
-        String url = "http://localhost:9000/api/status/records/pet/" + petId;
+        String url = "http://petcare-backend/api/status/records/pet/" + petId;
         try {
-            JsonNode[] response = restTemplate.getForObject(url, JsonNode[].class);
+            JsonNode[] response = loadBalancedRestTemplate.getForObject(url, JsonNode[].class);
             if (response != null) {
                 List<Map<String, Object>> records = new ArrayList<>();
                 for (JsonNode record : response) {
@@ -138,7 +151,7 @@ public class PetHealthResolver implements GraphQLQueryResolver {
             org.springframework.http.HttpEntity<Map<String, Object>> entity =
                     new org.springframework.http.HttpEntity<>(request, headers);
 
-            JsonNode response = restTemplate.postForObject(url, entity, JsonNode.class);
+            JsonNode response = normalRestTemplate.postForObject(url, entity, JsonNode.class);
 
             if (response != null && response.has("choices")) {
                 JsonNode choices = response.get("choices");

@@ -3,7 +3,7 @@
 ## 📋 服务概览
 
 **服务名称**: 宠物健康分析 LLM 微服务  
-**服务地址**: `http://localhost:8088` (或 `http://192.168.71.20:8088`)  
+**服务地址**: `http://localhost:9000` (或 `http://192.168.71.20:9000`)  
 **技术栈**: Spring Boot + GraphQL + Qwen AI  
 **数据源**:
 - 宠物基本信息服务 (localhost:9000)
@@ -20,7 +20,7 @@
 
 ### 请求示例
 ```http
-POST http://localhost:8088/graphql
+POST http://localhost:9000/graphql
 Content-Type: application/json
 
 {
