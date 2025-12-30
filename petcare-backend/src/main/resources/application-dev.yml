@@ -9,10 +9,10 @@ server:
 spring:
   application:
     name: petcare-backend # 这个名字要和网关配置里的 lb:// 后面一致
-    cloud:
-      nacos:
-        discovery:
-          server-addr: 127.0.0.1:8848
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.100.240.111:8848
   datasource:
     url: jdbc:mysql://47.100.240.111:3306/pet_space_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: root

@@ -185,10 +185,6 @@ public class ActivityMediaIntegrationTest {
     private static void testSearchActivityRecords() throws IOException, InterruptedException {
         System.out.println("=== 测试2：搜索活动记录（包含媒体文件） ===");
 
-        // 构建查询参数
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime oneWeekAgo = now.minusDays(7);
-
         String url = BASE_URL + "/api/activities/records/pet/" + PET_ID;
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -196,14 +192,34 @@ public class ActivityMediaIntegrationTest {
                 .GET()
                 .build();
 
+        // 记录开始时间
+        long startTime = System.currentTimeMillis();
+
         HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
+
+        // 记录结束时间并计算耗时
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
 
         System.out.println("请求URL: " + request.uri());
         System.out.println("请求方法: GET");
         System.out.println("响应状态: " + response.statusCode());
         System.out.println("响应内容:");
         System.out.println(formatJson(response.body()));
-        System.out.println();
+
+        // --- 统计逻辑 ---
+        String body = response.body();
+        int recordCount = 0;
+        if (body != null && body.contains("\"activityRecordId\"")) {
+            // 根据 DTO 中的特定字段 activityRecordId 计数
+            recordCount = body.split("\"activityRecordId\":").length - 1;
+        }
+
+        // --- 最后输出统计结果 ---
+        System.out.println("--------------------------------");
+        System.out.println("查询耗时长度: " + duration + " ms");
+        System.out.println("查询结果数量: " + recordCount);
+        System.out.println("--------------------------------\n");
     }
 
     /**

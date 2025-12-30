@@ -7,7 +7,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 127.0.0.1:8848 # 你的 Nacos 地址
+        server-addr: 47.100.240.111:8848 # 你的 Nacos 地址
     gateway:
       # 开启网关从注册中心发现服务的能力
       discovery:
