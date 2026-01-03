@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ROUTE_CONFIG } from '@/config'
 import HomeView from '../views/HomeView.vue'
-import PetSpace from '../views/PetSpace.vue'
 import AuthView from '../views/AuthView.vue'
 
 const router = createRouter({
@@ -31,38 +30,14 @@ const router = createRouter({
         layout: 'auth'
       }
     },
-    {
-      path: '/space',
-      name: 'pet-space',
-      component: PetSpace,
-      meta: {
-        requiresAuth: true
-      }
-    },
     // 活动记录页面
     {
       path: '/activities',
       name: 'activities',
       component: () => import('../views/ActivitiesView.vue'),
       meta: {
-        requiresAuth: true
-      }
-    },
-    // 暂时重定向到首页，等页面创建后再启用
-    {
-      path: '/medical',
-      name: 'medical',
-      redirect: '/',
-      meta: {
-        requiresAuth: true
-      }
-    },
-    {
-      path: '/shop',
-      name: 'shop',
-      redirect: '/',
-      meta: {
-        requiresAuth: true
+        requiresAuth: true,
+        title: '宠物日记'
       }
     },
     {

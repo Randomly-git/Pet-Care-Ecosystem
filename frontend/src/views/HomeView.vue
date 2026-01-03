@@ -26,7 +26,7 @@
           </div>
 
           <!-- CTA按钮 -->
-          <button class="cta-button" @click="goToPetSpace">
+          <button class="cta-button" @click="goToActivities">
             开始使用
             <div class="cta-arrow">→</div>
           </button>
@@ -38,44 +38,11 @@
     <section class="features-section">
       <div class="features-container">
         <div class="features-grid">
-          <!-- 我的空间 -->
-          <div class="feature-card" @click="goToPetSpace">
-            <div class="card-icon">🏠</div>
-            <h3 class="card-title">我的空间</h3>
-            <p class="card-description">管理宠物和动态记录</p>
-            <div class="card-arrow">
-              <span>进入</span>
-              <div class="arrow-icon">→</div>
-            </div>
-          </div>
-
-          <!-- 活动记录 -->
+          <!-- 宠物日记 -->
           <div class="feature-card" @click="goToActivities">
-            <div class="card-icon">🐾</div>
-            <h3 class="card-title">活动记录</h3>
-            <p class="card-description">记录宠物日常活动和健康</p>
-            <div class="card-arrow">
-              <span>进入</span>
-              <div class="arrow-icon">→</div>
-            </div>
-          </div>
-
-          <!-- 看兽医 -->
-          <div class="feature-card" @click="goToMedical">
-            <div class="card-icon">🏥</div>
-            <h3 class="card-title">看兽医</h3>
-            <p class="card-description">在线问诊和健康咨询</p>
-            <div class="card-arrow">
-              <span>进入</span>
-              <div class="arrow-icon">→</div>
-            </div>
-          </div>
-
-          <!-- 去逛街 -->
-          <div class="feature-card" @click="goToShopping">
-            <div class="card-icon">🛍️</div>
-            <h3 class="card-title">去逛街</h3>
-            <p class="card-description">宠物用品和精选商城</p>
+            <div class="card-icon">📖</div>
+            <h3 class="card-title">宠物日记</h3>
+            <p class="card-description">记录爱宠的每一天，珍藏美好时光</p>
             <div class="card-arrow">
               <span>进入</span>
               <div class="arrow-icon">→</div>
@@ -161,29 +128,6 @@ const handleSearch = () => {
   alert(`搜索功能开发中，搜索词：${searchQuery.value}`)
 }
 
-const goToPetSpace = () => {
-  if (isLoggedIn.value) {
-    router.push('/space')
-  } else {
-    router.push('/login')
-  }
-}
-
-const goToMedical = () => {
-  if (isLoggedIn.value) {
-    router.push('/medical')
-  } else {
-    router.push('/login')
-  }
-}
-
-const goToShopping = () => {
-  if (isLoggedIn.value) {
-    router.push('/shop')
-  } else {
-    router.push('/login')
-  }
-}
 
 const goToActivities = () => {
   if (isLoggedIn.value) {

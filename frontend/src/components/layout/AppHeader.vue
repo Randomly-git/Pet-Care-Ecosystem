@@ -58,11 +58,8 @@ const authStore = useAuthStore()
 // 导航菜单项
 const menuItems = ref([
   { path: '/', label: '首页' },
-  { path: '/space', label: '我的空间'},
-  { path: '/activities', label: '活动记录' },
+  { path: '/activities', label: '宠物日记' },
   { path: '/moments', label: '宠物社区' },
-  { path: '/medical', label: '兽医诊断' },
-  { path: '/shop', label: '购物商城' },
   { path: '/about', label: '关于我们' }
 ])
 

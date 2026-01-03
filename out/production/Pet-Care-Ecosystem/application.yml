@@ -1,0 +1,58 @@
+server:
+  port: 9000 # 前端连接的唯一固定端口
+
+spring:
+  application:
+    name: petcare-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.100.240.111:8848 # 你的 Nacos 地址
+    gateway:
+      # 开启网关从注册中心发现服务的能力
+      discovery:
+        locator:
+          enabled: true
+
+      # 路由配置
+      routes:
+        - id: petcare-backend-route
+          uri: lb://petcare-backend # lb 表示负载均衡，后面跟后端在 Nacos 里的服务名
+          predicates:
+            - Path=/api/activities/**, /api/auth/**, /api/fixed-activities/**, /api/pets/**, /api/reminders/**, /api/reserved-activities/**, /api/status/**, /api/v1/users/**
+
+        - id: media-backend-route
+          uri: lb://media-backend
+          predicates:
+            - Path=/api/media/**
+
+        - id: community-backend-route
+          uri: lb://community-backend
+          predicates:
+            - Path=/api/v1/comments/**, /api/v1/follows/**, /api/v1/likes/**, /api/v1/moments/**
+
+        - id: llm-backend-route
+          uri: lb://llm-backend
+          predicates:
+            - Path=/graphql/**, /api/graphql/**
+
+        - id: statistics-backend-route
+          uri: lb://statistics-backend
+          predicates:
+            - Path=/api/stats/activity/**
+
+      # 解决跨域问题（微服务通常在网关统一处理跨域）
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    org.springframework.http.server.reactive: DEBUG
+    org.springframework.web.reactive: DEBUG
+    reactor.netty: DEBUG
