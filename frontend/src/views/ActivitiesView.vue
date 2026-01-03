@@ -133,19 +133,6 @@
 
       <!-- 右侧主内容区域 -->
       <div class="main-content-area">
-        <!-- 悬浮切换控件 -->
-        <div class="record-type-switcher">
-          <el-radio-group :model-value="currentRecordType" @change="handleRecordTypeChange" size="small">
-            <el-radio-button label="activity">
-              <i class="fas fa-calendar-check"></i>
-              活动记录
-            </el-radio-button>
-            <el-radio-button label="status">
-              <i class="fas fa-heartbeat"></i>
-              状态记录
-            </el-radio-button>
-          </el-radio-group>
-        </div>
 
         <!-- 活动记录内容 -->
         <div v-if="currentRecordType === 'activity'" class="activity-content">
@@ -2835,55 +2822,6 @@ watch([currentUserId], () => {
   position: relative;
 }
 
-/* 悬浮切换控件 */
-.record-type-switcher {
-  position: absolute;
-  top: -50px;
-  right: 0;
-  z-index: 10;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 8px;
-  border: 1px solid #e2e8f0;
-}
-
-.record-type-switcher .el-radio-group {
-  display: flex;
-  gap: 4px;
-}
-
-.record-type-switcher .el-radio-button {
-  margin: 0;
-}
-
-.record-type-switcher .el-radio-button__inner {
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.875rem;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
-  transition: all 0.2s ease;
-}
-
-.record-type-switcher .el-radio-button__inner:hover {
-  background: #eff6ff;
-  border-color: #cbd5e1;
-  color: #3b82f6;
-}
-
-.record-type-switcher .el-radio-button.is-active .el-radio-button__inner {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
-}
-
-.record-type-switcher i {
-  margin-right: 6px;
-  font-size: 0.75rem;
-}
 
 .pet-card {
   background: #f8fafc;
