@@ -2206,6 +2206,8 @@ const submitPetForm = async () => {
 // 状态记录相关方法
 const switchToActivity = () => {
   currentRecordType.value = 'activity'
+  // 切换回活动记录时刷新数据，确保数据同步
+  refreshData()
 }
 
 const switchToStatus = () => {
