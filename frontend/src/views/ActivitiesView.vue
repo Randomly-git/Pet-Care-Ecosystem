@@ -7,118 +7,148 @@
     <section class="hero-section">
       <div class="hero-container">
         <div class="hero-content">
-          <div class="hero-emoji">📖</div>
-          <h2 class="hero-title">宠物日记</h2>
-          <p class="hero-subtitle">记录爱宠的每一天，珍藏美好时光</p>
+          <div class="hero-emoji">🐾</div>
+          <h2 class="hero-title">宠物活动中心</h2>
+          <p class="hero-subtitle">记录和管理爱宠的每一个精彩瞬间</p>
         </div>
       </div>
     </section>
 
-
-    <!-- 主要内容区域 -->
-    <div class="main-content">
-      <div class="content-layout">
-        <!-- 左侧宠物边栏 -->
-        <div v-if="currentRecordType === 'activity'" class="pets-sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">
-              <span class="title-icon">🐾</span>
-              <span class="title-text">我的宠物</span>
-              <span class="pets-count-badge">{{ userPets.length }}</span>
+    <!-- 记录类型切换卡片 -->
+    <section class="record-switch-section">
+      <div class="container">
+        <div class="record-type-cards">
+          <div
+            class="record-type-card"
+            :class="{ active: currentRecordType === 'activity' }"
+            @click="switchToActivity"
+          >
+            <div class="card-icon">
+              <i class="fas fa-calendar-check"></i>
             </div>
+            <div class="card-content">
+              <h3>活动记录</h3>
+              <p>记录宠物的日常活动和特殊时刻</p>
+              <div class="card-count">{{ activityCount }}</div>
+            </div>
+            <div class="card-indicator"></div>
           </div>
 
-          <div class="sidebar-content">
-            <div class="pets-list">
-              <!-- 宠物卡片 -->
-              <div
-                v-for="pet in userPets"
-                :key="pet.id || pet.petId"
-                class="pet-card"
-                :class="{ active: selectedPetIds.includes(pet.id || pet.petId) }"
-                @click="togglePetSelection(pet.id || pet.petId)"
-              >
-                <div class="pet-main">
-                  <div class="pet-avatar">
-                    <el-avatar :size="36" :src="pet.avatar_url">
-                      {{ pet.name.charAt(0) }}
-                    </el-avatar>
-                    <div class="pet-status-dot" v-if="selectedPetIds.includes(pet.id || pet.petId)"></div>
-                  </div>
-                  <div class="pet-content">
-                    <div class="pet-info-row">
-                      <div class="pet-name">{{ pet.name }}</div>
-                      <div class="pet-details">{{ pet.species || pet.type }} · {{ pet.breed }}</div>
-                    </div>
-                    <div class="pet-activities">
-                      <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
-                      <div class="activity-label">活动</div>
-                    </div>
-                  </div>
-                  <div class="pet-actions">
-                    <!-- AI状态总结按钮 -->
-                    <div class="pet-ai-action" @click.stop>
-                    <el-button
-                      type="primary"
-                      size="small"
-                      @click="getAIStatusSummary(pet.id || pet.petId, pet.name)"
-                      :loading="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId)"
-                      :icon="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId) ? 'Loading' : 'MagicStick'"
-                    >
-                      AI总结
-                    </el-button>
-                    </div>
-                    <!-- 活动统计按钮 -->
-                    <div class="pet-stats-action" @click.stop>
-                    <el-button
-                      type="info"
-                      size="small"
-                      @click="getPetStats(pet.id || pet.petId, pet.name)"
-                      :loading="statsLoading && currentStatsPetId === (pet.id || pet.petId)"
-                    >
-                      统计
-                    </el-button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 添加宠物卡片 -->
-              <div class="pet-card add-pet-card" @click="showAddPetDialog = true">
-                <div class="add-pet-icon">
-                  <el-icon size="20"><Plus /></el-icon>
-                </div>
-                <div class="add-pet-text">添加宠物</div>
-              </div>
+          <div
+            class="record-type-card"
+            :class="{ active: currentRecordType === 'status' }"
+            @click="switchToStatus"
+          >
+            <div class="card-icon">
+              <i class="fas fa-heartbeat"></i>
             </div>
+            <div class="card-content">
+              <h3>状态记录</h3>
+              <p>追踪宠物的健康和状态变化</p>
+              <div class="card-count">{{ statusCount }}</div>
+            </div>
+            <div class="card-indicator"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 主要内容区域 -->
+    <div class="content-layout">
+      <!-- 左侧宠物边栏 -->
+      <div v-if="currentRecordType === 'activity'" class="pets-sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span class="title-icon">🐾</span>
+            <span class="title-text">我的宠物</span>
+            <span class="pets-count-badge">{{ userPets.length }}</span>
           </div>
         </div>
 
-        <!-- 右侧主内容区域 -->
-        <div class="main-content-area">
-          <!-- 悬浮切换控件 -->
-          <div class="record-type-switcher">
-            <!-- 显示当前值 -->
-            <div style="background: yellow; color: black; padding: 5px; margin-bottom: 5px; font-size: 12px;">
-              currentRecordType: {{ currentRecordType }}
+        <div class="sidebar-content">
+          <div class="pets-list">
+            <!-- 宠物卡片 -->
+            <div
+              v-for="pet in userPets"
+              :key="pet.id || pet.petId"
+              class="pet-card"
+              :class="{ active: selectedPetIds.includes(pet.id || pet.petId) }"
+              @click="togglePetSelection(pet.id || pet.petId)"
+            >
+              <div class="pet-main">
+                <div class="pet-avatar">
+                  <el-avatar :size="36" :src="pet.avatar_url">
+                    {{ pet.name.charAt(0) }}
+                  </el-avatar>
+                  <div class="pet-status-dot" v-if="selectedPetIds.includes(pet.id || pet.petId)"></div>
+                </div>
+                <div class="pet-content">
+                  <div class="pet-info-row">
+                    <div class="pet-name">{{ pet.name }}</div>
+                    <div class="pet-details">{{ pet.species || pet.type }} · {{ pet.breed }}</div>
+                  </div>
+                  <div class="pet-activities">
+                    <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
+                    <div class="activity-label">活动</div>
+                  </div>
+                </div>
+                <div class="pet-actions">
+                  <!-- AI状态总结按钮 -->
+                  <div class="pet-ai-action" @click.stop>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    @click="getAIStatusSummary(pet.id || pet.petId, pet.name)"
+                    :loading="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId)"
+                    :icon="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId) ? 'Loading' : 'MagicStick'"
+                  >
+                    AI总结
+                  </el-button>
+                  </div>
+                  <!-- 活动统计按钮 -->
+                  <div class="pet-stats-action" @click.stop>
+                  <el-button
+                    type="info"
+                    size="small"
+                    @click="getPetStats(pet.id || pet.petId, pet.name)"
+                    :loading="statsLoading && currentStatsPetId === (pet.id || pet.petId)"
+                  >
+                    统计
+                  </el-button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <el-radio-group :model-value="currentRecordType" @change="handleRecordTypeChange" size="small">
-              <el-radio-button label="activity">
-                <i class="fas fa-calendar-check"></i>
-                活动记录
-              </el-radio-button>
-              <el-radio-button label="status">
-                <i class="fas fa-heartbeat"></i>
-                状态记录
-              </el-radio-button>
-            </el-radio-group>
+
+            <!-- 添加宠物卡片 -->
+            <div class="pet-card add-pet-card" @click="showAddPetDialog = true">
+              <div class="add-pet-icon">
+                <el-icon size="20"><Plus /></el-icon>
+              </div>
+              <div class="add-pet-text">添加宠物</div>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 右侧主内容区域 -->
+      <div class="main-content-area">
+        <!-- 悬浮切换控件 -->
+        <div class="record-type-switcher">
+          <el-radio-group :model-value="currentRecordType" @change="handleRecordTypeChange" size="small">
+            <el-radio-button label="activity">
+              <i class="fas fa-calendar-check"></i>
+              活动记录
+            </el-radio-button>
+            <el-radio-button label="status">
+              <i class="fas fa-heartbeat"></i>
+              状态记录
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+
         <!-- 活动记录内容 -->
         <div v-if="currentRecordType === 'activity'" class="activity-content">
-          <!-- 调试信息 -->
-          <div style="background: blue; color: white; padding: 10px; margin: 10px 0; border-radius: 5px;">
-            活动记录内容已渲染 - currentRecordType: {{ currentRecordType }}
-          </div>
           <div class="container">
 
         <!-- 操作栏 -->
@@ -288,151 +318,159 @@
               </div>
             </div>
           </div>
+        </div>
+        </div>
+        </div>
+
+        <!-- 状态记录内容 -->
+        <div v-if="currentRecordType === 'status'" class="status-content">
+          <div class="container">
+          <!-- 状态记录操作栏 -->
+          <div class="status-action-bar">
+            <div class="action-left">
+              <el-select
+                v-model="selectedPetIds"
+                multiple
+                placeholder="选择宠物"
+                style="width: 200px"
+                @change="handleStatusPetSelectionChange"
+              >
+                <el-option
+                  v-for="pet in userPets"
+                  :key="pet.id || pet.petId"
+                  :label="pet.name"
+                  :value="pet.id || pet.petId"
+                />
+              </el-select>
+
+              <el-date-picker
+                v-model="statusDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                format="YYYY-MM-DD"
+                value-format="YYYY-MM-DD"
+                @change="handleStatusDateRangeChange"
+                size="default"
+                style="width: 240px; margin-left: 12px"
+              />
+            </div>
+
+            <div class="action-right">
+              <el-button type="success" @click="showAddStatusDialog = true">
+                <el-icon><Plus /></el-icon>
+                添加状态记录
+              </el-button>
+              <el-button @click="refreshStatusData">
+                <el-icon><Refresh /></el-icon>
+                刷新
+              </el-button>
+            </div>
           </div>
 
-          <!-- 状态记录内容 -->
-          <div v-if="currentRecordType === 'status'" class="status-content">
-            <div class="container">
-              <!-- 操作栏 -->
-              <div class="action-bar">
-                <div class="action-left">
-                  <el-select
-                    v-model="selectedPetIds"
-                    multiple
-                    placeholder="选择宠物"
-                    style="width: 200px"
-                    @change="handleStatusPetSelectionChange"
-                  >
-                    <el-option
-                      v-for="pet in userPets"
-                      :key="pet.id || pet.petId"
-                      :label="pet.name"
-                      :value="pet.id || pet.petId"
-                    />
-                  </el-select>
+          <!-- 状态记录时间线 -->
+          <div class="status-timeline-section">
+            <div v-if="statusLoading" class="loading-container">
+              <el-skeleton :rows="5" animated />
+            </div>
 
-                  <el-date-picker
-                    v-model="statusDateRange"
-                    type="daterange"
-                    range-separator="至"
-                    start-placeholder="开始日期"
-                    end-placeholder="结束日期"
-                    format="YYYY-MM-DD"
-                    value-format="YYYY-MM-DD"
-                    @change="handleStatusDateRangeChange"
-                    size="default"
-                    style="width: 240px; margin-left: 12px"
-                  />
+            <div v-else-if="filteredStatusRecords.length === 0" class="empty-state">
+              <el-empty description="暂无状态记录">
+                <el-button type="primary" @click="showAddStatusDialog = true">
+                  创建第一条状态记录
+                </el-button>
+              </el-empty>
+            </div>
+
+            <div v-else class="status-timeline">
+              <div
+                v-for="(group, date) in groupedStatusRecords"
+                :key="date"
+                class="timeline-group"
+              >
+                <div class="timeline-date">
+                  <div class="date-badge">{{ formatDate(date) }}</div>
                 </div>
 
-                <div class="action-right">
-                  <el-button type="success" @click="showAddStatusDialog = true">
-                    <el-icon><Plus /></el-icon>
-                    添加状态记录
-                  </el-button>
-                  <el-button @click="refreshStatusData">
-                    <el-icon><Refresh /></el-icon>
-                    刷新
-                  </el-button>
-                </div>
-              </div>
-
-              <!-- 时间线 -->
-              <div class="timeline-section">
-                <div v-if="statusLoading" class="loading-container">
-                  <el-skeleton :rows="5" animated />
-                </div>
-
-                <div v-else-if="filteredStatusRecords.length === 0" class="empty-state">
-                  <el-empty description="暂无状态记录">
-                    <el-button type="primary" @click="showAddStatusDialog = true">
-                      创建第一条状态记录
-                    </el-button>
-                  </el-empty>
-                </div>
-
-                <div v-else class="activity-timeline">
+                <div class="timeline-items">
                   <div
-                    v-for="(group, date) in groupedStatusRecords"
-                    :key="date"
-                    class="timeline-group"
+                    v-for="record in group"
+                    :key="record.statusRecordId"
+                    class="timeline-item status-item"
+                    @click="editStatusRecord(record)"
                   >
-                    <div class="timeline-date">
-                      <div class="date-badge">{{ formatDate(date) }}</div>
+                    <div class="timeline-marker">
+                      <div class="marker-dot status-dot"></div>
+                      <div class="marker-line"></div>
                     </div>
 
-                    <div class="timeline-items">
-                      <div
-                        v-for="record in group"
-                        :key="record.statusRecordId"
-                        class="timeline-item"
-                        @click="editStatusRecord(record)"
-                      >
-                        <div class="timeline-marker">
-                          <div class="marker-dot status-dot"></div>
-                          <div class="marker-line"></div>
-                        </div>
-
-                        <div class="timeline-content">
-                          <div class="record-card">
-                            <div class="record-header">
-                              <div class="pet-info">
-                                <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
-                                  {{ getPetInfo(record.petId).name.charAt(0) }}
-                                </el-avatar>
-                                <div class="pet-details">
-                                  <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
-                                  <div class="activity-type">{{ record.statusName }}</div>
-                                </div>
-                              </div>
-                              <div class="record-time">
-                                {{ formatTime(record.startDate) }}
-                                <span v-if="record.endDate" class="record-duration">
-                                  至 {{ formatTime(record.endDate) }}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div class="record-description" v-if="record.description">
-                              <p>{{ record.description }}</p>
-                            </div>
-
-                            <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
-                              <div class="media-grid">
-                                <div
-                                  v-for="(media, index) in record.mediaFiles.slice(0, 4)"
-                                  :key="index"
-                                  class="media-item"
-                                  @click.stop
-                                >
-                                  <img v-if="media.fileType === 'IMAGE'" :src="media.fileUrl" :alt="media.fileName" />
-                                  <div v-else class="file-icon">
-                                    <i class="fas fa-file"></i>
-                                  </div>
-                                </div>
-                                <div v-if="record.mediaFiles.length > 4" class="more-media">
-                                  +{{ record.mediaFiles.length - 4 }}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div class="record-actions">
-                              <el-button size="small" @click.stop="editStatusRecord(record)">
-                                编辑
-                              </el-button>
-                              <el-button
-                                v-if="!record.endDate"
-                                size="small"
-                                type="warning"
-                                @click.stop="stopStatusRecord(record)"
-                              >
-                                停止
-                              </el-button>
-                              <el-button size="small" type="danger" @click.stop="deleteStatusRecord(record)">
-                                删除
-                              </el-button>
+                    <div class="timeline-content">
+                      <div class="record-card status-record-card">
+                        <div class="record-header">
+                          <div class="pet-info">
+                            <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
+                              {{ getPetInfo(record.petId).name.charAt(0) }}
+                            </el-avatar>
+                            <div class="pet-details">
+                              <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
+                              <div class="status-type">{{ record.statusName }}</div>
                             </div>
                           </div>
+                          <div class="record-status-info">
+                            <div class="record-time">{{ formatTime(record.startDate) }}</div>
+                            <div class="status-duration" v-if="record.endDate">
+                              至 {{ formatTime(record.endDate) }}
+                            </div>
+                            <div class="status-active" v-else>
+                              <span class="active-indicator"></span>
+                              进行中
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="record-description" v-if="record.statusDescription">
+                          {{ record.statusDescription }}
+                        </div>
+
+                        <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
+                          <div class="media-preview">
+                            <div
+                              v-for="media in record.mediaFiles.slice(0, 3)"
+                              :key="media.mediaId"
+                              class="media-item"
+                              @click.stop="previewMedia(media)"
+                            >
+                              <img
+                                v-if="media.fileType.startsWith('image/')"
+                                :src="media.fileUrl"
+                                :alt="media.fileName"
+                              />
+                              <div v-else class="file-icon">
+                                <i class="fas fa-file"></i>
+                              </div>
+                            </div>
+                            <div v-if="record.mediaFiles.length > 3" class="more-media">
+                              +{{ record.mediaFiles.length - 3 }}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="record-actions">
+                          <el-button size="small" @click.stop="editStatusRecord(record)">
+                            编辑
+                          </el-button>
+                          <el-button
+                            v-if="!record.endDate"
+                            size="small"
+                            type="warning"
+                            @click.stop="stopStatusRecord(record)"
+                          >
+                            停止
+                          </el-button>
+                          <el-button size="small" type="danger" @click.stop="deleteStatusRecord(record)">
+                            删除
+                          </el-button>
                         </div>
                       </div>
                     </div>
@@ -441,10 +479,8 @@
               </div>
             </div>
           </div>
-              </div>
-            </div>
-          </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -969,6 +1005,7 @@
       </template>
     </el-dialog>
 
+    <!-- AI状态总结对话框 -->
     <el-dialog
       v-model="showAISummaryDialog"
       :title="`✨ ${currentPetName}的AI状态分析`"
@@ -995,6 +1032,7 @@
       </template>
     </el-dialog>
 
+    <!-- 活动统计对话框 -->
     <el-dialog
       v-model="showStatsDialog"
       :title="`📊 ${currentStatsPetName}的活动统计`"
@@ -1003,6 +1041,7 @@
     >
       <div v-loading="statsLoading" element-loading-text="加载统计数据中...">
         <div v-if="statsData" class="stats-content">
+          <!-- 统计周期切换 -->
           <div class="stats-period-selector">
             <el-radio-group v-model="statsPeriod" @change="handleStatsPeriodChange">
               <el-radio-button label="MONTHLY">月度统计</el-radio-button>
@@ -1010,6 +1049,7 @@
             </el-radio-group>
           </div>
 
+          <!-- 总览统计 -->
           <div class="stats-overview">
             <div class="stat-card">
               <div class="stat-value">{{ statsData.totalActivities || 0 }}</div>
@@ -1025,6 +1065,7 @@
             </div>
           </div>
 
+          <!-- 最频繁活动 -->
           <div class="stats-frequent" v-if="statsData.mostFrequentActivity">
             <div class="frequent-item">
               <span class="frequent-label">最频繁活动:</span>
@@ -1038,6 +1079,7 @@
             </div>
           </div>
 
+          <!-- 月度/周度详细统计 -->
           <div class="stats-detail">
             <h4>{{ statsPeriod === 'MONTHLY' ? '月度详情' : '周度详情' }}</h4>
             <div v-if="statsPeriod === 'MONTHLY' && statsData.monthlyStats && statsData.monthlyStats.length > 0" class="stats-list">
@@ -1080,7 +1122,7 @@
 
     <!-- 使用统一的布局底部 -->
     <AppFooter />
-
+  </div>
 </template>
 
 <script setup>
@@ -2184,8 +2226,6 @@ const switchToStatus = () => {
   loadStatusData()
 }
 
-
-
 const handleStatusPetSelectionChange = () => {
   // 状态记录的筛选逻辑已在computed中实现
 }
@@ -2620,24 +2660,6 @@ watch([currentUserId], () => {
     refreshData()
   }
 })
-
-const handleRecordTypeChange = (value) => {
-  console.log('handleRecordTypeChange called with:', value)
-  currentRecordType.value = value
-  if (value === 'status') {
-    console.log('Loading status data...')
-    // 如果没有选择宠物，默认选择所有宠物
-    if (selectedPetIds.value.length === 0 && userPets.value.length > 0) {
-      selectedPetIds.value = userPets.value.map(pet => pet.id || pet.petId)
-      console.log('Auto-selected all pets:', selectedPetIds.value)
-    }
-    loadStatusData()
-  }
-}
-
-watch(currentRecordType, (newValue, oldValue) => {
-  console.log('currentRecordType changed:', oldValue, '->', newValue)
-})
 </script>
 
 <style scoped>
@@ -2758,6 +2780,8 @@ watch(currentRecordType, (newValue, oldValue) => {
   background: white;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -2770,6 +2794,7 @@ watch(currentRecordType, (newValue, oldValue) => {
 
 .sidebar-title {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
 }
@@ -2860,78 +2885,6 @@ watch(currentRecordType, (newValue, oldValue) => {
   font-size: 0.75rem;
 }
 
-/* 响应式设计 */
-@media (max-width: 1024px) {
-  .content-layout {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .pets-sidebar {
-    width: 100% !important;
-    order: -1;
-  }
-
-  .sidebar-header {
-    padding: 0.75rem 1rem;
-  }
-
-  .sidebar-title {
-    gap: 0.375rem;
-  }
-
-  .pets-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .pet-card {
-    flex: 1;
-    min-width: 200px;
-    padding: 0.375rem;
-  }
-
-  .pet-main {
-    gap: 0.375rem;
-  }
-
-  .pet-info-row {
-    gap: 0.375rem;
-  }
-
-  .pet-actions {
-    gap: 0.25rem;
-    margin-left: 0.5rem;
-  }
-
-  .pet-ai-action .el-button,
-  .pet-stats-action .el-button {
-    min-width: 50px;
-    font-size: 0.7rem;
-  }
-
-  .record-type-switcher {
-    position: static;
-    top: auto;
-    right: auto;
-    margin-bottom: 1rem;
-    box-shadow: none;
-    border: none;
-    background: transparent;
-    padding: 0;
-  }
-
-  .record-type-switcher .el-radio-group {
-    justify-content: center;
-  }
-
-  .record-type-switcher .el-radio-button__inner {
-    padding: 8px 16px;
-    font-size: 0.9rem;
-  }
-}
-
 .pet-card {
   background: #f8fafc;
   border: 2px solid #e2e8f0;
@@ -2939,6 +2892,9 @@ watch(currentRecordType, (newValue, oldValue) => {
   padding: 0.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   position: relative;
 }
 
@@ -3008,6 +2964,10 @@ watch(currentRecordType, (newValue, oldValue) => {
 }
 
 .pet-activities {
+  text-align: center;
+}
+
+.pet-activities {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -3051,7 +3011,7 @@ watch(currentRecordType, (newValue, oldValue) => {
 }
 
 .add-pet-card:hover {
-  border-color: #3b82f6;
+  border-color: #cbd5e1;
   background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
 }
 
@@ -3065,16 +3025,6 @@ watch(currentRecordType, (newValue, oldValue) => {
   font-weight: 500;
   color: #64748b;
   text-align: center;
-}
-
-.add-icon {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-  font-weight: 300;
-}
-
-.add-text {
-  font-weight: 500;
 }
 
 /* 操作栏 */
@@ -3348,6 +3298,96 @@ watch(currentRecordType, (newValue, oldValue) => {
   }
 }
 
+/* ===== 记录类型切换卡片 ===== */
+.record-switch-section {
+  padding: 2rem 0;
+}
+
+.record-type-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.record-type-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.record-type-card:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.record-type-card.active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  transform: translateY(-2px);
+}
+
+.record-type-card.active .card-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+}
+
+.card-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.record-type-card.active .card-icon {
+  background: #3b82f6;
+  color: white;
+}
+
+.card-content {
+  flex: 1;
+}
+
+.card-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.card-content p {
+  margin: 0 0 1rem 0;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.card-count {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #3b82f6;
+}
 
 /* ===== 状态记录样式 ===== */
 .status-content {
