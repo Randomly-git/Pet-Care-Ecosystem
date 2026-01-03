@@ -55,8 +55,8 @@
 
     <!-- 主要内容区域 -->
     <div class="content-layout">
-      <!-- 左侧宠物边栏 -->
-      <div v-if="currentRecordType === 'activity'" class="pets-sidebar">
+    <!-- 左侧宠物边栏 -->
+    <div class="pets-sidebar">
         <div class="sidebar-header">
           <div class="sidebar-title">
             <span class="title-icon">🐾</span>
@@ -136,7 +136,7 @@
 
         <!-- 活动记录内容 -->
         <div v-if="currentRecordType === 'activity'" class="activity-content">
-          <div class="container">
+          <div class="content-container">
 
         <!-- 操作栏 -->
         <div class="action-bar">
@@ -311,7 +311,7 @@
 
         <!-- 状态记录内容 -->
         <div v-if="currentRecordType === 'status'" class="status-content">
-          <div class="container">
+          <div class="content-container">
           <!-- 状态记录操作栏 -->
           <div class="status-action-bar">
             <div class="action-left">
@@ -2661,7 +2661,7 @@ watch([currentUserId], () => {
 .hero-section {
   background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(250, 204, 21, 0.1) 100%),
               url('https://images.unsplash.com/photo-1450778869188-b1d976e7e5fa?q=80&w=1332&auto=format&fit=crop') center/cover no-repeat;
-  padding: 4rem 0;
+  padding: 2rem 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -2679,9 +2679,9 @@ watch([currentUserId], () => {
 }
 
 .hero-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
+  width: 100%;
+  margin: 0;
+  padding: 0 2rem;
   text-align: center;
   position: relative;
   z-index: 2;
@@ -2693,21 +2693,21 @@ watch([currentUserId], () => {
 }
 
 .hero-emoji {
-  font-size: 4rem;
-  margin-bottom: 1.5rem;
+  font-size: 3rem;
+  margin-bottom: 1rem;
   line-height: 1;
 }
 
 .hero-title {
-  font-size: 3rem;
+  font-size: 2.25rem;
   font-weight: 700;
   color: #1e293b;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   line-height: 1.2;
 }
 
 .hero-subtitle {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   color: #64748b;
   margin-bottom: 0;
   line-height: 1.6;
@@ -2748,31 +2748,40 @@ watch([currentUserId], () => {
 }
 
 .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
+  width: 100%;
+  margin: 0;
+  padding: 0 0.5rem;
+}
+
+/* 内容区域专用容器 */
+.content-container {
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* 主内容布局 */
 .content-layout {
   display: flex;
-  gap: 1.5rem;
   align-items: flex-start;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* 左侧宠物边栏 */
 .pets-sidebar {
-  width: 320px;
+  position: fixed;
+  top: 120px;
+  left: calc(2rem + 60px);
+  width: 220px;
+  max-height: calc(100vh - 140px);
   background: white;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
   overflow: hidden;
-  flex-shrink: 0;
+  z-index: 1000;
 }
 
 .sidebar-header {
@@ -2808,33 +2817,52 @@ watch([currentUserId], () => {
 }
 
 .sidebar-content {
-  padding: 1rem;
+  padding: 0.75rem;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
 }
 
 .pets-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
-/* 右侧主内容区域 */
+/* 主内容区域 */
 .main-content-area {
   flex: 1;
   min-width: 0;
   position: relative;
+  margin: 0 auto;
+  margin-left: calc(2rem + 340px);
+  margin-right: calc(2rem + 140px);
+  max-width: 1300px;
+  width: 100%;
+}
+
+/* 在小屏幕上调整布局 */
+@media (max-width: 1400px) {
+  .main-content-area {
+    margin-left: calc(2rem + 340px);
+    margin-right: calc(2rem + 140px);
+  }
+
+  .record-type-cards {
+    right: calc(2rem + 50px);
+  }
 }
 
 
 .pet-card {
   background: #f8fafc;
   border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0.5rem;
+  border-radius: 8px;
+  padding: 0.375rem;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   position: relative;
 }
 
@@ -2947,7 +2975,7 @@ watch([currentUserId], () => {
   justify-content: center;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.75rem 0.5rem;
+  padding: 0.5rem 0.375rem;
 }
 
 .add-pet-card:hover {
@@ -3199,8 +3227,44 @@ watch([currentUserId], () => {
   gap: 0.5rem;
 }
 
-/* 响应式设计 */
+/* 响应式设计 - 宠物边栏 */
 @media (max-width: 768px) {
+  .pets-sidebar {
+    position: static;
+    top: auto;
+    left: auto;
+    width: 100%;
+    max-height: none;
+    margin-bottom: 1.5rem;
+  }
+
+  .sidebar-content {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .main-content-area {
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  .record-type-cards {
+    right: 1rem;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+  .hero-emoji {
+    font-size: 2.5rem;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+  }
+
   .page-title {
     font-size: 2rem;
   }
@@ -3240,31 +3304,36 @@ watch([currentUserId], () => {
 
 /* ===== 记录类型切换卡片 ===== */
 .record-switch-section {
-  padding: 2rem 0;
+  padding: 0.25rem 0;
+  min-height: 100px; /* 为固定定位的卡片留出空间 */
+  width: 100%;
 }
 
 .record-type-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  max-width: 800px;
-  margin: 0 auto;
+  position: fixed;
+  top: 120px;
+  right: calc(2rem + 50px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 1000;
 }
 
-.record-type-card {
-  background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 2rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+  .record-type-card {
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 200px;
+  }
 
 .record-type-card:hover {
   border-color: #cbd5e1;
@@ -3287,18 +3356,18 @@ watch([currentUserId], () => {
   background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
 }
 
-.card-icon {
-  font-size: 2.5rem;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: #f8fafc;
-  color: #64748b;
-  flex-shrink: 0;
-}
+  .card-icon {
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #64748b;
+    flex-shrink: 0;
+  }
 
 .record-type-card.active .card-icon {
   background: #3b82f6;
@@ -3309,25 +3378,25 @@ watch([currentUserId], () => {
   flex: 1;
 }
 
-.card-content h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-}
+  .card-content h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
 
-.card-content p {
-  margin: 0 0 1rem 0;
-  color: #64748b;
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
+  .card-content p {
+    margin: 0 0 0.5rem 0;
+    color: #64748b;
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
 
-.card-count {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #3b82f6;
-}
+  .card-count {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #3b82f6;
+  }
 
 /* ===== 状态记录样式 ===== */
 .status-content {
@@ -3485,30 +3554,33 @@ watch([currentUserId], () => {
 /* ===== 响应式设计 - 记录类型切换卡片 ===== */
 @media (max-width: 768px) {
   .record-type-cards {
-    grid-template-columns: 1fr;
-    gap: 1rem;
+    position: static;
+    top: auto;
+    right: auto;
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0 0.5rem;
   }
 
   .record-type-card {
-    padding: 1.5rem;
+    width: 160px;
+    padding: 0.75rem;
   }
 
   .card-icon {
-    font-size: 2rem;
-    width: 50px;
-    height: 50px;
+    font-size: 1.125rem;
+    width: 28px;
+    height: 28px;
   }
 
   .card-content h3 {
-    font-size: 1.125rem;
-  }
-
-  .card-content p {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
   }
 
   .card-count {
-    font-size: 1.25rem;
+    font-size: 0.95rem;
   }
 }
 
