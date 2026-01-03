@@ -10,6 +10,9 @@ import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.service.ActivityService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +26,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/activities")
 @Slf4j
+@Tag(name = "宠物活动管理", description = "处理宠物活动类型的定义及具体的活动打卡记录")
 public class ActivityController {
 
     private final ActivityService activityService;
@@ -33,13 +37,11 @@ public class ActivityController {
         this.mediaServiceClient = mediaServiceClient;
     }
 
-    /**
-     * 根据用户ID和活动种类ID获取活动列表
-     */
+    @Operation(summary = "获取用户的活动列表", description = "根据用户ID获取其创建的活动，可选按活动种类过滤")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<ActivityDTO>> getActivitiesByUserId(
-            @PathVariable Long userId,
-            @RequestParam(required = false) Long activityKindId) {
+            @Parameter(description = "用户ID") @PathVariable Long userId,
+            @Parameter(description = "活动种类ID（可选）") @RequestParam(required = false) Long activityKindId) {
 
         log.info("获取用户ID: {} 的活动列表，活动种类ID: {}", userId, activityKindId);
 
@@ -53,11 +55,9 @@ public class ActivityController {
         return ResponseEntity.ok(activities);
     }
 
-    /**
-     * 根据活动ID获取活动详情
-     */
+    @Operation(summary = "获取活动详情", description = "根据活动定义ID获取详细信息")
     @GetMapping("/{activityId}")
-    public ResponseEntity<ActivityDTO> getActivityById(@PathVariable Long activityId) {
+    public ResponseEntity<ActivityDTO> getActivityById(@Parameter(description = "活动ID") @PathVariable Long activityId) {
         log.info("获取活动ID: {} 的详情", activityId);
 
         Optional<ActivityDTO> activity = activityService.getActivityById(activityId);
@@ -65,9 +65,7 @@ public class ActivityController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * 创建新活动
-     */
+    @Operation(summary = "创建新活动", description = "定义一种新的宠物活动类型")
     @PostMapping
     public ResponseEntity<Activity> createActivity(@RequestBody CreateActivityDTO createActivityDTO) {
         log.info("创建新活动: {}", createActivityDTO);
@@ -76,9 +74,7 @@ public class ActivityController {
         return ResponseEntity.ok(createdActivity);
     }
 
-    /**
-     * 更新活动信息
-     */
+    @Operation(summary = "更新活动信息", description = "修改已定义的活动信息")
     @PutMapping
     public ResponseEntity<Activity> updateActivity(@RequestBody UpdateActivityDTO updateActivityDTO) {
         log.info("更新活动: {}", updateActivityDTO);
@@ -87,11 +83,9 @@ public class ActivityController {
         return ResponseEntity.ok(updatedActivity);
     }
 
-    /**
-     * 软删除活动
-     */
+    @Operation(summary = "软删除活动", description = "逻辑删除活动定义，不会立即物理删除数据")
     @DeleteMapping("/{activityId}")
-    public ResponseEntity<Void> deleteActivity(@PathVariable Long activityId) {
+    public ResponseEntity<Void> deleteActivity(@Parameter(description = "活动ID") @PathVariable Long activityId) {
         log.info("软删除活动ID: {}", activityId);
 
         boolean isDeleted = activityService.deleteActivity(activityId);
@@ -102,20 +96,16 @@ public class ActivityController {
         }
     }
 
-    /**
-     * 彻底删除活动（包括相关记录）
-     */
+    @Operation(summary = "彻底删除活动", description = "物理删除活动及其所有关联的打卡记录")
     @DeleteMapping("/{activityId}/complete")
-    public ResponseEntity<Void> deleteActivityCompletely(@PathVariable Long activityId) {
+    public ResponseEntity<Void> deleteActivityCompletely(@Parameter(description = "活动ID") @PathVariable Long activityId) {
         log.info("彻底删除活动ID: {}", activityId);
 
         activityService.deleteActivityCompletely(activityId);
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 获取所有活动种类
-     */
+    @Operation(summary = "获取所有活动种类", description = "获取系统预设或自定义的所有活动大类（如：饮食、运动、医疗等）")
     @GetMapping("/kinds")
     public ResponseEntity<List<ActivityKindDTO>> getAllActivityKinds() {
         log.info("获取所有活动种类");
@@ -124,15 +114,13 @@ public class ActivityController {
         return ResponseEntity.ok(activityKinds);
     }
 
-    /**
-     * 搜索活动记录（包含媒体文件信息）
-     */
+    @Operation(summary = "搜索活动记录", description = "根据宠物、时间范围和种类筛选打卡记录，结果包含媒体文件链接")
     @GetMapping("/records/pet/{petId}")
     public ResponseEntity<List<ActivityRecordDTO>> searchActivityRecords(
-            @PathVariable Long petId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam(required = false) Long activityKindId) {
+            @Parameter(description = "宠物ID") @PathVariable Long petId,
+            @Parameter(description = "开始时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @Parameter(description = "结束时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @Parameter(description = "活动种类ID") @RequestParam(required = false) Long activityKindId) {
 
         log.info("搜索宠物ID: {} 的活动记录，开始时间: {}, 结束时间: {}, 活动种类ID: {}",
                 petId, startDate, endDate, activityKindId);
@@ -140,7 +128,6 @@ public class ActivityController {
         List<ActivityRecordDTO> records = activityService.searchActivityRecords(
                 petId, startDate, endDate, activityKindId);
 
-        // 为每个记录获取关联的媒体文件
         if (records != null) {
             for (ActivityRecordDTO record : records) {
                 try {
@@ -148,7 +135,6 @@ public class ActivityController {
                     record.setMediaFiles(mediaFiles);
                 } catch (Exception e) {
                     log.warn("获取活动记录 {} 的媒体文件失败: {}", record.getActivityRecordId(), e.getMessage());
-                    // 不抛出异常，继续处理其他记录
                 }
             }
         }
@@ -156,168 +142,123 @@ public class ActivityController {
         return ResponseEntity.ok(records);
     }
 
-    /**
-     * 创建活动记录（支持可选文件上传）
-     * 返回类型保持不变：ResponseEntity<ActivityRecord>
-     */
+    @Operation(summary = "创建活动记录", description = "为宠物添加一次活动记录（如：今天喂食了），支持上传照片")
     @PostMapping("/records/pet/{petId}")
     public ResponseEntity<ActivityRecord> createActivityRecord(
-            @PathVariable Long petId,
-            @RequestParam Long activityId,
-            @RequestParam(required = false) String description,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date,
-            @RequestParam(required = false) MultipartFile file,
-            @RequestParam Long userId) {
+            @Parameter(description = "宠物ID") @PathVariable Long petId,
+            @Parameter(description = "活动ID") @RequestParam Long activityId,
+            @Parameter(description = "描述备注") @RequestParam(required = false) String description,
+            @Parameter(description = "记录日期") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date,
+            @Parameter(description = "上传图片/视频文件") @RequestParam(required = false) MultipartFile file,
+            @Parameter(description = "执行人ID") @RequestParam Long userId) {
 
         log.info("创建活动记录，宠物ID: {}, 活动ID: {}, 用户ID: {}, 文件: {}",
                 petId, activityId, userId, file != null ? file.getOriginalFilename() : "无");
 
-        // 1. 先创建活动记录
-        ActivityRecord record = activityService.createActivityRecord(
-                petId, activityId, description, date);
+        ActivityRecord record = activityService.createActivityRecord(petId, activityId, description, date);
 
-        // 2. 如果有文件，异步上传到媒体服务（不阻塞主流程）
         if (file != null && !file.isEmpty()) {
             try {
-                // 使用异步方式上传文件，避免影响主流程
                 new Thread(() -> {
                     try {
-                        MediaResponse mediaResponse = mediaServiceClient.uploadFile(
-                                file, userId, "ACTIVITY", record.getActivityRecordId());
-                        log.info("活动记录 {} 的文件上传成功: {}", record.getActivityRecordId(), mediaResponse.getFileName());
+                        mediaServiceClient.uploadFile(file, userId, "ACTIVITY", record.getActivityRecordId());
                     } catch (Exception e) {
-                        log.error("活动记录 {} 的文件上传失败: {}", record.getActivityRecordId(), e.getMessage());
+                        log.error("活动记录 {} 的文件上传失败", record.getActivityRecordId(), e);
                     }
                 }).start();
             } catch (Exception e) {
-                // 文件上传失败不影响活动记录的创建
-                log.warn("活动记录 {} 的文件上传失败，但记录已成功创建", record.getActivityRecordId(), e);
+                log.warn("活动记录 {} 的文件上传线程启动失败", record.getActivityRecordId(), e);
             }
         }
 
         return ResponseEntity.ok(record);
     }
 
-    /**
-     * 更新活动记录（支持可选文件更新）
-     * 返回类型保持不变：ResponseEntity<ActivityRecord>
-     */
+    @Operation(summary = "更新活动记录", description = "修改已存在的活动打卡记录，可更换图片")
     @PutMapping("/records/{recordId}")
     public ResponseEntity<ActivityRecord> updateActivityRecord(
-            @PathVariable Long recordId,
-            @RequestParam(required = false) Long newActivityId,
-            @RequestParam(required = false) String description,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date,
-            @RequestParam(required = false) MultipartFile file,
-            @RequestParam(required = false) Long userId) {
+            @Parameter(description = "记录ID") @PathVariable Long recordId,
+            @Parameter(description = "新活动ID") @RequestParam(required = false) Long newActivityId,
+            @Parameter(description = "描述备注") @RequestParam(required = false) String description,
+            @Parameter(description = "记录日期") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime date,
+            @Parameter(description = "更新图片文件") @RequestParam(required = false) MultipartFile file,
+            @Parameter(description = "执行人ID") @RequestParam(required = false) Long userId) {
 
-        log.info("更新活动记录ID: {}, 新活动ID: {}, 描述: {}, 日期: {}, 文件: {}, 用户ID: {}",
-                recordId, newActivityId, description, date,
-                file != null ? file.getOriginalFilename() : "无", userId);
+        log.info("更新活动记录ID: {}, 文件: {}", recordId, file != null ? file.getOriginalFilename() : "无");
 
-        // 1. 先更新活动记录
-        ActivityRecord record = activityService.updateActivityRecord(
-                recordId, newActivityId, description, date);
+        ActivityRecord record = activityService.updateActivityRecord(recordId, newActivityId, description, date);
 
-        // 2. 如果有新文件上传，更新媒体文件
         if (file != null && !file.isEmpty() && userId != null) {
             try {
-                // 使用异步方式处理文件更新
                 new Thread(() -> {
                     try {
-                        // 先删除旧的媒体文件
                         mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
-
-                        // 上传新文件
-                        MediaResponse mediaResponse = mediaServiceClient.uploadFile(
-                                file, userId, "ACTIVITY", recordId);
-                        log.info("活动记录 {} 的文件更新成功: {}", recordId, mediaResponse.getFileName());
+                        mediaServiceClient.uploadFile(file, userId, "ACTIVITY", recordId);
                     } catch (Exception e) {
-                        log.error("活动记录 {} 的文件更新失败: {}", recordId, e.getMessage());
+                        log.error("活动记录 {} 的文件更新失败", recordId, e);
                     }
                 }).start();
             } catch (Exception e) {
-                // 文件更新失败不影响活动记录的更新
-                log.warn("活动记录 {} 的文件更新失败，但记录已成功更新", recordId, e);
+                log.warn("活动记录 {} 的文件更新线程启动失败", recordId, e);
             }
         }
 
         return ResponseEntity.ok(record);
     }
 
-    /**
-     * 删除活动记录（同时删除关联的媒体文件）
-     * 返回类型保持不变：ResponseEntity<Void>
-     */
+    @Operation(summary = "删除活动记录", description = "物理删除一条活动记录及其关联的媒体文件")
     @DeleteMapping("/records/{recordId}")
-    public ResponseEntity<Void> deleteActivityRecord(@PathVariable Long recordId) {
+    public ResponseEntity<Void> deleteActivityRecord(@Parameter(description = "记录ID") @PathVariable Long recordId) {
         log.info("删除活动记录ID: {}", recordId);
 
-        // 1. 先删除关联的媒体文件（同步执行，确保媒体文件被删除）
         try {
             mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
-            log.info("活动记录 {} 的关联媒体文件已删除", recordId);
         } catch (Exception e) {
-            log.error("删除活动记录 {} 的关联媒体文件失败: {}", recordId, e.getMessage());
-            // 即使媒体删除失败，也继续删除活动记录
+            log.error("删除活动记录 {} 的媒体失败: {}", recordId, e.getMessage());
         }
 
-        // 2. 删除活动记录
         activityService.deleteActivityRecord(recordId);
-
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 为活动记录上传媒体文件（新增独立接口）
-     * 这样不破坏原有接口的返回格式
-     */
+    @Operation(summary = "上传记录媒体", description = "专门为某条活动记录上传/补充媒体文件")
     @PostMapping("/records/{recordId}/media")
     public ResponseEntity<Void> uploadRecordMedia(
-            @PathVariable Long recordId,
-            @RequestParam MultipartFile file,
-            @RequestParam Long userId) {
+            @Parameter(description = "记录ID") @PathVariable Long recordId,
+            @Parameter(description = "文件") @RequestParam MultipartFile file,
+            @Parameter(description = "用户ID") @RequestParam Long userId) {
 
-        log.info("为活动记录 {} 上传媒体文件: {}, 用户ID: {}",
-                recordId, file.getOriginalFilename(), userId);
+        log.info("为活动记录 {} 上传媒体文件", recordId);
 
         try {
-            // 上传文件到媒体服务
-            MediaResponse mediaResponse = mediaServiceClient.uploadFile(
-                    file, userId, "ACTIVITY", recordId);
-            log.info("活动记录 {} 的媒体文件上传成功: {}", recordId, mediaResponse.getFileName());
+            mediaServiceClient.uploadFile(file, userId, "ACTIVITY", recordId);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.error("活动记录 {} 的媒体文件上传失败", recordId, e);
+            log.error("媒体文件上传失败", e);
             return ResponseEntity.internalServerError().build();
         }
     }
 
-    /**
-     * 批量获取活动记录（用于统计）
-     */
+    @Operation(summary = "批量获取记录", description = "通过一组宠物ID批量查询它们的活动记录，常用于首页或汇总统计")
     @PostMapping("/records/batch")
-    public ResponseEntity<List<ActivityRecordDTO>> getActivityRecordsByPetIds(@RequestBody List<Long> petIds) {
-        log.info("批量获取宠物ID: {} 的活动记录", petIds);
+    public ResponseEntity<List<ActivityRecordDTO>> getActivityRecordsByPetIds(
+            @Parameter(description = "宠物ID列表") @RequestBody List<Long> petIds) {
+        log.info("批量获取宠物记录: {}", petIds);
 
         try {
             List<ActivityRecordDTO> records = activityService.getActivityRecordsByPetIds(petIds);
-
-            // 为每个记录获取关联的媒体文件
             if (records != null) {
                 for (ActivityRecordDTO record : records) {
                     try {
                         List<MediaResponse> mediaFiles = mediaServiceClient.getRelatedFiles("ACTIVITY", record.getActivityRecordId());
                         record.setMediaFiles(mediaFiles);
                     } catch (Exception e) {
-                        log.warn("获取活动记录 {} 的媒体文件失败: {}", record.getActivityRecordId(), e.getMessage());
+                        log.warn("获取媒体文件失败: {}", record.getActivityRecordId());
                     }
                 }
             }
-
             return ResponseEntity.ok(records);
         } catch (Exception e) {
-            log.error("批量获取活动记录失败: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
     }

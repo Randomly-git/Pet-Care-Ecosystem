@@ -3,6 +3,9 @@ package petcare.example.community_backend.controller;
 import petcare.example.community_backend.dto.CommentCreateRequestDTO;
 import petcare.example.community_backend.dto.CommentResponseDTO;
 import petcare.example.community_backend.service.CommentService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,7 @@ import java.util.List;
 @RequestMapping("/api/v1/comments")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
+@Tag(name = "社区评论接口", description = "用于对动态进行评论、回复以及删除评论")
 public class CommentController {
 
     private final CommentService commentService;
@@ -24,16 +28,15 @@ public class CommentController {
     /**
      * POST /api/v1/comments
      * 创建评论或回复
-     * @param requestDTO 评论请求 DTO
-     * @return 创建成功的评论/回复的 DTO
      */
     @PostMapping
-    public ResponseEntity<CommentResponseDTO> createComment(@Valid @RequestBody CommentCreateRequestDTO requestDTO) {
+    @Operation(summary = "发表评论/回复", description = "对动态进行评论或对已有的评论进行二级回复")
+    public ResponseEntity<CommentResponseDTO> createComment(
+            @Valid @RequestBody CommentCreateRequestDTO requestDTO) {
         try {
             CommentResponseDTO savedComment = commentService.createComment(requestDTO);
             return new ResponseEntity<>(savedComment, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
-            // 业务校验失败
             return ResponseEntity.badRequest().body(null);
         } catch (Exception e) {
             System.err.println("创建评论失败: " + e.getMessage());
@@ -43,22 +46,23 @@ public class CommentController {
 
     /**
      * GET /api/v1/comments/moment/{momentId}
-     * 获取某动态下的所有评论 (返回包含嵌套回复的 DTO 列表)
-     * @param momentId 动态ID
-     * @return 评论列表 (包含嵌套回复)
+     * 获取某动态下的所有评论
      */
     @GetMapping("/moment/{momentId}")
-    public List<CommentResponseDTO> getCommentsByMomentId(@PathVariable Long momentId) {
+    @Operation(summary = "获取动态下的评论", description = "根据动态ID获取其下所有包含嵌套回复的评论列表")
+    public List<CommentResponseDTO> getCommentsByMomentId(
+            @Parameter(description = "动态ID", required = true) @PathVariable Long momentId) {
         return commentService.getCommentsByMomentId(momentId);
     }
 
     /**
      * DELETE /api/v1/comments/{commentId}
-     * 删除指定评论 (及其所有回复和点赞)
-     * @param commentId 评论ID
+     * 删除指定评论
      */
     @DeleteMapping("/{commentId}")
-    public ResponseEntity<String> deleteComment(@PathVariable Long commentId) {
+    @Operation(summary = "删除评论", description = "删除指定评论及其关联的所有回复")
+    public ResponseEntity<String> deleteComment(
+            @Parameter(description = "评论ID", required = true) @PathVariable Long commentId) {
         try {
             commentService.deleteComment(commentId);
             return ResponseEntity.ok("评论删除成功");

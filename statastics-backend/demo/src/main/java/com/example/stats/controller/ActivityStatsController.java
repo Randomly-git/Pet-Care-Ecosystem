@@ -4,6 +4,7 @@ import com.example.stats.dto.request.StatsQueryRequest;
 import com.example.stats.dto.response.ActivityStatsResponse;
 import com.example.stats.service.ActivityStatsService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,29 +25,29 @@ public class ActivityStatsController {
     }
 
     @PostMapping
-    @Operation(summary = "获取活动统计数据（完整参数）")
+    @Operation(summary = "获取活动统计数据（完整对象传参）", description = "通过请求体传递宠物ID、起止时间及周期进行查询")
     public ActivityStatsResponse getActivityStats(@RequestBody StatsQueryRequest request) {
         log.info("接收活动统计请求: {}", request);
         return activityStatsService.getActivityStats(request);
     }
 
     @GetMapping("/pet/{petId}")
-    @Operation(summary = "获取宠物活动统计数据（默认最近3个月）")
+    @Operation(summary = "获取宠物活动简报", description = "默认获取该宠物最近3个月的月度统计数据")
     public ActivityStatsResponse getActivityStats(
-            @PathVariable Long petId,
+            @Parameter(description = "宠物ID") @PathVariable Long petId,
+            @Parameter(description = "统计周期 (DAILY/WEEKLY/MONTHLY)")
             @RequestParam(defaultValue = "MONTHLY") StatsQueryRequest.StatsPeriod period) {
         log.info("获取宠物 {} 的{}统计", petId, period);
         return activityStatsService.getActivityStats(petId, period);
     }
 
     @GetMapping("/pet/{petId}/range")
-    @Operation(summary = "获取指定时间段的统计数据")
+    @Operation(summary = "获取指定范围的统计数据", description = "查询指定时间段内的活动趋势")
     public ActivityStatsResponse getActivityStatsInRange(
-            @PathVariable Long petId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam(defaultValue = "MONTHLY") StatsQueryRequest.StatsPeriod period) {
-        log.info("获取宠物 {} 在 {} 到 {} 的{}统计", petId, startDate, endDate, period);
+            @Parameter(description = "宠物ID") @PathVariable Long petId,
+            @Parameter(description = "开始时间") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @Parameter(description = "结束时间") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @Parameter(description = "统计周期") @RequestParam(defaultValue = "MONTHLY") StatsQueryRequest.StatsPeriod period) {
 
         StatsQueryRequest request = new StatsQueryRequest();
         request.setPetId(petId);
@@ -55,11 +56,5 @@ public class ActivityStatsController {
         request.setPeriod(period);
 
         return activityStatsService.getActivityStats(request);
-    }
-
-    @GetMapping("/health")
-    @Operation(summary = "健康检查")
-    public String health() {
-        return "Activity Stats Service is running!";
     }
 }
