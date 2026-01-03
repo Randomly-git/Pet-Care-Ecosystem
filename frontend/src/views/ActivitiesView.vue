@@ -2773,7 +2773,7 @@ watch([currentUserId], () => {
 .pets-sidebar {
   position: fixed;
   top: 120px;
-  left: calc(2rem + 60px);
+  left: calc(2rem + 150px);
   width: 220px;
   max-height: calc(100vh - 140px);
   background: white;
@@ -2834,7 +2834,7 @@ watch([currentUserId], () => {
   min-width: 0;
   position: relative;
   margin: 0 auto;
-  margin-left: calc(2rem + 340px);
+  margin-left: calc(2rem + 400px);
   margin-right: calc(2rem + 140px);
   max-width: 1300px;
   width: 100%;
@@ -2848,7 +2848,7 @@ watch([currentUserId], () => {
   }
 
   .record-type-cards {
-    right: calc(2rem + 50px);
+    right: calc(2rem + 100px);
   }
 }
 
@@ -3312,7 +3312,7 @@ watch([currentUserId], () => {
 .record-type-cards {
   position: fixed;
   top: 120px;
-  right: calc(2rem + 50px);
+  right: calc(2rem + 100px);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
