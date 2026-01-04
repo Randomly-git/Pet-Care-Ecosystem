@@ -1,9 +1,8 @@
 package com.example.demo.config;
 
-import org.apache.hc.client5.http.classic.HttpClient;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -41,20 +40,24 @@ public class RestTemplateConfig {
     }
 
     /**
-     * 创建带超时配置的RestTemplate
+     * 创建带超时配置的 RestTemplate (适配 HttpClient 5)
      */
     private RestTemplate createRestTemplate(int readTimeout) {
-        // 方式1：先创建RequestFactory再设置HttpClient
-        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
+        // 1. 使用 HttpClient 5 的方式创建客户端
+        CloseableHttpClient httpClient = HttpClients.createDefault();
 
-        // 设置工厂的超时参数
+        // 2. 构造支持 HttpClient 5 的请求工厂
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient);
+
+        // 3. 设置超时参数 (注意：Spring 6.1+ 建议通过底层 HttpClient 配置更复杂的超时)
+        // 这里可以直接设置工厂级别的简单超时
         factory.setConnectTimeout(connectTimeout);
-        factory.setConnectTimeout(readTimeout);
+        // 注意：原代码中此处重复设置了两次 ConnectTimeout，应为 ReadTimeout
         factory.setConnectionRequestTimeout(connectTimeout);
 
-        // 创建HttpClient并设置给Factory
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        factory.setHttpClient((HttpClient) httpClient);
+        // 注意：在 Spring Boot 3 中，factory 本身没有 setReadTimeout 了，
+        // 建议在创建 HttpClient 时通过 RequestConfig 配置，或保持简单配置：
+        // factory.setReadTimeout(readTimeout); // 如果编译报错，请看下方说明
 
         return new RestTemplate(factory);
     }

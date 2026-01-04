@@ -1,5 +1,6 @@
 type Query {
-    petHealthAnalysis(petId: ID!): PetHealthAnalysis
+    # 将 userRequirement 添加为可选参数（去掉 ! 表示可选）
+    petHealthAnalysis(petId: ID!, userRequirement: String): PetHealthAnalysis
 }
 
 type PetHealthAnalysis {
