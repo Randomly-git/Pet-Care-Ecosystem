@@ -996,23 +996,115 @@
     <el-dialog
       v-model="showAISummaryDialog"
       :title="`✨ ${currentPetName}的AI状态分析`"
-      width="600px"
+      width="700px"
       :close-on-click-modal="false"
     >
       <div v-loading="aiSummaryLoading" element-loading-text="AI正在分析中...">
+        <!-- 提示词输入区域 -->
+        <div v-if="!aiSummaryContent && !aiSummaryLoading" class="ai-prompt-section">
+          <div class="prompt-header">
+            <el-icon class="prompt-icon"><EditPen /></el-icon>
+            <span class="prompt-title">主人特别关心的问题（可选）</span>
+          </div>
+          <div class="prompt-description">
+            您可以选择直接进行通用AI分析，或输入具体关注点获得个性化建议
+          </div>
+
+          <!-- 分析模式选择 -->
+          <div class="analysis-mode-selector">
+            <div class="mode-tabs">
+              <button
+                :class="['mode-tab', { active: !useCustomPrompt }]"
+                @click="useCustomPrompt = false"
+              >
+                <el-icon><MagicStick /></el-icon>
+                <span>通用分析</span>
+              </button>
+              <button
+                :class="['mode-tab', { active: useCustomPrompt }]"
+                @click="useCustomPrompt = true"
+              >
+                <el-icon><EditPen /></el-icon>
+                <span>个性化分析</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 个性化提示词输入 -->
+          <div v-if="useCustomPrompt" class="custom-prompt-input">
+            <el-form>
+              <el-form-item>
+                <el-input
+                  v-model="userPrompt"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="例如：最近总是拉肚子，想了解消化系统健康情况；或者想知道怎么帮助宠物减肥..."
+                  maxlength="500"
+                  show-word-limit
+                  clearable
+                />
+              </el-form-item>
+            </el-form>
+            <div class="prompt-examples">
+              <div class="examples-title">快速选择：</div>
+              <div class="examples-list">
+                <span class="example-tag" @click="setExamplePrompt('最近总是呕吐，想了解消化系统健康情况')">消化问题</span>
+                <span class="example-tag" @click="setExamplePrompt('想知道怎么帮助宠物减肥')">体重管理</span>
+                <span class="example-tag" @click="setExamplePrompt('关节好像有问题，走路一瘸一拐')">关节健康</span>
+                <span class="example-tag" @click="setExamplePrompt('皮肤总是发痒，经常抓挠')">皮肤问题</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通用分析说明 -->
+          <div v-else class="general-analysis-info">
+            <div class="info-card">
+              <el-icon class="info-icon"><MagicStick /></el-icon>
+              <div class="info-content">
+                <div class="info-title">通用AI健康分析</div>
+                <div class="info-description">基于宠物的所有活动记录和状态数据，AI将为您提供全面的健康分析和建议</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI分析结果 -->
         <div v-if="aiSummaryContent" class="ai-summary-content">
           <div class="ai-summary-header">
             <el-icon class="ai-icon"><MagicStick /></el-icon>
             <span>AI智能分析报告</span>
           </div>
+          <div v-if="userPrompt && userPrompt.trim()" class="user-prompt-display">
+            <div class="prompt-display-title">您的关注点：</div>
+            <div class="prompt-display-content">{{ userPrompt }}</div>
+          </div>
           <div class="ai-summary-text" v-html="formattedAISummary"></div>
-        </div>
-        <div v-else-if="!aiSummaryLoading" class="ai-empty">
-          <el-empty description="暂无分析数据" />
         </div>
       </div>
       <template #footer>
         <el-button @click="showAISummaryDialog = false">关闭</el-button>
+        <el-button
+          v-if="!aiSummaryContent && !aiSummaryLoading && !useCustomPrompt"
+          type="primary"
+          @click="startGeneralAnalysis"
+        >
+          开始通用分析
+        </el-button>
+        <el-button
+          v-if="!aiSummaryContent && !aiSummaryLoading && useCustomPrompt"
+          type="primary"
+          @click="startCustomAnalysis"
+          :disabled="!userPrompt || !userPrompt.trim()"
+        >
+          开始个性化分析
+        </el-button>
+        <el-button
+          v-if="aiSummaryContent"
+          type="warning"
+          @click="reanalyzeWithNewPrompt"
+        >
+          重新分析
+        </el-button>
         <el-button type="primary" @click="copyAISummary" v-if="aiSummaryContent">
           复制报告
         </el-button>
@@ -1122,7 +1214,8 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 import {
   Plus,
   Refresh,
-  MagicStick
+  MagicStick,
+  EditPen
 } from '@element-plus/icons-vue'
 import * as statusApi from '@/api/status'
 import { getPetStatusSummary } from '@/api/llm'
@@ -1143,6 +1236,8 @@ const aiSummaryLoading = ref(false)
 const aiSummaryContent = ref('')
 const currentPetName = ref('')
 const currentAnalyzingPetId = ref(null)
+const userPrompt = ref('')
+const useCustomPrompt = ref(false)
 
 // 活动统计相关
 const showStatsDialog = ref(false)
@@ -2540,13 +2635,15 @@ const formattedAISummary = computed(() => {
 })
 
 const getAIStatusSummary = async (petId, petName) => {
-  console.log(`开始获取宠物 ${petName} (ID: ${petId}) 的AI状态总结`)
+  console.log(`打开宠物 ${petName} (ID: ${petId}) 的AI状态总结对话框`)
 
-  aiSummaryLoading.value = true
+  // 初始化状态
   currentAnalyzingPetId.value = petId
   currentPetName.value = petName
   showAISummaryDialog.value = true
   aiSummaryContent.value = ''
+  userPrompt.value = ''
+  useCustomPrompt.value = false // 默认使用通用分析
 
   try {
     const result = await getPetStatusSummary(petId)
@@ -2590,8 +2687,143 @@ const getAIStatusSummary = async (petId, petName) => {
   }
 }
 
+// 开始通用分析（不使用提示词）
+const startGeneralAnalysis = async () => {
+  // 防止并发请求
+  if (aiSummaryLoading.value) {
+    console.log('已有AI分析请求进行中，跳过新请求')
+    return
+  }
+
+  console.log(`开始通用AI分析，宠物: ${currentPetName.value} (ID: ${currentAnalyzingPetId.value})`)
+
+  aiSummaryLoading.value = true
+  aiSummaryContent.value = ''
+
+  try {
+    console.log('调用getPetStatusSummary，参数: petId=', currentAnalyzingPetId.value, 'userRequirement=null')
+    const result = await getPetStatusSummary(currentAnalyzingPetId.value) // 不传提示词
+    console.log('通用AI分析返回结果:', result)
+    console.log('结果类型:', typeof result)
+    console.log('结果键:', result ? Object.keys(result) : 'null')
+
+    // GraphQL 返回的数据结构: { petId, name, breed, species, healthAdvice, statusRecords }
+    if (result && result.healthAdvice) {
+      console.log('找到healthAdvice字段:', result.healthAdvice)
+      aiSummaryContent.value = result.healthAdvice
+      ElMessage.success('通用AI分析完成！')
+    } else if (result && result.summary) {
+      console.log('找到summary字段:', result.summary)
+      aiSummaryContent.value = result.summary
+      ElMessage.success('通用AI分析完成！')
+    } else if (typeof result === 'string') {
+      console.log('结果是字符串:', result)
+      aiSummaryContent.value = result
+      ElMessage.success('通用AI分析完成！')
+    } else if (result && result.data && result.data.summary) {
+      console.log('找到result.data.summary字段:', result.data.summary)
+      aiSummaryContent.value = result.data.summary
+      ElMessage.success('通用AI分析完成！')
+    } else {
+      console.log('未找到有效的分析结果，结果对象:', result)
+      aiSummaryContent.value = '暂无分析数据，请确保该宠物有足够的活动记录'
+      ElMessage.warning('AI分析数据不足')
+    }
+  } catch (error) {
+    console.error('通用AI分析失败:', error)
+    handleAnalysisError(error)
+  } finally {
+    aiSummaryLoading.value = false
+  }
+}
+
+// 开始个性化分析（使用用户输入的提示词）
+const startCustomAnalysis = async () => {
+  // 防止并发请求
+  if (aiSummaryLoading.value) {
+    console.log('已有AI分析请求进行中，跳过新请求')
+    return
+  }
+
+  if (!userPrompt.value || !userPrompt.value.trim()) {
+    ElMessage.warning('请输入您对宠物健康的关注点')
+    return
+  }
+
+  console.log(`开始个性化AI分析，宠物: ${currentPetName.value} (ID: ${currentAnalyzingPetId.value})，提示词: ${userPrompt.value}`)
+
+  aiSummaryLoading.value = true
+  aiSummaryContent.value = ''
+
+  try {
+    console.log('调用getPetStatusSummary，参数: petId=', currentAnalyzingPetId.value, 'userRequirement=', userPrompt.value.trim())
+    const result = await getPetStatusSummary(currentAnalyzingPetId.value, userPrompt.value.trim())
+    console.log('个性化AI分析返回结果:', result)
+    console.log('结果类型:', typeof result)
+    console.log('结果键:', result ? Object.keys(result) : 'null')
+
+    // GraphQL 返回的数据结构: { petId, name, breed, species, healthAdvice, statusRecords }
+    if (result && result.healthAdvice) {
+      console.log('找到healthAdvice字段:', result.healthAdvice)
+      aiSummaryContent.value = result.healthAdvice
+      ElMessage.success('个性化AI分析完成！')
+    } else if (result && result.summary) {
+      console.log('找到summary字段:', result.summary)
+      aiSummaryContent.value = result.summary
+      ElMessage.success('个性化AI分析完成！')
+    } else if (typeof result === 'string') {
+      console.log('结果是字符串:', result)
+      aiSummaryContent.value = result
+      ElMessage.success('个性化AI分析完成！')
+    } else if (result && result.data && result.data.summary) {
+      console.log('找到result.data.summary字段:', result.data.summary)
+      aiSummaryContent.value = result.data.summary
+      ElMessage.success('个性化AI分析完成！')
+    } else {
+      console.log('未找到有效的分析结果，结果对象:', result)
+      aiSummaryContent.value = '暂无分析数据，请确保该宠物有足够的活动记录'
+      ElMessage.warning('AI分析数据不足')
+    }
+  } catch (error) {
+    console.error('个性化AI分析失败:', error)
+    handleAnalysisError(error)
+  } finally {
+    aiSummaryLoading.value = false
+    currentAnalyzingPetId.value = null
+  }
+}
+
+// 处理分析错误的公共函数
+const handleAnalysisError = (error) => {
+  let errorMsg = '分析失败，请稍后重试'
+  if (error.response) {
+    errorMsg = `服务错误: ${error.response.status}`
+  } else if (error.message) {
+    errorMsg = error.message
+  }
+
+  aiSummaryContent.value = `❌ ${errorMsg}\n\n请检查：\n1. 网关是否正常运行（端口9000）\n2. LLM服务是否启动并注册到Nacos\n3. 网络连接是否正常`
+  ElMessage.error('获取AI分析失败')
+}
+
+// 重新分析（清空结果，让用户重新输入提示词）
+const reanalyzeWithNewPrompt = () => {
+  aiSummaryContent.value = ''
+  userPrompt.value = ''
+}
+
+// 设置示例提示词
+const setExamplePrompt = (exampleText) => {
+  userPrompt.value = exampleText
+}
+
 const copyAISummary = () => {
-  navigator.clipboard.writeText(aiSummaryContent.value).then(() => {
+  let content = aiSummaryContent.value
+  if (userPrompt.value && userPrompt.value.trim()) {
+    content = `主人关注点：${userPrompt.value}\n\n${content}`
+  }
+
+  navigator.clipboard.writeText(content).then(() => {
     ElMessage.success('报告已复制到剪贴板')
   }).catch(() => {
     ElMessage.error('复制失败')
@@ -3699,6 +3931,202 @@ watch([currentUserId], () => {
 .ai-empty {
   padding: 2rem;
   text-align: center;
+}
+
+/* ===== AI提示词输入样式 ===== */
+.ai-prompt-section {
+  margin-bottom: 1.5rem;
+}
+
+.prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prompt-icon {
+  color: #409eff;
+  font-size: 1.2rem;
+}
+
+.prompt-title {
+  font-weight: 600;
+  color: #303133;
+  font-size: 1rem;
+}
+
+.prompt-description {
+  color: #909399;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+/* ===== 分析模式选择器 ===== */
+.analysis-mode-selector {
+  margin-bottom: 1.5rem;
+}
+
+.mode-tabs {
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #dcdfe6;
+  background: #fafafa;
+}
+
+.mode-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #606266;
+}
+
+.mode-tab:hover {
+  background: #f5f7fa;
+}
+
+.mode-tab.active {
+  background: #409eff;
+  color: white;
+  font-weight: 600;
+}
+
+.mode-tab.active .el-icon {
+  color: white;
+}
+
+.mode-tab .el-icon {
+  font-size: 1.1rem;
+  color: #909399;
+}
+
+/* ===== 个性化提示词输入 ===== */
+.custom-prompt-input {
+  animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.prompt-examples {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ebeef5;
+}
+
+.examples-title {
+  font-weight: 500;
+  color: #606266;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.examples-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.example-tag {
+  background: #f5f7fa;
+  color: #409eff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #e4e7ed;
+}
+
+.example-tag:hover {
+  background: #ecf5ff;
+  border-color: #b3d8ff;
+  transform: translateY(-1px);
+}
+
+/* ===== 通用分析信息 ===== */
+.general-analysis-info {
+  animation: fadeInUp 0.3s ease;
+}
+
+.info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #b3d9ff;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+}
+
+.info-icon {
+  font-size: 2rem;
+  color: #409eff;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-title {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.info-description {
+  color: #64748b;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
+
+/* ===== 用户提示词显示样式 ===== */
+.user-prompt-display {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.prompt-display-title {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.prompt-display-content {
+  color: #6c757d;
+  line-height: 1.5;
+  font-style: italic;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 4px;
+  border-left: 3px solid #409eff;
 }
 
 /* ===== 活动统计弹窗样式 ===== */

@@ -55,9 +55,15 @@ public class RestTemplateConfig {
         // 注意：原代码中此处重复设置了两次 ConnectTimeout，应为 ReadTimeout
         factory.setConnectionRequestTimeout(connectTimeout);
 
-        // 注意：在 Spring Boot 3 中，factory 本身没有 setReadTimeout 了，
-        // 建议在创建 HttpClient 时通过 RequestConfig 配置，或保持简单配置：
-        // factory.setReadTimeout(readTimeout); // 如果编译报错，请看下方说明
+            // 设置读取超时（虽然方法可能已弃用，但仍尝试设置）
+        try {
+            // 尝试设置读取超时
+            java.lang.reflect.Method setReadTimeoutMethod = factory.getClass().getMethod("setReadTimeout", int.class);
+            setReadTimeoutMethod.invoke(factory, readTimeout);
+        } catch (Exception e) {
+            // 如果反射失败，记录日志但不中断
+            System.out.println("无法设置读取超时，将使用默认超时。ReadTimeout: " + readTimeout);
+        }
 
         return new RestTemplate(factory);
     }

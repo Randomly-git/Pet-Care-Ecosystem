@@ -8,27 +8,50 @@ import apiClient from './index'
 /**
  * 获取宠物状态AI总结 (使用 GraphQL)
  * @param {number} petId - 宠物ID
+ * @param {string} userRequirement - 可选的用户特别关心的问题
  * @returns {Promise} AI总结响应
  */
-export const getPetStatusSummary = async (petId) => {
+export const getPetStatusSummary = async (petId, userRequirement = null) => {
   try {
     // GraphQL 查询
-    const query = `
-      {
-        petHealthAnalysis(petId: "${petId}") {
-          petId
-          name
-          breed
-          species
-          healthAdvice
-          statusRecords {
-            statusName
-            description
-            startDate
+    let query
+    if (userRequirement && userRequirement.trim()) {
+      query = `
+        {
+          petHealthAnalysis(petId: "${petId}", userRequirement: "${userRequirement.replace(/"/g, '\\"')}") {
+            petId
+            name
+            breed
+            species
+            healthAdvice
+            statusRecords {
+              statusName
+              description
+              startDate
+            }
           }
         }
-      }
-    `
+      `
+      console.log('发送个性化AI分析请求，petId:', petId, 'userRequirement:', userRequirement)
+    } else {
+      query = `
+        {
+          petHealthAnalysis(petId: "${petId}") {
+            petId
+            name
+            breed
+            species
+            healthAdvice
+            statusRecords {
+              statusName
+              description
+              startDate
+            }
+          }
+        }
+      `
+      console.log('发送通用AI分析请求，petId:', petId, '无userRequirement')
+    }
 
     // 使用完整的URL绕过 baseURL
     const response = await apiClient({
@@ -37,14 +60,28 @@ export const getPetStatusSummary = async (petId) => {
       data: { query },
       // 使用 baseURL: '' 来覆盖默认的 '/api'
       baseURL: '',
-      timeout: 60000  // AI分析可能需要较长时间，设置60秒超时
+      timeout: 120000,  // AI分析可能需要较长时间，设置120秒超时
+      // 禁用缓存，确保每次请求都是新的
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
     })
+
+    console.log('AI分析API响应:', response)
+    console.log('响应数据结构:', response ? {
+      hasData: !!response.data,
+      hasPetHealthAnalysis: !!(response.data && response.data.petHealthAnalysis),
+      petHealthAnalysisKeys: response.data && response.data.petHealthAnalysis ? Object.keys(response.data.petHealthAnalysis) : null
+    } : 'null')
 
     // 返回 GraphQL 的 data 部分
     if (response && response.data && response.data.petHealthAnalysis) {
+      console.log('返回petHealthAnalysis数据:', response.data.petHealthAnalysis)
       return response.data.petHealthAnalysis
     }
 
+    console.log('未找到petHealthAnalysis数据，返回完整响应')
     return response
   } catch (error) {
     console.error('获取AI状态总结失败:', error)
@@ -55,11 +92,12 @@ export const getPetStatusSummary = async (petId) => {
 /**
  * 快速获取宠物状态总结（纯文本格式）
  * @param {number} petId - 宠物ID
+ * @param {string} userRequirement - 可选的用户特别关心的问题
  * @returns {Promise} 总结文本
  */
-export const getQuickStatusSummary = async (petId) => {
+export const getQuickStatusSummary = async (petId, userRequirement = null) => {
   try {
-    const result = await getPetStatusSummary(petId)
+    const result = await getPetStatusSummary(petId, userRequirement)
 
     // 提取健康建议作为纯文本返回
     if (result && result.healthAdvice) {

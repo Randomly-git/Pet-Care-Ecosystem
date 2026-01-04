@@ -34,4 +34,4 @@ rest-client:
   timeouts:
     connect-timeout: 3000           # 连接超时3秒
     internal-read-timeout: 5000     # 内部服务读取超时5秒
-    ai-read-timeout: 50000          # AI服务读取超时15秒
+    ai-read-timeout: 90000          # AI服务读取超时90秒
