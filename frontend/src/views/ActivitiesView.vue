@@ -2644,47 +2644,6 @@ const getAIStatusSummary = async (petId, petName) => {
   aiSummaryContent.value = ''
   userPrompt.value = ''
   useCustomPrompt.value = false // 默认使用通用分析
-
-  try {
-    const result = await getPetStatusSummary(petId)
-    console.log('AI状态总结返回:', result)
-
-    // GraphQL 返回的数据结构: { petId, name, breed, species, healthAdvice, statusRecords }
-    if (result && result.healthAdvice) {
-      // 使用 GraphQL 返回的 healthAdvice 作为主要内容
-      aiSummaryContent.value = result.healthAdvice
-      ElMessage.success('AI分析完成！')
-    } else if (result && result.summary) {
-      aiSummaryContent.value = result.summary
-      ElMessage.success('AI分析完成！')
-    } else if (typeof result === 'string') {
-      aiSummaryContent.value = result
-      ElMessage.success('AI分析完成！')
-    } else if (result && result.data && result.data.summary) {
-      aiSummaryContent.value = result.data.summary
-      ElMessage.success('AI分析完成！')
-    } else {
-      aiSummaryContent.value = '暂无分析数据，请确保该宠物有足够的活动记录'
-      ElMessage.warning('AI分析数据不足')
-    }
-  } catch (error) {
-    console.error('获取AI状态总结失败:', error)
-
-    // 确保对话框在错误时也能正常显示
-    let errorMsg = '分析失败，请稍后重试'
-    if (error.response) {
-      errorMsg = `服务错误: ${error.response.status}`
-    } else if (error.message) {
-      errorMsg = `网络错误: ${error.message}`
-    }
-
-    aiSummaryContent.value = `❌ ${errorMsg}\n\n请检查：\n1. 网关是否正常运行（端口9000）\n2. LLM服务是否启动并注册到Nacos\n3. 网络连接是否正常`
-    ElMessage.error('获取AI分析失败')
-  } finally {
-    // 确保无论成功或失败都关闭loading
-    aiSummaryLoading.value = false
-    currentAnalyzingPetId.value = null
-  }
 }
 
 // 开始通用分析（不使用提示词）
