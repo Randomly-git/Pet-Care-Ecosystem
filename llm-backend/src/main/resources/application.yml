@@ -28,3 +28,10 @@ logging:
       example:
         demo: DEBUG
     root: INFO
+
+# 添加超时配置（配合RestTemplateConfig使用）
+rest-client:
+  timeouts:
+    connect-timeout: 3000           # 连接超时3秒
+    internal-read-timeout: 5000     # 内部服务读取超时5秒
+    ai-read-timeout: 50000          # AI服务读取超时15秒

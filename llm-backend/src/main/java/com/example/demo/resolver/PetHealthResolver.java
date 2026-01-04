@@ -37,11 +37,13 @@ public class PetHealthResolver implements GraphQLQueryResolver {
     // 只保留Qwen API Key
     private static final String QWEN_API_KEY = "sk-972a298500904e809a415aa9f153caac";
 
-    public PetHealthData petHealthAnalysis(String petId) {
-        log.info("GraphQL查询宠物健康分析: petId={}", petId);
+    // 修改：添加userRequirement可选参数
+    public PetHealthData petHealthAnalysis(String petId, String userRequirement) {
+        log.info("GraphQL查询宠物健康分析: petId={}, userRequirement={}", petId,
+                userRequirement != null ? "有用户要求" : "无用户要求");
 
         try {
-            // 1. 并行获取宠物信息和状态记录（去掉百度搜索）
+            // 1. 并行获取宠物信息和状态记录
             CompletableFuture<Map<String, Object>> petInfoFuture = CompletableFuture
                     .supplyAsync(() -> getPetInfo(petId), executor);
 
@@ -55,8 +57,8 @@ public class PetHealthResolver implements GraphQLQueryResolver {
                         Map<String, Object> petInfo = petInfoFuture.join();
                         List<Map<String, Object>> statusRecords = statusFuture.join();
 
-                        // 构建prompt（去掉百度文章部分）
-                        String prompt = buildPrompt(petInfo, statusRecords);
+                        // 构建prompt（传入userRequirement）
+                        String prompt = buildPrompt(petInfo, statusRecords, userRequirement);
                         return callQwenAI(prompt);
                     }, executor);
 
@@ -65,7 +67,7 @@ public class PetHealthResolver implements GraphQLQueryResolver {
             List<Map<String, Object>> statusRecords = statusFuture.join();
             String healthAdvice = adviceFuture.join();
 
-            // 构建响应（去掉articles和relatedLinks）
+            // 构建响应
             PetHealthData response = new PetHealthData();
             response.setPetId(petId);
             response.setName((String) petInfo.get("name"));
@@ -165,8 +167,10 @@ public class PetHealthResolver implements GraphQLQueryResolver {
         return "无法生成健康建议，请稍后重试。";
     }
 
+    // 修改：添加userRequirement参数
     private String buildPrompt(Map<String, Object> petInfo,
-                               List<Map<String, Object>> statusRecords) {
+                               List<Map<String, Object>> statusRecords,
+                               String userRequirement) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("请为以下宠物提供健康建议：\n\n");
 
@@ -184,6 +188,17 @@ public class PetHealthResolver implements GraphQLQueryResolver {
             prompt.append("\n");
         }
 
+        // 新增：用户定制要求处理
+        if (userRequirement != null && !userRequirement.trim().isEmpty()) {
+            prompt.append("【主人特别关心的问题】\n");
+            prompt.append(userRequirement).append("\n\n");
+
+            prompt.append("请重点针对以上问题，提供：\n");
+            prompt.append("1. 具体原因分析\n");
+            prompt.append("2. 详细的解决方案\n");
+            prompt.append("3. 预防措施\n\n");
+        }
+
         prompt.append("请提供具体的、可操作的饮食、运动、护理和健康检查建议。");
         return prompt.toString();
     }
@@ -195,9 +210,7 @@ public class PetHealthResolver implements GraphQLQueryResolver {
         response.setBreed("未知");
         response.setSpecies("未知");
         response.setHealthAdvice("分析失败：" + error);
-        response.setArticles(Collections.emptyList());
         response.setStatusRecords(Collections.emptyList());
-        response.setRelatedLinks(Collections.emptyList());
         return response;
     }
 }
