@@ -293,10 +293,36 @@ export const getFollowingCount = async (userId) => {
   }
 }
 
+/**
+ * 获取所有用户的动态（分页）
+ * @param {number} page - 页码，从0开始
+ * @param {number} size - 每页大小，默认20
+ * @returns {Promise} 所有用户的动态列表
+ */
+export const getAllMoments = async (page = 0, size = 20) => {
+  try {
+    console.log('获取所有用户动态, page:', page, 'size:', size)
+
+    // 使用统一的request模块
+    const moments = await request({
+      url: `${COMMUNITY_BASE_URL}/moments/all`,
+      method: 'GET',
+      params: { page, size }
+    })
+
+    console.log('获取所有用户动态成功:', moments)
+    return moments
+  } catch (error) {
+    console.error('获取所有用户动态失败:', error)
+    throw error
+  }
+}
+
 // 默认导出
 export default {
   createMoment,
   getUserMoments,
+  getAllMoments,
   deleteMoment,
   createComment,
   getMomentComments,

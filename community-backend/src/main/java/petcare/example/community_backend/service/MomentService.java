@@ -12,6 +12,8 @@ import petcare.example.community_backend.repository.LikeRepository;
 import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.client.MediaServiceFacade;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +63,60 @@ public class MomentService {
 
         // d. 批量获取作者信息 (调用 UserServiceFacade)
         Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds); // 【修改点 1】: 调用 UserServiceFacade
+
+        // 4. 组装 DTO 列表
+        return moments.stream().map(moment -> {
+            MomentResponseDTO dto = momentMapper.toResponseDTO(moment);
+            Long currentMomentId = moment.getId();
+
+            // 聚合媒体 URLs
+            List<String> mediaUrls = mediaMap.getOrDefault(currentMomentId, Collections.emptyList()).stream()
+                    .map(MediaResponse::getFileUrl)
+                    .collect(Collectors.toList());
+            dto.setMediaUrls(mediaUrls);
+
+            // 聚合计数
+            dto.setLikeCount(likeCounts.getOrDefault(currentMomentId, 0L).intValue());
+            dto.setCommentCount(commentCounts.getOrDefault(currentMomentId, 0L).intValue());
+
+            // 聚合作者信息
+            // **注意：MomentResponseDTO 中目前没有作者信息字段，如果需要显示作者昵称/头像，需要修改 MomentResponseDTO**
+            // 暂时忽略作者信息聚合，仅保留计数和媒体的聚合逻辑。
+
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 获取所有用户的动态，支持分页。
+     * 核心：负责从多个服务（用户、媒体、点赞、评论）聚合数据，支持分页加载。
+     */
+    public List<MomentResponseDTO> getAllMomentsWithPagination(Pageable pageable) {
+        // 1. 查询数据库获取分页的动态实体
+        Page<PetMoment> momentPage = momentRepository.findAllByOrderByCreatedAtDesc(pageable);
+        List<PetMoment> moments = momentPage.getContent();
+
+        if (moments.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 2. 收集所需 ID
+        Set<Long> momentIds = moments.stream().map(PetMoment::getId).collect(Collectors.toSet());
+        // 收集所有动态的作者 ID
+        Set<Long> userIds = moments.stream().map(PetMoment::getUserId).collect(Collectors.toSet());
+
+        // 3. 批量聚合数据
+        // a. 批量获取媒体文件
+        Map<Long, List<MediaResponse>> mediaMap = mediaServiceFacade.batchGetMediaMap("MOMENT", momentIds);
+
+        // b. 批量获取动态点赞数 (调用 LikeService)
+        Map<Long, Long> likeCounts = likeService.countLikesByTargetIds(TargetType.MOMENT, momentIds);
+
+        // c. 批量获取动态评论数 (调用 CommentService)
+        Map<Long, Long> commentCounts = commentService.countCommentsByMomentIds(momentIds);
+
+        // d. 批量获取作者信息 (调用 UserServiceFacade)
+        Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
 
         // 4. 组装 DTO 列表
         return moments.stream().map(moment -> {

@@ -236,7 +236,7 @@ import { useAuthStore } from '@/stores/auth'
 import { Picture, Close, Star, ChatDotRound, MoreFilled } from '@element-plus/icons-vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
-import { createMoment, deleteMoment as deleteMomentApi, toggleLike as toggleLikeApi, createComment, getMomentComments, getUserMoments } from '@/api/community'
+import { createMoment, deleteMoment as deleteMomentApi, toggleLike as toggleLikeApi, createComment, getMomentComments, getAllMoments } from '@/api/community'
 import { uploadMultipleMedia, getRelatedMedia } from '@/api/media'
 import { getUserPets } from '@/api/pets'
 
@@ -499,10 +499,10 @@ const loadMoments = async () => {
 
   loading.value = true
   try {
-    // 加载用户的动态列表
-    console.log('loadMoments: 调用getUserMoments，userId =', authStore.userId)
-    const userMoments = await getUserMoments(authStore.userId)
-    console.log('loadMoments: 获取到的用户动态:', userMoments)
+    // 加载所有用户的动态列表
+    console.log('loadMoments: 调用getAllMoments')
+    const userMoments = await getAllMoments()
+    console.log('loadMoments: 获取到的所有用户动态:', userMoments)
 
     // 获取每个动态的媒体文件（类似ActivitiesView的处理方式）
     const momentsWithMedia = await Promise.all(

@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -70,6 +72,19 @@ public class MomentController {
             System.err.println("创建动态失败: " + e.getMessage());
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * GET /api/v1/moments/all
+     * 获取所有用户的动态列表，支持分页
+     */
+    @GetMapping("/all")
+    @Operation(summary = "获取所有用户动态", description = "获取所有用户发布的动态记录，按时间倒序排列，支持分页")
+    public List<MomentResponseDTO> getAllMoments(
+            @Parameter(description = "页码，从0开始", required = false) @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "每页大小", required = false) @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return momentService.getAllMomentsWithPagination(pageable);
     }
 
     /**
