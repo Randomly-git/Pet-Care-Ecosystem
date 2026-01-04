@@ -2964,8 +2964,8 @@ watch([currentUserId], () => {
 .pets-sidebar {
   position: fixed;
   top: 120px;
-  left: calc(2rem + 150px);
-  width: 220px;
+  left: calc(2rem + 140px);
+  width: 280px;
   max-height: calc(100vh - 140px);
   background: white;
   border-radius: 12px;
@@ -3025,8 +3025,8 @@ watch([currentUserId], () => {
   min-width: 0;
   position: relative;
   margin: 0 auto;
-  margin-left: calc(2rem + 400px);
-  margin-right: calc(2rem + 140px);
+  margin-left: calc(2rem + 410px);
+  margin-right: calc(2rem + 110px);
   max-width: 1300px;
   width: 100%;
 }
@@ -3034,8 +3034,8 @@ watch([currentUserId], () => {
 /* 在小屏幕上调整布局 */
 @media (max-width: 1400px) {
   .main-content-area {
-    margin-left: calc(2rem + 340px);
-    margin-right: calc(2rem + 140px);
+    margin-left: calc(2rem + 350px);
+    margin-right: calc(2rem + 110px);
   }
 
   .record-type-cards {
