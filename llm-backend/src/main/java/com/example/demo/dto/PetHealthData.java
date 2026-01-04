@@ -2,7 +2,6 @@ package com.example.demo.dto;
 
 import lombok.Data;
 import java.util.List;
-import java.util.Map;
 
 @Data
 public class PetHealthData {
@@ -12,36 +11,23 @@ public class PetHealthData {
     private String breed;
     private String species;
 
-    // 百度搜索结果
-    private List<Article> articles;
+    // AI健康建议
+    private String healthAdvice;
 
     // 健康状态记录
     private List<StatusRecord> statusRecords;
 
-    // AI健康建议
-    private String healthAdvice;
 
-    // 相关链接
-    private List<Link> relatedLinks;
 
-    @Data
-    public static class Article {
-        private String title;
-        private String url;
-        private String snippet;
-        private String source;
-    }
-
+    /**
+     * 宠物健康状态记录
+     */
     @Data
     public static class StatusRecord {
-        private String statusName;
-        private String description;
-        private String startDate;
+        private String statusName;     // 状态名称（如：皮肤病、肥胖等）
+        private String description;    // 状态描述
+        private String startDate;      // 开始日期
     }
 
-    @Data
-    public static class Link {
-        private String title;
-        private String url;
-    }
+
 }
