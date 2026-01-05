@@ -1,0 +1,55 @@
+services:
+  # 1. 前端
+  frontend:
+    build: ./frontend
+    container_name: petcare-vue
+    ports:
+      - "80:80"
+    depends_on:
+      - petcare-gateway
+    networks:
+      - petcare-network
+
+  # 2. 网关 (前端所有请求都发给它)
+  petcare-gateway:
+    build: ./petcare-gateway
+    container_name: petcare-gateway
+    ports:
+      - "9000:9000"
+    networks:
+      - petcare-network
+
+  # 3. 业务微服务 (其他服务依此类推添加)
+  petcare-backend:
+    build: ./petcare-backend
+    container_name: petcare-service
+    networks:
+      - petcare-network
+
+  community-backend:
+    build: ./community-backend
+    container_name: community-service
+    networks:
+      - petcare-network
+
+  media-backend:
+    build: ./media-backend
+    container_name: media-service
+    networks:
+      - petcare-network
+
+  llm-backend:
+    build: ./llm-backend
+    container_name: llm-service
+    networks:
+      - petcare-network
+
+  statistics-backend:
+    build: ./statistics-backend
+    container_name: statistics-service
+    networks:
+      - petcare-network
+
+networks:
+  petcare-network:
+    driver: bridge

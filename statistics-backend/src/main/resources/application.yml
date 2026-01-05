@@ -1,0 +1,21 @@
+server:
+  port: 0 # 随机端口
+
+spring:
+  application:
+    name: statistics-backend # 这个名字要和网关配置里的 lb:// 后面一致
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.100.240.111:8848
+
+
+# 活动服务配置
+activity:
+  service:
+    base-url: http://petcare-backend  # 你的活动服务地址
+
+# 日志配置
+logging:
+  level:
+    com.example.stats: DEBUG
