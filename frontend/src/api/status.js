@@ -5,47 +5,47 @@
 import request from './index'
 
 /**
- * 获取用户的所有状态
- * @param {number} userId - 用户ID
- * @returns {Promise} 用户状态列表响应
+ * 获取宠物的所有状态
+ * @param {number} petId - 宠物ID
+ * @returns {Promise} 宠物状态列表响应
  */
-export const getUserStatuses = async (userId) => {
+export const getUserStatuses = async (petId) => {
   try {
-    if (!userId) {
-      throw new Error('用户ID不能为空')
+    if (!petId) {
+      throw new Error('宠物ID不能为空')
     }
 
     const response = await request({
-      url: `/status/user/${userId}`,
+      url: `/status/pet/${petId}`,
       method: 'GET'
     })
     return response
   } catch (error) {
-    console.error('获取用户状态失败:', error)
+    console.error('获取宠物状态失败:', error)
     throw error
   }
 }
 
 /**
- * 创建新状态
+ * 创建新状态（为宠物创建）
  * @param {Object} statusData - 状态数据
- * @param {number} statusData.userId - 用户ID
+ * @param {number} statusData.petId - 宠物ID
  * @param {string} statusData.statusName - 状态名称
  * @returns {Promise} 创建结果响应
  */
 export const createStatus = async (statusData) => {
   try {
     // 验证必需字段
-    const requiredFields = ['userId', 'statusName']
+    const requiredFields = ['petId', 'statusName']
     const missingFields = requiredFields.filter(field => !statusData[field])
 
     if (missingFields.length > 0) {
       throw new Error(`缺少必需字段: ${missingFields.join(', ')}`)
     }
 
-    // 验证用户ID
-    if (typeof statusData.userId !== 'number' || statusData.userId <= 0) {
-      throw new Error('用户ID必须是正整数')
+    // 验证宠物ID
+    if (typeof statusData.petId !== 'number' || statusData.petId <= 0) {
+      throw new Error('宠物ID必须是正整数')
     }
 
     // 验证状态名称
@@ -58,7 +58,7 @@ export const createStatus = async (statusData) => {
     const response = await request({
       url: '/status',
       method: 'POST',
-      params: statusData
+      params: { petId: statusData.petId, statusName: statusData.statusName }
     })
     return response
   } catch (error) {
@@ -449,23 +449,25 @@ export const uploadStatusMedia = async (statusRecordId, formData) => {
 }
 
 /**
- * 获取状态统计信息
- * @param {number} userId - 用户ID（可选）
- * @param {number} petId - 宠物ID（可选）
- * @param {string} startDate - 开始日期（可选）
- * @param {string} endDate - 结束日期（可选）
- * @returns {Promise} 统计信息响应
+ * 更新状态当前值
+ * @param {number} statusId - 状态ID
+ * @param {string} statusValue - 新的状态值
+ * @returns {Promise} 更新结果响应
  */
-export const getStatusStats = async (params = {}) => {
+export const updateStatusValue = async (statusId, statusValue) => {
   try {
+    if (!statusId) {
+      throw new Error('状态ID不能为空')
+    }
+
     const response = await request({
-      url: '/status/stats',
-      method: 'GET',
-      params
+      url: `/status/${statusId}/value`,
+      method: 'PUT',
+      params: { statusValue }
     })
     return response
   } catch (error) {
-    console.error('获取状态统计信息失败:', error)
+    console.error('更新状态值失败:', error)
     throw error
   }
 }
@@ -482,11 +484,11 @@ export const statusValidator = {
   validate(statusData) {
     const errors = []
 
-    // 验证用户ID
-    if (!statusData.userId) {
-      errors.push('用户ID不能为空')
-    } else if (typeof statusData.userId !== 'number' || statusData.userId <= 0) {
-      errors.push('用户ID必须是正整数')
+    // 验证宠物ID
+    if (!statusData.petId) {
+      errors.push('宠物ID不能为空')
+    } else if (typeof statusData.petId !== 'number' || statusData.petId <= 0) {
+      errors.push('宠物ID必须是正整数')
     }
 
     // 验证状态名称
@@ -551,6 +553,7 @@ export default {
   getUserStatuses,
   createStatus,
   updateStatusName,
+  updateStatusValue,
   deleteStatus,
   deleteStatusWithRecords,
   getStatusRecords,
@@ -560,6 +563,5 @@ export default {
   stopStatusRecord,
   deleteStatusRecord,
   getStatusRecordsByPetIds,
-  getStatusStats,
   statusValidator
 }

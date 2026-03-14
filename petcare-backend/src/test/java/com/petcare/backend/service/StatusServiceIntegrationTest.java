@@ -1,8 +1,10 @@
 package com.petcare.backend.service;
 
+import com.petcare.backend.entity.Pet;
 import com.petcare.backend.entity.Status;
 import com.petcare.backend.entity.StatusRecord;
 import com.petcare.backend.entity.User;
+import com.petcare.backend.repository.PetRepository;
 import com.petcare.backend.repository.StatusRecordRepository;
 import com.petcare.backend.repository.StatusRepository;
 import com.petcare.backend.repository.UserRepository;
@@ -13,14 +15,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
-@ActiveProfiles("dev") // ✅ 使用 application-dev.yml 配置的数据库
-@Transactional // 每个测试方法执行后自动回滚数据库，避免污染数据
+@ActiveProfiles("dev")
+@Transactional
 class StatusServiceIntegrationTest {
 
     @Autowired
@@ -30,31 +32,42 @@ class StatusServiceIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private PetRepository petRepository;
+
+    @Autowired
     private StatusRepository statusRepository;
 
     @Autowired
     private StatusRecordRepository statusRecordRepository;
 
     private User testUser;
+    private Pet testPet;
 
     @BeforeEach
     void initData() {
-        // 创建新的测试用户，避免使用现有数据
+        // 创建测试用户
         testUser = new User();
-        testUser.setName("测试用户_" + System.currentTimeMillis()); // 使用时间戳确保唯一性
+        testUser.setName("测试用户_" + System.currentTimeMillis());
         testUser.setPasswordHash("testpassword");
         testUser = userRepository.save(testUser);
 
-        System.out.println("创建测试用户: ID=" + testUser.getUserId() + ", 名称=" + testUser.getName());
+        // 创建测试宠物
+        testPet = new Pet();
+        testPet.setName("测试宠物_" + System.currentTimeMillis());
+        testPet.setSpecies("狗");
+        testPet.setUser(testUser);
+        testPet = petRepository.save(testPet);
 
-        // 初始化两个状态
+        System.out.println("创建测试用户: ID=" + testUser.getUserId() + ", 宠物: ID=" + testPet.getPetId());
+
+        // 初始化两个状态（关联到宠物）
         Status s1 = new Status();
-        s1.setUser(testUser);
+        s1.setPet(testPet);
         s1.setStatusName("Running");
         s1.setState(1);
 
         Status s2 = new Status();
-        s2.setUser(testUser);
+        s2.setPet(testPet);
         s2.setStatusName("Sleeping");
         s2.setState(1);
 
@@ -64,11 +77,11 @@ class StatusServiceIntegrationTest {
     }
 
     /**
-     * 1️⃣ 测试：查询有效状态
+     * 1️⃣ 测试：查询有效状态（根据宠物ID）
      */
     @Test
-    void testGetValidStatusesByUserId() {
-        List<Status> statuses = statusService.getValidStatusesByUserId(testUser.getUserId());
+    void testGetValidStatusesByPetId() {
+        List<Status> statuses = statusService.getValidStatusesByPetId(testPet.getPetId());
         assertEquals(2, statuses.size());
         assertTrue(statuses.stream().allMatch(s -> s.getState() == 1));
 
@@ -76,18 +89,18 @@ class StatusServiceIntegrationTest {
     }
 
     /**
-     * 2️⃣ 测试：新增状态
+     * 2️⃣ 测试：新增状态（为宠物创建）
      */
     @Test
     void testCreateStatus() {
-        Status created = statusService.createStatus(testUser.getUserId(), "Eating");
+        Status created = statusService.createStatus(testPet.getPetId(), "Eating");
 
         assertNotNull(created.getStatusId());
         assertEquals("Eating", created.getStatusName());
         assertEquals(1, created.getState());
-        assertEquals(testUser.getUserId(), created.getUser().getUserId());
+        assertEquals(testPet.getPetId(), created.getPet().getPetId());
 
-        List<Status> all = statusRepository.findByUserUserId(testUser.getUserId());
+        List<Status> all = statusRepository.findByPetPetId(testPet.getPetId());
         assertEquals(3, all.size());
 
         System.out.println("✅ 新增状态测试通过，创建了状态: " + created.getStatusName());
@@ -98,7 +111,7 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testUpdateStatusName() {
-        Status status = statusRepository.findByUserUserIdAndStatusName(testUser.getUserId(), "Running").get(0);
+        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         Status updated = statusService.updateStatusName(status.getStatusId(), "Walking");
         assertEquals("Walking", updated.getStatusName());
@@ -114,7 +127,7 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testSoftDeleteStatus() {
-        Status status = statusRepository.findByUserUserIdAndStatusName(testUser.getUserId(), "Sleeping").get(0);
+        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Sleeping").get(0);
 
         statusService.softDeleteStatus(status.getStatusId());
 
@@ -130,31 +143,31 @@ class StatusServiceIntegrationTest {
     @Test
     void testCreateDuplicateStatus() {
         assertThrows(RuntimeException.class, () ->
-                statusService.createStatus(testUser.getUserId(), "Running"));
+                statusService.createStatus(testPet.getPetId(), "Running"));
 
         System.out.println("✅ 重复创建状态异常测试通过");
     }
 
     /**
-     * 6️⃣ 测试：获取不存在的用户的状态
+     * 6️⃣ 测试：获取不存在的宠物的状态
      */
     @Test
-    void testGetStatusesForNonExistentUser() {
-        List<Status> statuses = statusService.getValidStatusesByUserId(999999L); // 使用更大的ID确保不存在
+    void testGetStatusesForNonExistentPet() {
+        List<Status> statuses = statusService.getValidStatusesByPetId(999999L);
         assertTrue(statuses.isEmpty());
 
-        System.out.println("✅ 不存在的用户状态查询测试通过");
+        System.out.println("✅ 不存在的宠物状态查询测试通过");
     }
 
     /**
-     * 7️⃣ 测试：为不存在的用户创建状态应抛异常
+     * 7️⃣ 测试：为不存在的宠物创建状态应抛异常
      */
     @Test
-    void testCreateStatusForNonExistentUser() {
+    void testCreateStatusForNonExistentPet() {
         assertThrows(RuntimeException.class, () ->
                 statusService.createStatus(999999L, "TestStatus"));
 
-        System.out.println("✅ 为不存在用户创建状态异常测试通过");
+        System.out.println("✅ 为不存在宠物创建状态异常测试通过");
     }
 
     /**
@@ -162,22 +175,15 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testCreateStatusRecord() {
-        // 先创建一个宠物用于测试状态记录
-        com.petcare.backend.entity.Pet testPet = new com.petcare.backend.entity.Pet();
-        testPet.setName("测试宠物");
-        testPet.setSpecies("狗");
-        testPet.setUser(testUser);
-        testPet = petRepository.save(testPet);
-
         // 获取一个状态
-        Status status = statusRepository.findByUserUserIdAndStatusName(testUser.getUserId(), "Running").get(0);
+        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         // 创建状态记录DTO
         com.petcare.backend.dto.request.CreateStatusRecordDTO createDTO =
                 new com.petcare.backend.dto.request.CreateStatusRecordDTO();
         createDTO.setPetId(testPet.getPetId());
         createDTO.setStatusId(status.getStatusId());
-        createDTO.setStartDate(java.time.LocalDate.now());
+        createDTO.setStartDate(LocalDate.now());
         createDTO.setStatusDescription("测试状态记录");
 
         // 创建状态记录
@@ -194,19 +200,13 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testDeleteStatusAndRecords() {
-        Status status = statusRepository.findByUserUserIdAndStatusName(testUser.getUserId(), "Running").get(0);
+        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         // 先创建一些状态记录
-        com.petcare.backend.entity.Pet testPet = new com.petcare.backend.entity.Pet();
-        testPet.setName("测试宠物");
-        testPet.setSpecies("狗");
-        testPet.setUser(testUser);
-        testPet = petRepository.save(testPet);
-
         StatusRecord record = new StatusRecord();
         record.setStatus(status);
         record.setPet(testPet);
-        record.setStartDate(java.time.LocalDate.now());
+        record.setStartDate(LocalDate.now());
         record.setStatusDescription("测试记录");
         statusRecordRepository.save(record);
 
@@ -222,8 +222,4 @@ class StatusServiceIntegrationTest {
 
         System.out.println("✅ 删除状态及其记录测试通过");
     }
-
-    // 需要添加 PetRepository
-    @Autowired
-    private com.petcare.backend.repository.PetRepository petRepository;
 }

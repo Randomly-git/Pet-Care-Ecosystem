@@ -2,12 +2,14 @@ server:
   port: 9000 # 前端连接的唯一固定端口
 
 spring:
+  config:
+    import: optional:file:../program-config.yml
   application:
     name: petcare-gateway
   cloud:
     nacos:
       discovery:
-        server-addr: 47.100.240.111:8848 # 你的 Nacos 地址
+        server-addr: ${nacos.host:localhost}:${nacos.port:8848} # 从全局 program-config.yml 读取，默认本地
     gateway:
       # 开启网关从注册中心发现服务的能力
       discovery:

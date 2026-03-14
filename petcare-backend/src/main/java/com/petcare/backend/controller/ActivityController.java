@@ -135,6 +135,8 @@ public class ActivityController {
                     record.setMediaFiles(mediaFiles);
                 } catch (Exception e) {
                     log.warn("获取活动记录 {} 的媒体文件失败: {}", record.getActivityRecordId(), e.getMessage());
+                    // 媒体获取失败不影响主数据返回
+                    record.setMediaFiles(List.of());
                 }
             }
         }

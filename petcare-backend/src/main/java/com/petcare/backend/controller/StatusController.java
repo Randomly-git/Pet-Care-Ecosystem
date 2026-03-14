@@ -38,17 +38,17 @@ public class StatusController {
         this.mediaServiceClient = mediaServiceClient;
     }
 
-    @Operation(summary = "获取用户的有效状态列表", description = "获取该用户定义的所有未被软删除的状态类型")
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Status>> getValidStatusesByUserId(
-            @Parameter(description = "用户ID") @PathVariable Long userId) {
-        log.debug("开始获取用户ID为 {} 的状态列表", userId);
+    @Operation(summary = "获取宠物的有效状态列表", description = "获取该宠物定义的所有未被软删除的状态类型")
+    @GetMapping("/pet/{petId}")
+    public ResponseEntity<List<Status>> getValidStatusesByPetId(
+            @Parameter(description = "宠物ID") @PathVariable Long petId) {
+        log.debug("开始获取宠物ID为 {} 的状态列表", petId);
 
         try {
-            List<Status> statuses = statusService.getValidStatusesByUserId(userId);
+            List<Status> statuses = statusService.getValidStatusesByPetId(petId);
             return ResponseEntity.ok(statuses);
         } catch (Exception e) {
-            log.error("获取用户ID为 {} 的状态列表失败", userId, e);
+            log.error("获取宠物ID为 {} 的状态列表失败", petId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -80,16 +80,30 @@ public class StatusController {
         }
     }
 
-    @Operation(summary = "新增状态类型", description = "为用户创建一种新的宠物状态（如：过敏中）")
+    @Operation(summary = "更新状态当前值", description = "更新状态的当前值（如：健康、生病中、怀孕中等）")
+    @PutMapping("/{statusId}/value")
+    public ResponseEntity<Status> updateStatusValue(
+            @Parameter(description = "状态ID") @PathVariable Long statusId,
+            @Parameter(description = "新的状态值") @RequestParam String statusValue) {
+        try {
+            Status updatedStatus = statusService.updateStatusValue(statusId, statusValue);
+            return ResponseEntity.ok(updatedStatus);
+        } catch (Exception e) {
+            log.error("更新状态ID为 {} 的状态值失败", statusId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @Operation(summary = "新增状态类型", description = "为宠物创建一种新的宠物状态（如：过敏中）")
     @PostMapping
     public ResponseEntity<Status> createStatus(
-            @Parameter(description = "用户ID") @RequestParam Long userId,
+            @Parameter(description = "宠物ID") @RequestParam Long petId,
             @Parameter(description = "状态名称") @RequestParam String statusName) {
         try {
-            Status createdStatus = statusService.createStatus(userId, statusName);
+            Status createdStatus = statusService.createStatus(petId, statusName);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdStatus);
         } catch (Exception e) {
-            log.error("为用户ID {} 创建状态 {} 失败", userId, statusName, e);
+            log.error("为宠物ID {} 创建状态 {} 失败", petId, statusName, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -109,6 +123,7 @@ public class StatusController {
                         record.setMediaFiles(mediaFiles);
                     } catch (Exception e) {
                         log.warn("获取状态记录 {} 的媒体文件失败", record.getStatusRecordId());
+                        record.setMediaFiles(List.of());
                     }
                 }
             }
@@ -134,6 +149,7 @@ public class StatusController {
                         record.setMediaFiles(mediaFiles);
                     } catch (Exception e) {
                         log.warn("获取媒体失败", record.getStatusRecordId());
+                        record.setMediaFiles(List.of());
                     }
                 }
             }

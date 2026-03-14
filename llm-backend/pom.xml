@@ -122,6 +122,14 @@
             </exclusions>
         </dependency>
 
+        <!-- MySQL Driver - CVE-2023-22102 fix -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.3.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

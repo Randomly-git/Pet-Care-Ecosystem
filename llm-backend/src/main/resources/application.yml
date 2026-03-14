@@ -2,12 +2,14 @@ server:
   port: 0 # 随机端口
 
 spring:
+  config:
+    import: optional:file:../program-config.yml
   application:
     name: llm-backend # 这个名字要和网关配置里的 lb:// 后面一致
   cloud:
     nacos:
       discovery:
-        server-addr: 47.100.240.111:8848
+        server-addr: ${nacos.host:localhost}:${nacos.port:8848}
 
 # 服务接口地址配置
 pet:

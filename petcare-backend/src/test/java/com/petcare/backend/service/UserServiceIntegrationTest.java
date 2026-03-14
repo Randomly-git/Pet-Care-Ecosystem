@@ -36,7 +36,7 @@ class UserServiceIntegrationTest {
     @BeforeAll
     void setupOnce() {
         System.out.println("=== 开始集成测试，使用开发环境数据库 ===");
-        System.out.println("确保开发数据库服务正在运行: 47.100.240.111:3306");
+        System.out.println("请确保开发数据库服务已启动，并与 application-dev.yml / program-config.yml 中的配置一致。");
 
         // 创建测试用户
         User testUser = new User();

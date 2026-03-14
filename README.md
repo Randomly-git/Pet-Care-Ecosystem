@@ -79,7 +79,7 @@ pet-care-ecosystem/
 在 backend/pet-space-service/.env 中配置
 DB_HOST=localhost
 DB_PORT=3306
-DB_NAME=pet_space_db  （后续还有有更多的数据库）
+DB_NAME=pet_system  （后续还有有更多的数据库）
 DB_USER=root
 DB_PASSWORD=your_password
 

@@ -2330,20 +2330,33 @@ const loadStatusData = async () => {
 }
 
 const loadUserStatuses = async () => {
-  if (!currentUserId.value) return
+  // 根据选中的宠物获取状态列表
+  if (selectedPetIds.value.length === 0) {
+    userStatuses.value = []
+    return
+  }
 
   try {
-    const response = await statusApi.getUserStatuses(currentUserId.value)
-    if (response && response.data) {
-      userStatuses.value = Array.isArray(response.data) ? response.data : []
-    } else if (Array.isArray(response)) {
-      userStatuses.value = response
-    } else {
-      userStatuses.value = []
-    }
-    console.log('加载到的用户状态:', userStatuses.value)
+    // 为每个选中的宠物获取状态
+    const promises = selectedPetIds.value.map(petId =>
+      statusApi.getUserStatuses(petId)
+    )
+    const responses = await Promise.all(promises)
+    
+    // 扁平化所有宠物的状态
+    const allStatuses = responses.flatMap(response => {
+      if (response && response.data) {
+        return Array.isArray(response.data) ? response.data : []
+      } else if (Array.isArray(response)) {
+        return response
+      }
+      return []
+    })
+    
+    userStatuses.value = allStatuses
+    console.log('加载到的宠物状态:', userStatuses.value)
   } catch (error) {
-    console.error('加载用户状态失败:', error)
+    console.error('加载宠物状态失败:', error)
     userStatuses.value = []
   }
 }

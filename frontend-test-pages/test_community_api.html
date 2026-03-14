@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社区API测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-button {
+            background: #2196F3;
+        }
+        .test-button:hover {
+            background: #1976D2;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #result {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐾 社区API测试</h1>
+
+        <div class="info">
+            <strong>说明：</strong>此页面直接测试社区后端API，绕过CORS限制。
+        </div>
+
+        <div id="status"></div>
+
+        <h2>测试操作</h2>
+
+        <button class="test-button" onclick="testGetMoments()">
+            📋 获取用户动态 (userId=76)
+        </button>
+
+        <h2>创建动态</h2>
+        <div class="form-group">
+            <label for="userId">用户ID：</label>
+            <input type="number" id="userId" value="76">
+        </div>
+        <div class="form-group">
+            <label for="content">动态内容：</label>
+            <textarea id="content" placeholder="输入动态内容...">这是我的第一条动态！</textarea>
+        </div>
+        <button class="test-button" onclick="testCreateMoment()">
+            ✏️ 创建动态
+        </button>
+
+        <h2>点赞测试</h2>
+        <div class="form-group">
+            <label for="likeUserId">用户ID：</label>
+            <input type="number" id="likeUserId" value="76">
+        </div>
+        <div class="form-group">
+            <label for="targetId">目标ID（动态ID）：</label>
+            <input type="number" id="targetId" value="1">
+        </div>
+        <button class="test-button" onclick="testToggleLike()">
+            👍 切换点赞状态
+        </button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8083/api/v1';
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateResult(message) {
+            const resultDiv = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.textContent = `[${timestamp}] ${message}`;
+        }
+
+        async function testGetMoments() {
+            const userId = document.getElementById('userId').value;
+            updateStatus(`正在获取用户 ${userId} 的动态...`, 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/moments/user/${userId}`);
+                const data = await response.json();
+
+                updateResult(`获取用户动态结果 (${response.status}):\n${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    updateStatus(`成功获取到 ${data.length} 条动态`, 'success');
+                } else {
+                    updateStatus(`获取动态失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                updateResult(`错误信息:\n${error.message}`);
+            }
+        }
+
+        async function testCreateMoment() {
+            const userId = document.getElementById('userId').value;
+            const content = document.getElementById('content').value;
+
+            if (!content.trim()) {
+                updateStatus('请输入动态内容', 'error');
+                return;
+            }
+
+            updateStatus('正在创建动态...', 'info');
+
+            try {
+                const requestBody = {
+                    userId: parseInt(userId),
+                    content: content,
+                    mediaIds: []
+                };
+
+                const response = await fetch(`${API_BASE}/moments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.text();
+
+                updateResult(`创建动态结果 (${response.status}):\n${data}`);
+
+                if (response.ok) {
+                    updateStatus('动态创建成功！', 'success');
+                    // 清空内容
+                    document.getElementById('content').value = '';
+                } else {
+                    updateStatus(`创建动态失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                updateResult(`错误信息:\n${error.message}`);
+            }
+        }
+
+        async function testToggleLike() {
+            const userId = document.getElementById('likeUserId').value;
+            const targetId = document.getElementById('targetId').value;
+
+            updateStatus('正在切换点赞状态...', 'info');
+
+            try {
+                const requestBody = {
+                    userId: parseInt(userId),
+                    targetType: 'MOMENT',
+                    targetId: parseInt(targetId)
+                };
+
+                const response = await fetch(`${API_BASE}/likes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.text();
+
+                updateResult(`点赞操作结果 (${response.status}):\n${data}`);
+
+                if (response.ok) {
+                    updateStatus('点赞操作成功！', 'success');
+                } else {
+                    updateStatus(`点赞操作失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                updateResult(`错误信息:\n${error.message}`);
+            }
+        }
+
+        // 页面加载时检查API是否可用
+        window.onload = function() {
+            fetch(`${API_BASE}/moments/user/76`)
+                .then(response => {
+                    if (response.ok) {
+                        updateStatus('社区API服务正常运行', 'success');
+                    } else {
+                        updateStatus(`API服务响应异常: ${response.status}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    updateStatus(`无法连接到API服务: ${error.message}`, 'error');
+                });
+        };
+    </script>
+</body>
+</html>

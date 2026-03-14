@@ -32,7 +32,7 @@ const API_ENDPOINTS = {
       records: '/api/activities/records'
     },
     status: {
-      list: '/api/status/user',
+      list: '/api/status/pet',
       records: '/api/status/records',
       active: '/api/status/records/active'
     },
@@ -246,8 +246,8 @@ class PetcareApiService extends BaseApiService {
   }
 
   // 状态相关
-  async getStatuses(userId: number) {
-    return this.get<any[]>(`${API_ENDPOINTS.petcare.status.list}/${userId}`, undefined, { cache: true, cacheTime: 30 * 60 * 1000 }) // 缓存30分钟
+  async getStatuses(petId: number) {
+    return this.get<any[]>(`${API_ENDPOINTS.petcare.status.list}/${petId}`, undefined, { cache: true, cacheTime: 30 * 60 * 1000 }) // 缓存30分钟
   }
 
   async getStatusRecords(petId: number) {
@@ -258,8 +258,8 @@ class PetcareApiService extends BaseApiService {
     return this.get<any[]>(API_ENDPOINTS.petcare.status.active, { petId, targetDate })
   }
 
-  async createStatus(statusData: any) {
-    return this.post<any>(API_ENDPOINTS.petcare.status.list, statusData)
+  async createStatus(petId: number, statusName: string) {
+    return this.post<any>(API_ENDPOINTS.petcare.status.list, null, { params: { petId, statusName } })
   }
 
   async updateStatusName(statusId: number, newName: string) {

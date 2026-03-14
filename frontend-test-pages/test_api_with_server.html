@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API代理测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-button {
+            background: #2196F3;
+        }
+        .test-button:hover {
+            background: #1976D2;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #result {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐾 API代理测试</h1>
+
+        <div class="info">
+            <strong>说明：</strong>此页面使用Node.js Express服务器代理API请求，完全绕过CORS限制。
+        </div>
+
+        <div id="status"></div>
+
+        <h2>测试操作</h2>
+
+        <button class="test-button" onclick="testGetMoments()">
+            📋 获取用户动态 (userId=76)
+        </button>
+
+        <h2>创建动态</h2>
+        <div class="form-group">
+            <label for="userId">用户ID：</label>
+            <input type="number" id="userId" value="76">
+        </div>
+        <div class="form-group">
+            <label for="content">动态内容：</label>
+            <textarea id="content" placeholder="输入动态内容...">这是我的第一条动态！</textarea>
+        </div>
+        <button class="test-button" onclick="testCreateMoment()">
+            ✏️ 创建动态
+        </button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const PROXY_URL = 'http://localhost:3000';
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateResult(message) {
+            const resultDiv = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.textContent = `[${timestamp}] ${message}`;
+        }
+
+        async function testGetMoments() {
+            const userId = document.getElementById('userId').value;
+            updateStatus(`正在获取用户 ${userId} 的动态...`, 'info');
+
+            try {
+                const response = await fetch(`${PROXY_URL}/api/moments/user/${userId}`);
+                const data = await response.json();
+
+                updateResult(`获取用户动态结果 (${response.status}):\n${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    updateStatus(`成功获取到 ${data.length} 条动态`, 'success');
+                } else {
+                    updateStatus(`获取动态失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                updateResult(`错误信息:\n${error.message}`);
+            }
+        }
+
+        async function testCreateMoment() {
+            const userId = document.getElementById('userId').value;
+            const content = document.getElementById('content').value;
+
+            if (!content.trim()) {
+                updateStatus('请输入动态内容', 'error');
+                return;
+            }
+
+            updateStatus('正在创建动态...', 'info');
+
+            try {
+                const requestBody = {
+                    userId: parseInt(userId),
+                    content: content,
+                    mediaIds: []
+                };
+
+                const response = await fetch(`${PROXY_URL}/api/moments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const data = await response.json();
+
+                updateResult(`创建动态结果 (${response.status}):\n${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    updateStatus('动态创建成功！', 'success');
+                    // 清空内容
+                    document.getElementById('content').value = '';
+                } else {
+                    updateStatus(`创建动态失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`请求失败: ${error.message}`, 'error');
+                updateResult(`错误信息:\n${error.message}`);
+            }
+        }
+
+        // 页面加载时检查代理服务器是否可用
+        window.onload = function() {
+            fetch(`${PROXY_URL}/api/test`)
+                .then(response => {
+                    if (response.ok) {
+                        updateStatus('代理服务器正常运行', 'success');
+                    } else {
+                        updateStatus('代理服务器响应异常', 'error');
+                    }
+                })
+                .catch(error => {
+                    updateStatus(`代理服务器未启动，请运行 npm run server`, 'error');
+                    updateResult(`请按以下步骤启动代理服务器：\n1. 安装 Node.js\n2. 在当前目录创建 package.json\n3. 安装 express: npm install express cors\n4. 创建 server.js 文件\n5. 运行: node server.js\n\n或者使用以下命令直接运行：\nnpm init -y\nnpm install express cors\nnode -e "const express=require('express');const app=express();const cors=require('cors');app.use(cors());app.use('/api',require('http-proxy-middleware').createProxyMiddleware({target:'http://localhost:8083',changeOrigin:true,pathRewrite:{'^/api':'/api/v1'}}));app.listen(3000,()=>console.log('代理服务器运行在 http://localhost:3000'));"`);
+                });
+        };
+    </script>
+</body>
+</html>

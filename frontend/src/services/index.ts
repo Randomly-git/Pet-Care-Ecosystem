@@ -187,9 +187,9 @@ export const activityService = {
 
 // 状态服务
 export const statusService = {
-  // 获取状态列表
-  async getStatuses(userId: number) {
-    const response = await petcareApi.getStatuses(userId)
+  // 获取状态列表（根据宠物ID）
+  async getStatuses(petId: number) {
+    const response = await petcareApi.getStatuses(petId)
     return DataTransformer.transformBatch<Status>(response, 'status')
   },
 
@@ -205,9 +205,9 @@ export const statusService = {
     return DataTransformer.transformBatch<StatusRecord>(response, 'statusRecord')
   },
 
-  // 创建状态
-  async createStatus(data: { userId: number; statusName: string }) {
-    const response = await petcareApi.createStatus(data)
+  // 创建状态（为宠物创建）
+  async createStatus(petId: number, statusName: string) {
+    const response = await petcareApi.createStatus(petId, statusName)
     return DataTransformer.handleApiResponse(response, 'status')
   },
 

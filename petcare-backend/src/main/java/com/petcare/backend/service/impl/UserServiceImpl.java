@@ -38,7 +38,6 @@ public class UserServiceImpl implements UserService {
 
     private final PetRepository petRepository;
     private final UserRepository userRepository;
-    private final StatusRecordRepository statusRecordRepository;
     private final ActivityRecordRepository activityRecordRepository;
     private final PasswordUtil passwordUtil;
     private final JwtTokenUtil jwtTokenUtil;
@@ -47,7 +46,6 @@ public class UserServiceImpl implements UserService {
 
     public UserServiceImpl(PetRepository petRepository,
                            UserRepository userRepository,
-                           StatusRecordRepository statusRecordRepository,
                            ActivityRecordRepository activityRecordRepository,
                            PasswordUtil passwordUtil,
                            JwtTokenUtil jwtTokenUtil,
@@ -55,7 +53,6 @@ public class UserServiceImpl implements UserService {
                            StatusService statusService) {
         this.petRepository = petRepository;
         this.userRepository = userRepository;
-        this.statusRecordRepository = statusRecordRepository;
         this.activityRecordRepository = activityRecordRepository;
         this.passwordUtil = passwordUtil;
         this.jwtTokenUtil = jwtTokenUtil;
@@ -149,9 +146,9 @@ public class UserServiceImpl implements UserService {
         User savedUser = userRepository.save(user);
         log.info("用户注册成功, ID: {}", savedUser.getUserId());
 
-        // 创建默认的 Activity 和 Status
+        // 创建默认的 Activity
         createDefaultActivities(savedUser.getUserId());
-        createDefaultStatuses(savedUser.getUserId());
+        // 注：status 现在与 pet 关联，创建宠物时再创建默认状态
 
         return RegisterResponse.success(savedUser.getUserId(), savedUser.getName());
     }
@@ -282,10 +279,11 @@ public class UserServiceImpl implements UserService {
         }
 
         // 添加统计信息
-        Long statusRecordCount = statusRecordRepository.countByPetPetId(pet.getPetId());
+        // 状态现在直接存储在 status 表中（每个宠物有多个状态类型，每个状态有当前值）
+        Long statusCount = statusService.getStatusCountByPetId(pet.getPetId());
         Long activityRecordCount = activityRecordRepository.countByPetPetId(pet.getPetId());
 
-        response.setStatusRecordCount(statusRecordCount);
+        response.setStatusRecordCount(statusCount);
         response.setActivityRecordCount(activityRecordCount);
 
         return response;

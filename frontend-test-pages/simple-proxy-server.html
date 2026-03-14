@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简化版API测试（使用JSONP）</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-button {
+            background: #2196F3;
+        }
+        .test-button:hover {
+            background: #1976D2;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        #result {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐾 API测试 - CORS解决方案</h1>
+
+        <div class="warning">
+            <strong>重要说明：</strong>由于CORS配置问题，当前无法直接通过前端访问社区API。以下是几种解决方案：
+            <ol>
+                <li>使用浏览器禁用安全策略（仅用于开发测试）</li>
+                <li>安装浏览器插件允许CORS</li>
+                <li>使用代理服务器</li>
+            </ol>
+        </div>
+
+        <h2>临时解决方案</h2>
+
+        <div class="form-group">
+            <label>1. 使用Chrome浏览器（禁用Web安全）</label>
+            <code>chrome.exe --user-data-dir="C:/MyChromeDevUserData" --disable-web-security --disable-features=VizDisplayCompositor</code>
+        </div>
+
+        <div class="form-group">
+            <label>2. 使用CORS浏览器插件</label>
+            <p>安装以下插件之一：</p>
+            <ul>
+                <li>Chrome: "CORS Unblock" 或 "Allow CORS"</li>
+                <li>Firefox: "CORS Everywhere"</li>
+            </ul>
+        </div>
+
+        <h2>测试前端功能</h2>
+        <p>在解决CORS问题后，您可以通过以下方式测试：</p>
+
+        <button class="test-button" onclick="window.open('http://localhost:5173', '_blank')">
+            🚀 打开前端应用
+        </button>
+
+        <div id="status"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function updateResult(message) {
+            const resultDiv = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            resultDiv.textContent = `[${timestamp}] ${message}`;
+        }
+
+        // 检查后端服务状态
+        async function checkServices() {
+            const services = [
+                { name: 'PetCare后端', url: 'http://localhost:8082' },
+                { name: '媒体后端', url: 'http://localhost:8081' },
+                { name: '社区后端', url: 'http://localhost:8083' },
+                { name: '前端', url: 'http://localhost:5173' }
+            ];
+
+            let results = [];
+
+            for (const service of services) {
+                try {
+                    const response = await fetch(service.url, {
+                        method: 'GET',
+                        mode: 'no-cors' // 使用no-cors模式避免CORS问题
+                    });
+                    results.push(`${service.name}: ✅ 运行中`);
+                } catch (error) {
+                    // 由于no-cors模式，即使成功也可能抛出错误
+                    results.push(`${service.name}: ⚠️ 需要确认`);
+                }
+            }
+
+            updateResult('服务状态检查结果：\n' + results.join('\n'));
+        }
+
+        // 页面加载时检查服务
+        window.onload = function() {
+            updateStatus('正在检查服务状态...', 'info');
+            checkServices();
+        };
+    </script>
+</body>
+</html>

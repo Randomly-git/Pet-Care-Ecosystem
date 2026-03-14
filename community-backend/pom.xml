@@ -31,8 +31,8 @@
     </scm>
     <properties>
         <java.version>21</java.version>
-        <!-- 保持 MapStruct 稳定版本，尝试使用更常见的 1.4.2.Final 作为网络故障的备选 -->
-        <org.mapstruct.version>1.4.2.Final</org.mapstruct.version>
+        <!-- MapStruct 1.4.x 对较新 JDK/IDE APT 兼容性较差，升级以消除 IDE 端的实现类生成报错 -->
+        <org.mapstruct.version>1.5.5.Final</org.mapstruct.version>
         <lombok.version>1.18.30</lombok.version>
     </properties>
 
@@ -57,6 +57,7 @@
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+            <version>8.3.0</version>
             <scope>runtime</scope>
         </dependency>
 
@@ -72,6 +73,14 @@
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
             <version>${org.mapstruct.version}</version>
+        </dependency>
+
+        <!-- MapStruct 注解处理器（提供给 IDE / APT 使用；实际编译仍由 maven-compiler-plugin 统一管理） -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>${org.mapstruct.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- 【重点修复 1】 明确添加 Jackson Databind，解决测试代码中 'databind' 和 'ObjectMapper' 的导入问题 -->

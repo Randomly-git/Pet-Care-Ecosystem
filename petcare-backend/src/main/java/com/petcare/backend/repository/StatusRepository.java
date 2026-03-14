@@ -1,7 +1,6 @@
 package com.petcare.backend.repository;
 
 import com.petcare.backend.entity.Status;
-import com.petcare.backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,24 +12,26 @@ import java.util.Optional;
 @Repository
 public interface StatusRepository extends JpaRepository<Status, Long> {
 
-    // 根据用户ID查找状态
-    List<Status> findByUserUserId(Long userId);
+    // 根据宠物ID查找状态
+    List<Status> findByPetPetId(Long petId);
+
+    // 根据宠物ID统计状态数量
+    Long countByPetPetId(Long petId);
 
     // 根据状态名称查找
     List<Status> findByStatusName(String statusName);
 
-    // 根据用户ID和状态名称查找
-    List<Status> findByUserUserIdAndStatusName(Long userId, String statusName);
+    // 根据宠物ID和状态名称查找
+    List<Status> findByPetPetIdAndStatusName(Long petId, String statusName);
 
-    // 查找特定用户的所有状态名称
-    @Query("SELECT DISTINCT s.statusName FROM Status s WHERE s.user.userId = :userId")
-    List<String> findDistinctStatusNamesByUserId(@Param("userId") Long userId);
+    // 查找特定宠物的所有状态名称
+    @Query("SELECT DISTINCT s.statusName FROM Status s WHERE s.pet.petId = :petId")
+    List<String> findDistinctStatusNamesByPetId(@Param("petId") Long petId);
 
-    // 根据用户和状态名称查找具体状态
-    Optional<Status> findByUserAndStatusName(User user, String statusName);
+    // 根据宠物和状态名称查找具体状态
+    Optional<Status> findByPetPetIdAndStatusName(Long petId, String statusName);
 
-    // 检查用户是否已有特定状态
-    boolean existsByUserUserIdAndStatusName(Long userId, String statusName);
-
+    // 检查宠物是否已有特定状态
+    boolean existsByPetPetIdAndStatusName(Long petId, String statusName);
 
 }

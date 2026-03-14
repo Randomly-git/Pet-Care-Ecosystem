@@ -12,8 +12,11 @@ import java.util.Optional;
 
 public interface StatusService {
 
-    // 1️⃣ 根据用户ID获取所有有效状态
-    List<Status> getValidStatusesByUserId(Long userId);
+    // 1️⃣ 根据宠物ID获取所有有效状态
+    List<Status> getValidStatusesByPetId(Long petId);
+
+    // 1.5️⃣ 根据宠物ID获取状态数量
+    Long getStatusCountByPetId(Long petId);
 
     // 2️⃣ 根据状态ID软删除状态（修改state=0）
     void softDeleteStatus(Long statusId);
@@ -21,8 +24,11 @@ public interface StatusService {
     // 3️⃣ 根据状态ID修改状态名称
     Status updateStatusName(Long statusId, String newName);
 
-    // 4️⃣ 新增状态
-    Status createStatus(Long userId, String statusName);
+    // 3.5️⃣ 根据状态ID修改状态当前值
+    Status updateStatusValue(Long statusId, String statusValue);
+
+    // 4️⃣ 新增状态（为宠物创建）
+    Status createStatus(Long petId, String statusName);
 
     // 查找某一天未结束的状态记录
     List<StatusRecordDTO> getActiveStatusRecordsByPetIdAndDate(Long PetId, LocalDate targetDate);

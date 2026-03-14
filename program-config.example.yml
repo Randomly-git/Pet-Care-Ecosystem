@@ -1,0 +1,18 @@
+## 示例环境配置文件（可以提交到 Git）
+# 使用时请复制为 program-config.yml，然后根据实际部署修改 host/port。
+
+nacos:
+  host: 127.0.0.1
+  port: 8848
+
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  username: root
+  password: password
+  database: pet_system
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+

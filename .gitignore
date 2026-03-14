@@ -13,3 +13,4 @@ coverage/
 *.log
 .vite/
 .env.local
+program-config.yml
