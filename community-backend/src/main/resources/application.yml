@@ -3,7 +3,9 @@ server:
 
 spring:
   config:
-    import: optional:file:../program-config.yml
+    import:
+      - optional:file:./program-config.yml  # 试试当前目录
+      - optional:file:../program-config.yml # 试试上级目录
   application:
     name: community-backend # 这个名字要和网关配置里的 lb:// 后面一致
   cloud:
