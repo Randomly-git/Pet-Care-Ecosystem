@@ -15,6 +15,10 @@ public class MomentResponseDTO {
     private String content;
     private LocalDateTime createdAt;
 
+    // 作者信息
+    private String authorName;
+    private String authorAvatar;
+
     // 从媒体微服务获取 URL 列表
     private List<String> mediaUrls;
     private int commentCount = 0;

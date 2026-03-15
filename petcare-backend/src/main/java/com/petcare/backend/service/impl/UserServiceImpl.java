@@ -244,7 +244,9 @@ public class UserServiceImpl implements UserService {
         // 使用JWT生成token
         String jwtToken = jwtTokenUtil.generateToken(user.getUserId(), user.getName());
 
-        return LoginResponse.success(user.getUserId(), user.getName(), jwtToken);
+        String nickname = user.getNickname() != null && !user.getNickname().trim().isEmpty()
+                ? user.getNickname() : user.getName();
+        return LoginResponse.success(user.getUserId(), user.getName(), nickname, jwtToken);
     }
 
     @Override

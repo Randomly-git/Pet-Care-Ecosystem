@@ -80,8 +80,11 @@ public class MomentService {
             dto.setCommentCount(commentCounts.getOrDefault(currentMomentId, 0L).intValue());
 
             // 聚合作者信息
-            // **注意：MomentResponseDTO 中目前没有作者信息字段，如果需要显示作者昵称/头像，需要修改 MomentResponseDTO**
-            // 暂时忽略作者信息聚合，仅保留计数和媒体的聚合逻辑。
+            UserResponseDTO author = userMap.get(moment.getUserId());
+            if (author != null) {
+                dto.setAuthorName(author.getNickname() != null ? author.getNickname() : "宠物爱好者");
+                dto.setAuthorAvatar(author.getAvatarUrl());
+            }
 
             return dto;
         }).collect(Collectors.toList());
@@ -134,8 +137,11 @@ public class MomentService {
             dto.setCommentCount(commentCounts.getOrDefault(currentMomentId, 0L).intValue());
 
             // 聚合作者信息
-            // **注意：MomentResponseDTO 中目前没有作者信息字段，如果需要显示作者昵称/头像，需要修改 MomentResponseDTO**
-            // 暂时忽略作者信息聚合，仅保留计数和媒体的聚合逻辑。
+            UserResponseDTO author = userMap.get(moment.getUserId());
+            if (author != null) {
+                dto.setAuthorName(author.getNickname() != null ? author.getNickname() : "宠物爱好者");
+                dto.setAuthorAvatar(author.getAvatarUrl());
+            }
 
             return dto;
         }).collect(Collectors.toList());
