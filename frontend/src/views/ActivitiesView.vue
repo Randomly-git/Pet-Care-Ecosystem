@@ -72,15 +72,15 @@
               v-for="pet in userPets"
               :key="pet.id || pet.petId"
               class="pet-card"
-              :class="{ active: selectedPetIds.includes(pet.id || pet.petId) }"
-              @click="togglePetSelection(pet.id || pet.petId)"
+              :class="{ active: selectedPetId === (pet.id || pet.petId) }"
+              @click="selectPet(pet.id || pet.petId)"
             >
               <div class="pet-main">
                 <div class="pet-avatar">
                   <el-avatar :size="36" :src="pet.avatar_url">
                     {{ pet.name.charAt(0) }}
                   </el-avatar>
-                  <div class="pet-status-dot" v-if="selectedPetIds.includes(pet.id || pet.petId)"></div>
+                  <div class="pet-status-dot" v-if="selectedPetId === (pet.id || pet.petId)"></div>
                 </div>
                 <div class="pet-content">
                   <div class="pet-info-row">
@@ -141,21 +141,6 @@
         <!-- 操作栏 -->
         <div class="action-bar">
           <div class="action-left">
-            <el-select
-              v-model="selectedPetIds"
-              multiple
-              placeholder="选择宠物"
-              style="width: 200px"
-              @change="handlePetSelectionChange"
-            >
-              <el-option
-                v-for="pet in userPets"
-                :key="pet.id || pet.petId"
-                :label="pet.name"
-                :value="pet.id || pet.petId"
-              />
-            </el-select>
-
             <el-date-picker
               v-model="dateRange"
               type="daterange"
@@ -171,7 +156,7 @@
           </div>
 
           <div class="action-right">
-            <el-button type="success" @click="showAddDialog = true">
+            <el-button type="success" @click="openAddDialog">
               <el-icon><Plus /></el-icon>
               添加记录
             </el-button>
@@ -218,7 +203,7 @@
 
           <div v-else-if="filteredRecords.length === 0" class="empty-state">
             <el-empty description="暂无活动记录">
-              <el-button type="primary" @click="showAddDialog = true">
+              <el-button type="primary" @click="openAddDialog">
                 创建第一条记录
               </el-button>
             </el-empty>
@@ -315,21 +300,6 @@
           <!-- 状态记录操作栏 -->
           <div class="status-action-bar">
             <div class="action-left">
-              <el-select
-                v-model="selectedPetIds"
-                multiple
-                placeholder="选择宠物"
-                style="width: 200px"
-                @change="handleStatusPetSelectionChange"
-              >
-                <el-option
-                  v-for="pet in userPets"
-                  :key="pet.id || pet.petId"
-                  :label="pet.name"
-                  :value="pet.id || pet.petId"
-                />
-              </el-select>
-
               <el-date-picker
                 v-model="statusDateRange"
                 type="daterange"
@@ -485,15 +455,14 @@
         :rules="addFormRules"
         label-width="100px"
       >
-        <el-form-item label="选择宠物" prop="petId">
-          <el-select v-model="addForm.petId" placeholder="请选择宠物" style="width: 100%">
-            <el-option
-              v-for="pet in userPets"
-              :key="pet.id || pet.petId"
-              :label="pet.name"
-              :value="pet.id || pet.petId"
-            />
-          </el-select>
+        <!-- 当前选中的宠物信息（只读） -->
+        <el-form-item label="当前宠物">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <el-avatar :size="32" :src="currentSelectedPet?.avatar_url">
+              {{ currentSelectedPet?.name?.charAt(0) }}
+            </el-avatar>
+            <span>{{ currentSelectedPet?.name || '未选择宠物' }}</span>
+          </div>
         </el-form-item>
 
         <el-form-item label="活动类别" prop="activityKindId">
@@ -1259,7 +1228,7 @@ const userPets = ref([])
 const activityRecords = ref([])
 const userActivities = ref([])
 const allActivities = ref([])
-const selectedPetIds = ref([])
+const selectedPetId = ref(null) // 当前选中的宠物ID（单选）
 const selectedActivityTypes = ref([1, 2, 3, 4, 5, 6, 7, 8, 9]) // 默认选择所有活动类型
 const dateRange = ref([])
 
@@ -1471,14 +1440,20 @@ const completedToday = computed(() => {
   ).length
 })
 
-const selectedPetsCount = computed(() => selectedPetIds.value.length)
+const selectedPetsCount = computed(() => selectedPetId.value ? 1 : 0)
+
+// 当前选中的宠物对象
+const currentSelectedPet = computed(() => {
+  if (!selectedPetId.value) return null
+  return userPets.value.find(pet => (pet.id || pet.petId) === selectedPetId.value)
+})
 
 const filteredRecords = computed(() => {
   let filtered = activityRecords.value
 
   // 按选择的宠物过滤
-  if (selectedPetIds.value.length > 0) {
-    filtered = filtered.filter(record => selectedPetIds.value.includes(record.petId))
+  if (selectedPetId.value) {
+    filtered = filtered.filter(record => record.petId === selectedPetId.value)
   }
 
   // 按日期范围过滤
@@ -1537,8 +1512,8 @@ const filteredStatusRecords = computed(() => {
   let filtered = statusRecords.value
 
   // 按选择的宠物过滤
-  if (selectedPetIds.value.length > 0) {
-    filtered = filtered.filter(record => selectedPetIds.value.includes(record.petId))
+  if (selectedPetId.value) {
+    filtered = filtered.filter(record => record.petId === selectedPetId.value)
   }
 
   // 按日期范围过滤
@@ -1709,16 +1684,16 @@ const loadUserPets = async () => {
 
     console.log('加载到的宠物数据:', userPets.value)
 
-    // 默认选中所有宠物
+    // 默认选中第一个宠物
     console.log('loadUserPets: 检查是否需要设置默认选中的宠物')
-    console.log('loadUserPets: selectedPetIds.value.length:', selectedPetIds.value.length)
+    console.log('loadUserPets: selectedPetId.value:', selectedPetId.value)
     console.log('loadUserPets: userPets.value.length:', userPets.value.length)
 
-    if (selectedPetIds.value.length === 0 && userPets.value.length > 0) {
-      const petIds = userPets.value.map(pet => pet.petId || pet.id)
-      console.log('loadUserPets: 设置默认选中的宠物ID:', petIds)
-      selectedPetIds.value = petIds
-      console.log('loadUserPets: 设置后的selectedPetIds.value:', selectedPetIds.value)
+    if (!selectedPetId.value && userPets.value.length > 0) {
+      const firstPetId = userPets.value[0].petId || userPets.value[0].id
+      console.log('loadUserPets: 设置默认选中的宠物ID:', firstPetId)
+      selectedPetId.value = firstPetId
+      console.log('loadUserPets: 设置后的selectedPetId.value:', selectedPetId.value)
     }
   } catch (error) {
     console.error('加载用户宠物失败:', error)
@@ -1756,11 +1731,11 @@ const loadActivityRecords = async () => {
     loading.value = true
 
     console.log('loadActivityRecords: 开始加载活动记录')
-    console.log('loadActivityRecords: 选择的宠物ID:', selectedPetIds.value)
+    console.log('loadActivityRecords: 选择的宠物ID:', selectedPetId.value)
     console.log('loadActivityRecords: 日期范围:', dateRange.value)
 
-    // 获取所有选中宠物的活动记录
-    if (selectedPetIds.value.length === 0) {
+    // 获取选中宠物的活动记录
+    if (!selectedPetId.value) {
       console.log('loadActivityRecords: 没有选择宠物，清空活动记录')
       activityRecords.value = []
       return
@@ -1771,7 +1746,7 @@ const loadActivityRecords = async () => {
 
     // 批量获取活动记录
     console.log('loadActivityRecords: 开始调用API获取活动记录')
-    const recordsResponse = await getActivityRecordsByPetIds(selectedPetIds.value, {
+    const recordsResponse = await getActivityRecordsByPetIds([selectedPetId.value], {
       startDate: dateRange.value[0] ? new Date(dateRange.value[0]).toISOString() : null,
       endDate: dateRange.value[1] ? new Date(dateRange.value[1]).toISOString() : null
     })
@@ -1826,15 +1801,15 @@ const loadActivityRecords = async () => {
 const refreshData = async () => {
   console.log('refreshData: 开始刷新数据')
 
-  // 1. 首先加载宠物数据，这样才能设置selectedPetIds
+  // 1. 首先加载宠物数据，这样才能设置selectedPetId
   await loadUserPets()
-  console.log('refreshData: 宠物数据加载完成，selectedPetIds:', selectedPetIds.value)
+  console.log('refreshData: 宠物数据加载完成，selectedPetId:', selectedPetId.value)
 
   // 2. 加载用户活动数据
   await loadUserActivities()
   console.log('refreshData: 用户活动数据加载完成')
 
-  // 3. 然后加载活动记录（依赖selectedPetIds）
+  // 3. 然后加载活动记录（依赖selectedPetId）
   await loadActivityRecords()
   console.log('refreshData: 活动记录加载完成')
 
@@ -1843,8 +1818,17 @@ const refreshData = async () => {
   console.log('refreshData: 宠物活动统计数据加载完成')
 }
 
-const handlePetSelectionChange = () => {
-  loadActivityRecords()
+// 打开添加记录对话框，自动设置当前时间
+const openAddDialog = () => {
+  // 设置默认时间为当前系统时间
+  const now = new Date()
+  const formattedNow = now.toISOString().slice(0, 19).replace('T', ' ') // 格式: YYYY-MM-DD HH:mm:ss
+  addForm.value.activityDate = formattedNow
+
+  // 设置默认宠物为当前选中的宠物
+  addForm.value.petId = selectedPetId.value
+
+  showAddDialog.value = true
 }
 
 const handleDateRangeChange = () => {
@@ -1862,79 +1846,64 @@ const submitAddForm = async () => {
     const { createActivityRecord, createActivityRecordByKind } = await import('@/api/activities')
     const { uploadMedia } = await import('@/api/media')
 
-    // 为每个选中的宠物创建活动记录
-    const createPromises = []
-    const selectedPets = userPets.value.filter(pet =>
-      selectedPetIds.value.includes(pet.petId || pet.id)
-    )
+    // 只为当前选中的宠物创建活动记录
+    const pet = userPets.value.find(pet => (pet.petId || pet.id) === selectedPetId.value)
+    if (!pet) {
+      ElMessage.error('请先选择宠物')
+      return
+    }
 
     // 判断使用哪种创建方式
     const availableActivities = getActivitiesByKind(addForm.value.activityKindId)
     const useDirectKindMode = availableActivities.length === 0 || !addForm.value.activityId
 
-    for (const pet of selectedPets) {
-      const petId = pet.petId || pet.id
+    const petId = pet.petId || pet.id
 
-      // 格式化日期为API要求的格式 yyyy-MM-dd'T'HH:mm:ss
-      const activityDate = new Date(addForm.value.activityDate)
-      const formattedDate = activityDate.toISOString().slice(0, 19) // 保留 'T'
+    // 格式化日期为API要求的格式 yyyy-MM-dd'T'HH:mm:ss
+    const activityDate = new Date(addForm.value.activityDate)
+    const formattedDate = activityDate.toISOString().slice(0, 19) // 保留 'T'
 
-      let recordData
+    let recordData
+    let result
 
-      if (useDirectKindMode) {
-        // 直接使用活动种类ID创建记录（新的API方式）
-        recordData = {
-          activityKindId: addForm.value.activityKindId,
-          description: addForm.value.description,
-          date: formattedDate,
-          userId: Number(currentUserId.value) // 新增：添加userId
-        }
-        console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用活动种类创建记录:`, recordData)
-        const result = await createActivityRecordByKind(petId, recordData)
+    if (useDirectKindMode) {
+      // 直接使用活动种类ID创建记录（新的API方式）
+      recordData = {
+        activityKindId: addForm.value.activityKindId,
+        description: addForm.value.description,
+        date: formattedDate,
+        userId: Number(currentUserId.value)
+      }
+      console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用活动种类创建记录:`, recordData)
+      result = await createActivityRecordByKind(petId, recordData)
+    } else {
+      // 使用具体活动ID创建记录（原有方式）
+      recordData = {
+        activityId: addForm.value.activityId,
+        description: addForm.value.description,
+        date: formattedDate,
+        userId: Number(currentUserId.value)
+      }
+      console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用具体活动创建记录:`, recordData)
+      result = await createActivityRecord(petId, recordData)
+    }
 
-        // 如果有媒体文件，上传媒体
-        if (activityFileList.value.length > 0 && result && result.activityRecordId) {
-          for (const fileItem of activityFileList.value) {
-            if (fileItem.raw) {
-              try {
-                await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
-                console.log('媒体上传成功:', fileItem.name)
-              } catch (uploadError) {
-                console.error('媒体上传失败:', uploadError)
-                ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
-              }
-            }
-          }
-        }
-      } else {
-        // 使用具体活动ID创建记录（原有方式）
-        recordData = {
-          activityId: addForm.value.activityId,
-          description: addForm.value.description,
-          date: formattedDate,
-          userId: Number(currentUserId.value) // 新增：添加userId
-        }
-        console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用具体活动创建记录:`, recordData)
-        const result = await createActivityRecord(petId, recordData)
-
-        // 如果有媒体文件，上传媒体
-        if (activityFileList.value.length > 0 && result && result.activityRecordId) {
-          for (const fileItem of activityFileList.value) {
-            if (fileItem.raw) {
-              try {
-                await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
-                console.log('媒体上传成功:', fileItem.name)
-              } catch (uploadError) {
-                console.error('媒体上传失败:', uploadError)
-                ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
-              }
-            }
+    // 如果有媒体文件，上传媒体
+    if (activityFileList.value.length > 0 && result && result.activityRecordId) {
+      for (const fileItem of activityFileList.value) {
+        if (fileItem.raw) {
+          try {
+            await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
+            console.log('媒体上传成功:', fileItem.name)
+          } catch (uploadError) {
+            console.error('媒体上传失败:', uploadError)
+            ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
           }
         }
       }
     }
 
-    ElMessage.success(`成功为 ${selectedPets.length} 只宠物添加活动记录！`)
+    ElMessage.success(`成功为 ${pet.name} 添加活动记录！`)
     showAddDialog.value = false
 
     // 重置表单
@@ -2113,13 +2082,9 @@ const deleteRecord = async (record) => {
 }
 
 // 宠物相关方法
-const togglePetSelection = (petId) => {
-  const index = selectedPetIds.value.indexOf(petId)
-  if (index > -1) {
-    selectedPetIds.value.splice(index, 1)
-  } else {
-    selectedPetIds.value.push(petId)
-  }
+const selectPet = (petId) => {
+  // 切换选中宠物
+  selectedPetId.value = petId
   loadActivityRecords()
 }
 
@@ -2284,7 +2249,7 @@ const submitPetForm = async () => {
 
     // 选中新添加的宠物
     if (newPet && newPet.petId) {
-      selectedPetIds.value.push(newPet.petId)
+      selectedPetId.value = newPet.petId
     }
 
     await loadActivityRecords()
@@ -2331,29 +2296,24 @@ const loadStatusData = async () => {
 
 const loadUserStatuses = async () => {
   // 根据选中的宠物获取状态列表
-  if (selectedPetIds.value.length === 0) {
+  if (!selectedPetId.value) {
     userStatuses.value = []
     return
   }
 
   try {
-    // 为每个选中的宠物获取状态
-    const promises = selectedPetIds.value.map(petId =>
-      statusApi.getUserStatuses(petId)
-    )
-    const responses = await Promise.all(promises)
-    
-    // 扁平化所有宠物的状态
-    const allStatuses = responses.flatMap(response => {
-      if (response && response.data) {
-        return Array.isArray(response.data) ? response.data : []
-      } else if (Array.isArray(response)) {
-        return response
-      }
-      return []
-    })
-    
-    userStatuses.value = allStatuses
+    // 为选中的宠物获取状态
+    const response = await statusApi.getUserStatuses(selectedPetId.value)
+
+    // 处理返回的状态
+    if (response && response.data) {
+      userStatuses.value = Array.isArray(response.data) ? response.data : []
+    } else if (Array.isArray(response)) {
+      userStatuses.value = response
+    } else {
+      userStatuses.value = []
+    }
+
     console.log('加载到的宠物状态:', userStatuses.value)
   } catch (error) {
     console.error('加载宠物状态失败:', error)
@@ -2362,29 +2322,25 @@ const loadUserStatuses = async () => {
 }
 
 const loadStatusRecords = async () => {
-  if (!currentUserId.value || selectedPetIds.value.length === 0) {
+  if (!currentUserId.value || !selectedPetId.value) {
     statusRecords.value = []
     return
   }
 
   try {
     statusLoading.value = true
-    const promises = selectedPetIds.value.map(petId =>
-      statusApi.getStatusRecords(petId, {
-        startDate: statusDateRange.value[0],
-        endDate: statusDateRange.value[1]
-      })
-    )
-
-    const responses = await Promise.all(promises)
-    const allRecords = responses.flatMap(response => {
-      if (response && response.data) {
-        return Array.isArray(response.data) ? response.data : []
-      }
-      return Array.isArray(response) ? response : []
+    const response = await statusApi.getStatusRecords(selectedPetId.value, {
+      startDate: statusDateRange.value[0],
+      endDate: statusDateRange.value[1]
     })
 
-    statusRecords.value = allRecords
+    if (response && response.data) {
+      statusRecords.value = Array.isArray(response.data) ? response.data : []
+    } else if (Array.isArray(response)) {
+      statusRecords.value = response
+    } else {
+      statusRecords.value = []
+    }
     console.log('加载到的状态记录:', statusRecords.value)
   } catch (error) {
     console.error('加载状态记录失败:', error)
