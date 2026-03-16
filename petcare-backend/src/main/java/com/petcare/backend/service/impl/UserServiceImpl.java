@@ -79,6 +79,9 @@ public class UserServiceImpl implements UserService {
         log.info("宠物创建成功, ID: {}, 性别: {}", savedPet.getPetId(),
                 savedPet.getGender() != null ? (savedPet.getGender() ? "公" : "母") : "未知");
 
+        // 为新创建的宠物添加默认状态
+        createDefaultStatusesForPet(savedPet.getPetId());
+
         return savedPet;
     }
 
@@ -191,24 +194,29 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 为用户创建默认状态
+     * 为宠物创建默认状态
      */
-    private void createDefaultStatuses(Long userId) {
-        log.info("为用户 ID: {} 创建默认状态", userId);
+    private void createDefaultStatusesForPet(Long petId) {
+        log.info("为宠物 ID: {} 创建默认状态", petId);
 
+        // 验证宠物存在
+        Pet pet = petRepository.findById(petId)
+                .orElseThrow(() -> new PetNotFoundException(petId));
+
+        // 默认状态列表
         List<String> defaultStatusNames = Arrays.asList(
                 "主粮", "零食", "水源", "地理位置", "居所概况", "家庭成员", "疾病", "受伤", "怀孕"
         );
 
         for (String statusName : defaultStatusNames) {
             try {
-                statusService.createStatus(userId, statusName);
-                log.debug("创建默认状态: {}", statusName);
+                statusService.createStatus(petId, statusName);
+                log.debug("为宠物 {} 创建默认状态: {}", petId, statusName);
             } catch (Exception e) {
-                log.error("创建默认状态失败: {}, 错误: {}", statusName, e.getMessage());
+                log.error("为宠物 {} 创建默认状态失败: {}, 错误: {}", petId, statusName, e.getMessage());
             }
         }
-        log.info("为用户 ID: {} 创建默认状态完成", userId);
+        log.info("为宠物 ID: {} 创建默认状态完成", petId);
     }
 
     /**
