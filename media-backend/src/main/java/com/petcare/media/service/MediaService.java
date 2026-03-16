@@ -17,6 +17,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -116,9 +117,164 @@ public class MediaService {
 
     /**
      * 获取特定业务记录的媒体文件
+     * 对于社区动态（MOMENT），自动更新最后访问时间以重置7天倒计时
      */
     public List<MediaFile> getMediaFilesByRelated(RelatedType relatedType, Long relatedId) {
-        return mediaRepository.findByRelatedTypeAndRelatedId(relatedType, relatedId);
+        List<MediaFile> mediaFiles = mediaRepository.findByRelatedTypeAndRelatedId(relatedType, relatedId);
+
+        // 对于社区动态（MOMENT），更新所有文件的最后访问时间
+        if (relatedType == RelatedType.MOMENT && !mediaFiles.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            for (MediaFile mediaFile : mediaFiles) {
+                // 避免重复更新（只在超过1分钟后才更新）
+                if (mediaFile.getLastAccessTime() == null ||
+                    mediaFile.getLastAccessTime().isBefore(now.minusMinutes(1))) {
+                    mediaFile.setLastAccessTime(now);
+                    mediaRepository.save(mediaFile);
+                }
+            }
+            log.debug("重置社区动态媒体文件访问时间: relatedType={}, relatedId={}, count={}",
+                     relatedType, relatedId, mediaFiles.size());
+        }
+
+        return mediaFiles;
+    }
+
+    // ==================== 冷热数据访问逻辑 ====================
+
+    /**
+     * 访问媒体文件时更新最后访问时间
+     * 用于社区动态的7天倒计时
+     * 
+     * @param mediaId 媒体文件ID
+     */
+    @Transactional
+    public void updateLastAccessTime(Long mediaId) {
+        MediaFile mediaFile = getMediaFileById(mediaId);
+        
+        // 头像不参与冷热分离
+        if (mediaFile.isExemptFromColdStorage()) {
+            return;
+        }
+        
+        LocalDateTime now = LocalDateTime.now();
+        mediaFile.setLastAccessTime(now);
+        
+        // 如果之前是冷数据，访问时需要恢复
+        if ("Cold".equals(mediaFile.getStatus())) {
+            handleColdDataAccess(mediaFile);
+        }
+        
+        mediaRepository.save(mediaFile);
+        log.debug("更新媒体文件最后访问时间: mediaId={}, lastAccessTime={}", mediaId, now);
+    }
+
+    /**
+     * 批量更新最后访问时间
+     * @param mediaIds 媒体文件ID列表
+     */
+    @Transactional
+    public void batchUpdateLastAccessTime(List<Long> mediaIds) {
+        for (Long mediaId : mediaIds) {
+            updateLastAccessTime(mediaId);
+        }
+    }
+
+    /**
+     * 处理冷数据访问
+     * 根据数据类型采取不同的恢复策略：
+     * 1. 私人数据（活动/状态记录）：恢复后保持10分钟临时访问
+     * 2. 社区动态：立即恢复，重新开始7天倒计时
+     * 
+     * @param mediaFile 媒体文件
+     */
+    private void handleColdDataAccess(MediaFile mediaFile) {
+        RelatedType relatedType = mediaFile.getRelatedType();
+        String fileUrl = mediaFile.getFileUrl();
+        
+        try {
+            if (relatedType == RelatedType.ACTIVITY || relatedType == RelatedType.STATUS) {
+                // 私人数据：恢复归档文件（10分钟临时访问）
+                log.info("访问私人冷数据，准备恢复: mediaId={}, type={}", mediaFile.getMediaId(), relatedType);
+                cosStorageService.restoreArchivedFile(fileUrl);
+                // 注意：私人数据访问后不改变状态，保持Cold
+                
+            } else if (relatedType == RelatedType.MOMENT) {
+                // 社区动态：恢复并重新激活
+                log.info("访问社区冷数据，恢复激活: mediaId={}", mediaFile.getMediaId());
+                
+                // 恢复归档文件
+                cosStorageService.restoreArchivedFile(fileUrl);
+                
+                // 重新设置为热数据
+                mediaFile.setStatus("Hot");
+                // 移除COS标签（可选，让文件重新开始生命周期倒计时）
+                // cosStorageService.setFileTagging(fileUrl, "Status", "Hot");
+                
+                log.info("社区冷数据已激活，重新开始7天倒计时: mediaId={}", mediaFile.getMediaId());
+            }
+            
+        } catch (Exception e) {
+            log.error("处理冷数据访问失败: mediaId={}, error={}", mediaFile.getMediaId(), e.getMessage());
+            // 不抛出异常，允许用户尝试获取文件
+        }
+    }
+
+    /**
+     * 获取媒体文件的访问URL（处理冷数据恢复）
+     * 
+     * @param mediaId 媒体文件ID
+     * @return 文件访问URL
+     */
+    public String getMediaAccessUrl(Long mediaId) {
+        MediaFile mediaFile = getMediaFileById(mediaId);
+        
+        // 更新最后访问时间
+        updateLastAccessTime(mediaId);
+        
+        return mediaFile.getFileUrl();
+    }
+
+    /**
+     * 检查媒体文件是否为冷数据
+     * 
+     * @param mediaId 媒体文件ID
+     * @return true if cold
+     */
+    public boolean isColdData(Long mediaId) {
+        MediaFile mediaFile = getMediaFileById(mediaId);
+        return "Cold".equals(mediaFile.getStatus());
+    }
+
+    /**
+     * 手动恢复冷数据
+     * 
+     * @param mediaId 媒体文件ID
+     * @return 恢复结果信息
+     */
+    @Transactional
+    public String restoreColdData(Long mediaId) {
+        MediaFile mediaFile = getMediaFileById(mediaId);
+        
+        if (!"Cold".equals(mediaFile.getStatus())) {
+            return "文件不是冷数据，无需恢复";
+        }
+        
+        try {
+            // 恢复COS文件
+            String result = cosStorageService.restoreArchivedFile(mediaFile.getFileUrl());
+            
+            // 更新数据库状态
+            mediaFile.setStatus("Hot");
+            mediaRepository.save(mediaFile);
+            
+            log.info("冷数据手动恢复成功: mediaId={}", mediaId);
+            return "恢复成功: " + result;
+            
+        } catch (Exception e) {
+            log.error("冷数据手动恢复失败: mediaId={}, error={}", mediaId, e.getMessage());
+            return "恢复失败: " + e.getMessage();
+        }
     }
 
     /**

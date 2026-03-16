@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,4 +55,32 @@ public interface MediaRepository extends JpaRepository<MediaFile, Long> {
     @Query("SELECT m FROM MediaFile m WHERE m.relatedType = :relatedType AND m.relatedId IN :relatedIds")
     List<MediaFile> findByRelatedTypeAndRelatedIdIn(@Param("relatedType") RelatedType relatedType,
                                                     @Param("relatedIds") List<Long> relatedIds);
+
+    // ==================== 冷热分离查询 ====================
+
+    // 查询用户私人数据（活动/状态记录）中超过N天未访问的热数据
+    @Query("SELECT m FROM MediaFile m WHERE m.status = 'Hot' AND m.relatedType IN :privateTypes " +
+           "AND m.uploadTime < :threshold AND m.relatedType != 'USER_AVATAR'")
+    List<MediaFile> findPrivateMediaToArchive(
+            @Param("privateTypes") List<RelatedType> privateTypes,
+            @Param("threshold") LocalDateTime threshold);
+
+    // 查询社区动态中超过N天未访问的热数据
+    @Query("SELECT m FROM MediaFile m WHERE m.status = 'Hot' AND m.relatedType = 'MOMENT' " +
+           "AND m.lastAccessTime < :threshold")
+    List<MediaFile> findCommunityMediaToArchive(@Param("threshold") LocalDateTime threshold);
+
+    // 查询所有热数据（排除头像）
+    @Query("SELECT m FROM MediaFile m WHERE m.status = 'Hot' AND m.relatedType != 'USER_AVATAR'")
+    List<MediaFile> findAllHotMedia();
+
+    // 更新最后访问时间
+    @Modifying
+    @Query("UPDATE MediaFile m SET m.lastAccessTime = :lastAccessTime WHERE m.mediaId = :mediaId")
+    void updateLastAccessTime(@Param("mediaId") Long mediaId, @Param("lastAccessTime") LocalDateTime lastAccessTime);
+
+    // 批量更新状态
+    @Modifying
+    @Query("UPDATE MediaFile m SET m.status = :status WHERE m.mediaId IN :mediaIds")
+    void batchUpdateStatus(@Param("mediaIds") List<Long> mediaIds, @Param("status") String status);
 }

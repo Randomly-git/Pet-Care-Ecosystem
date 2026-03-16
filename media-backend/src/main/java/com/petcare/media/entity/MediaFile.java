@@ -2,6 +2,8 @@ package com.petcare.media.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -41,8 +43,23 @@ public class MediaFile {
     @Column(name = "description")
     private String description;
 
+    // 冷热状态: Hot(热数据) / Cold(冷数据)
+    @Column(name = "status")
+    private String status = "Hot";
+
+    // 最后访问时间（用于社区内容的7天倒计时）
+    @Column(name = "last_access_time")
+    private LocalDateTime lastAccessTime;
+
+    // 头像不参与冷热分离
+    @JsonIgnore
+    public boolean isExemptFromColdStorage() {
+        return relatedType == RelatedType.USER_AVATAR;
+    }
+
     @PrePersist
     protected void onCreate() {
         uploadTime = LocalDateTime.now();
+        lastAccessTime = LocalDateTime.now();
     }
 }
