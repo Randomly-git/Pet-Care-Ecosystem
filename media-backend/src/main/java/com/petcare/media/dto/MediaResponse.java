@@ -1,7 +1,6 @@
 // dto/MediaResponse.java
 package com.petcare.media.dto;
 
-import com.petcare.media.entity.RelatedType;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -17,6 +16,8 @@ public class MediaResponse {
     private String relatedType;  // 返回字符串给前端
     private String relatedTypeDesc; // 类型描述
     private Long relatedId;
+    private String status; // 冷热状态: Hot / Cold
+    private LocalDateTime lastAccessTime; // 最后访问时间
 
     public static MediaResponse fromEntity(com.petcare.media.entity.MediaFile mediaFile) {
         MediaResponse response = new MediaResponse();
@@ -30,6 +31,8 @@ public class MediaResponse {
         response.setRelatedType(mediaFile.getRelatedType().name());
         response.setRelatedTypeDesc(mediaFile.getRelatedType().getDescription());
         response.setRelatedId(mediaFile.getRelatedId());
+        response.setStatus(mediaFile.getStatus());
+        response.setLastAccessTime(mediaFile.getLastAccessTime());
         return response;
     }
 }

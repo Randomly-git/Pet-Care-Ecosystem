@@ -139,7 +139,9 @@ GET /api/status/records/pet/393
         "userId": 32,
         "relatedType": "STATUS",
         "relatedTypeDesc": "状态记录",
-        "relatedId": 1
+        "relatedId": 1,
+        "status": "Hot",
+        "lastAccessTime": "2024-01-01T10:30:00"
       }
     ],
     "mediaCount": 1,
@@ -153,6 +155,8 @@ GET /api/status/records/pet/393
 - `mediaFiles`: 媒体文件列表
 - `mediaCount`: 媒体文件总数
 - `firstMediaUrl`: 第一个媒体文件的URL（用于列表展示）
+- `status`: 冷热状态（Hot=热数据，Cold=冷数据）
+- `lastAccessTime`: 最后访问时间，用于社区动态的7天倒计时归档
 
 ### 2.2 获取某天活跃状态记录（带媒体文件信息）
 **GET** `/api/status/records/active`
@@ -429,5 +433,31 @@ file=<additional_report.pdf>
 3. **功能影响**：
    - 用户注册时不再自动创建默认状态
    - 默认状态将在创建宠物时创建（待实现）
+
+---
+
+## 冷热数据分离机制
+
+### 归档策略
+
+系统对媒体文件实行冷热数据分离管理，以优化存储成本：
+
+| 数据类型 | 归档条件 | 访问时重置倒计时 |
+|---------|---------|----------------|
+| 活动记录 (ACTIVITY) | 超过30天（按上传时间） | 否 |
+| 状态记录 (STATUS) | 超过30天（按上传时间） | 否 |
+| 社区动态 (MOMENT) | 超过7天未访问（按最后访问时间） | 是 |
+| 用户头像 (USER_AVATAR) | 不参与归档 | 不适用 |
+
+### 媒体文件状态
+
+响应中的 `status` 字段说明：
+- `Hot`: 热数据，可直接访问
+- `Cold`: 冷数据，已归档到低成本存储，首次访问需要恢复
+
+### lastAccessTime 字段说明
+
+- **活动/状态记录**: 该字段为上传时间的副本，用于记录文件上传时间，归档不受访问影响
+- **社区动态**: 每次访问该动态都会更新 `lastAccessTime`，重置7天倒计时
 
 ---
