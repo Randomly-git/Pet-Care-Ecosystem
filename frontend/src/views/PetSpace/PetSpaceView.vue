@@ -223,21 +223,51 @@ const allActivities = computed(() => {
       images: []
     }
   })
+  // 将用户活动与默认数据合并
+  return [...userActivities.value.map(activity => {
+    // 根据activityKindId映射到ActivityList的category
+    let category = 'activity' // 默认类别
+    switch (activity.activityKindId) {
+      case 1: // 喂养
+        category = 'diet'
+        break
+      case 6: // 医疗
+      case 7: // 生育
+        category = 'health'
+        break
+      case 3: // 清洁
+        category = 'hygiene'
+        break
+      case 2: // 互动
+      case 4: // 外出
+      case 5: // 运动
+        category = 'activity'
+        break
+      case 8: // 异常
+      case 9: // 其他
+        category = 'health' // 异常和其他归为健康相关
+        break
+    }
+
+    return {
+      id: activity.activityId,
+      name: activity.activityName,
+      category: category,
+      completed: activity.state === 1, // state=1表示启用
+      description: `活动种类ID: ${activity.activityKindId}`,
+      time: '全天',
+      frequency: 'daily',
+      autoMark: false,
+      reminder: false,
+      reminderMinutes: 15,
+      importance: 'normal',
+      images: []
+    }
+  }), ...defaultActivities]
 })
-  {
-    id: 1,
-    category: 'diet',
-    name: '早餐',
-    time: '08:00',
-    completed: true,
-    frequency: 'daily',
-    autoMark: true,
-    reminder: true,
-    reminderMinutes: 15,
-    importance: 'normal',
-    description: '每天早上的第一顿饭',
-    images: []
-  },
+
+// 默认活动数据
+const defaultActivities = [
   {
     id: 2,
     category: 'diet',
@@ -323,9 +353,7 @@ const allActivities = computed(() => {
     description: '每天陪宠物玩耍',
     images: ['play1.jpg']
   }
-])
-
-// ===== 今天的活动数据 =====
+]// ===== 今天的活动数据 =====
 const getTodayActivities = () => {
   // 基于allActivities生成今天的活动
   return allActivities.value
@@ -839,6 +867,7 @@ loadUserActivities()
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
+  margin-left: 50px;
 }
 
 .activity-card {

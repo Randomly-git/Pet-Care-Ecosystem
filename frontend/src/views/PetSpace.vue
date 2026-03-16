@@ -1520,6 +1520,7 @@ onMounted(async () => {
   border: 1px solid #e8e8e8;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: box-shadow 0.2s ease;
+  margin-left: 50px;
 }
 
 .simple-moment-card:hover {

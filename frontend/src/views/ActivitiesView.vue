@@ -252,7 +252,6 @@
             </div>
           </div>
         </div>
-        </div>
       </div>
       </div>
     </div>
@@ -688,7 +687,15 @@
       </template>
     </el-dialog>
 
-    <!-- 使用统一的布局底部 -->
+    <!-- 右侧边栏 - 宠物状态卡片 -->
+    <div v-if="selectedPetId" class="right-sidebar">
+      <PetStatusCard
+        :pet-id="selectedPetId"
+        :pet-info="getPetInfo(selectedPetId)"
+      />
+    </div>
+    </div>
+    <!-- 使用统一的布局底部（整页宽度，与首页一致） -->
     <AppFooter />
   </div>
 </template>
@@ -700,6 +707,7 @@ import { useAuthStore } from '@/stores/auth'
 import apiService from '@/api/modules'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import PetStatusCard from '@/components/petspace/PetStatusCard.vue'
 import {
   Plus,
   Refresh,
@@ -2529,9 +2537,30 @@ watch([currentUserId], () => {
   position: relative;
   margin: 0 auto;
   margin-left: calc(2rem + 310px);
-  margin-right: calc(2rem + 110px);
+  margin-right: calc(2rem + 350px);
   max-width: 1300px;
   width: 100%;
+}
+
+/* 右侧边栏 - 宠物状态卡片 */
+.right-sidebar {
+  position: fixed;
+  top: 120px;
+  right: 2rem;
+  width: 320px;
+  max-height: calc(100vh - 140px);
+  z-index: 1000;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.right-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.right-sidebar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
 }
 
 /* 在小屏幕上调整布局 */
@@ -2543,6 +2572,16 @@ watch([currentUserId], () => {
 
   .record-type-cards {
     right: calc(2rem + 100px);
+  }
+}
+
+@media (max-width: 1200px) {
+  .right-sidebar {
+    display: none;
+  }
+
+  .main-content-area {
+    margin-right: 2rem;
   }
 }
 
