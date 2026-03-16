@@ -14,10 +14,11 @@
         @moment-created="handleMomentCreated"
       />
 
-      <!-- 动态列表 -->
+      <!-- 动态列表：传入当前用户展示名，刷新后自己的帖子也显示昵称 -->
       <MomentList
         :user-id="currentUserId"
         :current-user-id="currentUserId"
+        :current-user-display-name="userName"
         @moment-updated="handleMomentUpdated"
       />
     </div>
@@ -52,7 +53,7 @@ export default {
     const loadUserInfo = async () => {
       try {
         if (authStore.isAuthenticated && authStore.user) {
-          currentUserId.value = authStore.user.id || 1
+          currentUserId.value = authStore.user.userId || authStore.user.id || 1
           userName.value = authStore.user.nickname || authStore.user.name || '宠物爱好者'
           userAvatar.value = authStore.user.avatarUrl || ''
         } else {

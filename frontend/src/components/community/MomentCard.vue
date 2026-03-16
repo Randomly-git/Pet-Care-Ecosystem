@@ -6,11 +6,11 @@
         <div class="user-info">
           <img
             :src="moment.avatarUrl || '/default-avatar.png'"
-            :alt="moment.authorName"
+            :alt="displayAuthorName"
             class="user-avatar"
           />
           <div class="user-details">
-            <h4 class="author-name">{{ moment.authorName }}</h4>
+            <h4 class="author-name">{{ displayAuthorName }}</h4>
             <p class="publish-time">{{ formatTime(moment.createdAt) }}</p>
           </div>
         </div>
@@ -138,10 +138,27 @@ export default {
     currentUserId: {
       type: Number,
       required: true
+    },
+    /** 当前用户展示名，自己的帖子刷新后优先显示此昵称 */
+    currentUserDisplayName: {
+      type: String,
+      default: ''
     }
   },
   emits: ['like-updated', 'comment-added', 'moment-deleted'],
   setup(props, { emit }) {
+    const displayAuthorName = computed(() => {
+      // 统一转为数字比较，避免类型不一致导致比较失败
+      const currentUid = Number(props.currentUserId)
+      const momentUid = Number(props.moment?.userId)
+
+      // 如果是当前用户的动态，且有传入显示名，则使用显示名
+      if (momentUid === currentUid && props.currentUserDisplayName) {
+        return props.currentUserDisplayName
+      }
+      return props.moment?.authorName || '宠物爱好者'
+    })
+
     const showComments = ref(false)
     const comments = ref([])
     const newComment = ref('')
@@ -313,7 +330,7 @@ export default {
     const shareMoment = () => {
       if (navigator.share) {
         navigator.share({
-          title: `${props.moment.authorName}的动态`,
+          title: `${displayAuthorName.value}的动态`,
           text: props.moment.content,
           url: window.location.href
         })
@@ -325,6 +342,7 @@ export default {
     }
 
     return {
+      displayAuthorName,
       showComments,
       comments,
       newComment,

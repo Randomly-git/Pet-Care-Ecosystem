@@ -14,45 +14,6 @@
       </div>
     </section>
 
-    <!-- 记录类型切换卡片 -->
-    <section class="record-switch-section">
-      <div class="container">
-        <div class="record-type-cards">
-          <div
-            class="record-type-card"
-            :class="{ active: currentRecordType === 'activity' }"
-            @click="switchToActivity"
-          >
-            <div class="card-icon">
-              <i class="fas fa-calendar-check"></i>
-            </div>
-            <div class="card-content">
-              <h3>活动记录</h3>
-              <p>记录宠物的日常活动和特殊时刻</p>
-              <div class="card-count">{{ activityCount }}</div>
-            </div>
-            <div class="card-indicator"></div>
-          </div>
-
-          <div
-            class="record-type-card"
-            :class="{ active: currentRecordType === 'status' }"
-            @click="switchToStatus"
-          >
-            <div class="card-icon">
-              <i class="fas fa-heartbeat"></i>
-            </div>
-            <div class="card-content">
-              <h3>状态记录</h3>
-              <p>追踪宠物的健康和状态变化</p>
-              <div class="card-count">{{ statusCount }}</div>
-            </div>
-            <div class="card-indicator"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- 主要内容区域 -->
     <div class="content-layout">
     <!-- 左侧宠物边栏 -->
@@ -292,156 +253,10 @@
           </div>
         </div>
         </div>
-        </div>
-
-        <!-- 状态记录内容 -->
-        <div v-if="currentRecordType === 'status'" class="status-content">
-          <div class="content-container">
-          <!-- 状态记录操作栏 -->
-          <div class="status-action-bar">
-            <div class="action-left">
-              <el-date-picker
-                v-model="statusDateRange"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                @change="handleStatusDateRangeChange"
-                size="default"
-                style="width: 240px; margin-left: 12px"
-              />
-            </div>
-
-            <div class="action-right">
-              <el-button type="success" @click="showAddStatusDialog = true">
-                <el-icon><Plus /></el-icon>
-                添加状态记录
-              </el-button>
-              <el-button @click="refreshStatusData">
-                <el-icon><Refresh /></el-icon>
-                刷新
-              </el-button>
-            </div>
-          </div>
-
-          <!-- 状态记录时间线 -->
-          <div class="status-timeline-section">
-            <div v-if="statusLoading" class="loading-container">
-              <el-skeleton :rows="5" animated />
-            </div>
-
-            <div v-else-if="filteredStatusRecords.length === 0" class="empty-state">
-              <el-empty description="暂无状态记录">
-                <el-button type="primary" @click="showAddStatusDialog = true">
-                  创建第一条状态记录
-                </el-button>
-              </el-empty>
-            </div>
-
-            <div v-else class="status-timeline">
-              <div
-                v-for="(group, date) in groupedStatusRecords"
-                :key="date"
-                class="timeline-group"
-              >
-                <div class="timeline-date">
-                  <div class="date-badge">{{ formatDate(date) }}</div>
-                </div>
-
-                <div class="timeline-items">
-                  <div
-                    v-for="record in group"
-                    :key="record.statusRecordId"
-                    class="timeline-item status-item"
-                    @click="editStatusRecord(record)"
-                  >
-                    <div class="timeline-marker">
-                      <div class="marker-dot status-dot"></div>
-                      <div class="marker-line"></div>
-                    </div>
-
-                    <div class="timeline-content">
-                      <div class="record-card status-record-card">
-                        <div class="record-header">
-                          <div class="pet-info">
-                            <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
-                              {{ getPetInfo(record.petId).name.charAt(0) }}
-                            </el-avatar>
-                            <div class="pet-details">
-                              <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
-                              <div class="status-type">{{ record.statusName }}</div>
-                            </div>
-                          </div>
-                          <div class="record-status-info">
-                            <div class="record-time">{{ formatTime(record.startDate) }}</div>
-                            <div class="status-duration" v-if="record.endDate">
-                              至 {{ formatTime(record.endDate) }}
-                            </div>
-                            <div class="status-active" v-else>
-                              <span class="active-indicator"></span>
-                              进行中
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="record-description" v-if="record.statusDescription">
-                          {{ record.statusDescription }}
-                        </div>
-
-                        <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
-                          <div class="media-preview">
-                            <div
-                              v-for="media in record.mediaFiles.slice(0, 3)"
-                              :key="media.mediaId"
-                              class="media-item"
-                              @click.stop="previewMedia(media)"
-                            >
-                              <img
-                                v-if="media.fileType.startsWith('image/')"
-                                :src="media.fileUrl"
-                                :alt="media.fileName"
-                              />
-                              <div v-else class="file-icon">
-                                <i class="fas fa-file"></i>
-                              </div>
-                            </div>
-                            <div v-if="record.mediaFiles.length > 3" class="more-media">
-                              +{{ record.mediaFiles.length - 3 }}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="record-actions">
-                          <el-button size="small" @click.stop="editStatusRecord(record)">
-                            编辑
-                          </el-button>
-                          <el-button
-                            v-if="!record.endDate"
-                            size="small"
-                            type="warning"
-                            @click.stop="stopStatusRecord(record)"
-                          >
-                            停止
-                          </el-button>
-                          <el-button size="small" type="danger" @click.stop="deleteStatusRecord(record)">
-                            删除
-                          </el-button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       </div>
     </div>
 
-  
     <!-- 添加活动记录对话框 -->
     <el-dialog
       v-model="showAddDialog"
@@ -489,10 +304,10 @@
           <div style="display: flex; gap: 8px;">
             <el-select
               v-model="addForm.activityId"
-              placeholder="选择具体活动（可选，也可直接使用类别）"
+              placeholder="选择具体活动"
               style="flex: 1"
               filterable
-              no-data-text="该类别下暂无活动，可直接使用类别创建记录"
+              no-data-text="该类别下暂无活动，请新建活动"
             >
               <el-option
                 v-for="activity in getActivitiesByKind(addForm.activityKindId)"
@@ -529,9 +344,6 @@
               <span v-else-if="addForm.activityKindId === 8">呕吐、腹泻、跛行等</span>
               <span v-else>其他具体活动</span>
             </div>
-            <div v-else>
-              既有具体活动可选，也可以直接使用活动类别创建记录
-            </div>
           </div>
         </el-form-item>
 
@@ -541,7 +353,7 @@
             type="datetime"
             placeholder="选择活动时间"
             format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"
           />
         </el-form-item>
@@ -619,7 +431,7 @@
             type="datetime"
             placeholder="选择活动时间"
             format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"
           />
         </el-form-item>
@@ -791,295 +603,6 @@
       </template>
     </el-dialog>
 
-    <!-- 添加状态记录对话框 -->
-    <el-dialog
-      v-model="showAddStatusDialog"
-      title="添加状态记录"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="addStatusFormRef"
-        :model="addStatusForm"
-        :rules="addStatusFormRules"
-        label-width="100px"
-      >
-        <el-form-item label="选择宠物" prop="petId">
-          <el-select v-model="addStatusForm.petId" placeholder="请选择宠物" style="width: 100%">
-            <el-option
-              v-for="pet in userPets"
-              :key="pet.id || pet.petId"
-              :label="pet.name"
-              :value="pet.id || pet.petId"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="状态类型" prop="statusId">
-          <el-select v-model="addStatusForm.statusId" placeholder="选择状态类型" style="width: 100%">
-            <el-option
-              v-for="status in userStatuses"
-              :key="status.statusId"
-              :label="status.statusName"
-              :value="status.statusId"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="开始日期" prop="startDate">
-          <el-date-picker
-            v-model="addStatusForm.startDate"
-            type="date"
-            placeholder="选择开始日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-
-        <el-form-item label="状态描述" prop="description">
-          <el-input
-            v-model="addStatusForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入状态描述..."
-          />
-        </el-form-item>
-
-        <el-form-item label="上传文件">
-          <el-upload
-            ref="statusUploadRef"
-            :auto-upload="false"
-            :on-change="handleStatusFileChange"
-            :limit="1"
-            :file-list="statusFileList"
-            action="#"
-            :accept="'image/*,.pdf,.doc,.docx'"
-          >
-            <el-button>选择文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                支持图片、PDF、Word文档，文件大小不超过10MB
-              </div>
-            </template>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="showAddStatusDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitAddStatusForm" :loading="submittingStatus">
-          确定
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 编辑状态记录对话框 -->
-    <el-dialog
-      v-model="showEditStatusDialog"
-      title="编辑状态记录"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="editStatusFormRef"
-        :model="editStatusForm"
-        :rules="editStatusFormRules"
-        label-width="100px"
-      >
-        <el-form-item label="宠物名称" prop="petId">
-          <el-input v-model="editStatusForm.petName" disabled placeholder="宠物名称" />
-        </el-form-item>
-
-        <el-form-item label="状态类型" prop="statusId">
-          <el-select v-model="editStatusForm.statusId" placeholder="选择状态类型" style="width: 100%">
-            <el-option
-              v-for="status in userStatuses"
-              :key="status.statusId"
-              :label="status.statusName"
-              :value="status.statusId"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="开始日期" prop="startDate">
-          <el-date-picker
-            v-model="editStatusForm.startDate"
-            type="date"
-            placeholder="选择开始日期"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-
-        <el-form-item label="结束日期" prop="endDate">
-          <el-date-picker
-            v-model="editStatusForm.endDate"
-            type="date"
-            placeholder="选择结束日期（可选）"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-
-        <el-form-item label="状态描述" prop="description">
-          <el-input
-            v-model="editStatusForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入状态描述..."
-          />
-        </el-form-item>
-
-        <el-form-item label="更新文件">
-          <el-upload
-            ref="editStatusUploadRef"
-            :auto-upload="false"
-            :on-change="handleEditStatusFileChange"
-            :limit="1"
-            :file-list="editStatusFileList"
-            action="#"
-            :accept="'image/*,.pdf,.doc,.docx'"
-          >
-            <el-button>选择新文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                上传新文件将替换现有文件，支持图片、PDF、Word文档
-              </div>
-            </template>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="showEditStatusDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitEditStatusForm" :loading="submittingStatus">
-          更新
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <!-- AI状态总结对话框 -->
-    <el-dialog
-      v-model="showAISummaryDialog"
-      :title="`✨ ${currentPetName}的AI状态分析`"
-      width="700px"
-      :close-on-click-modal="false"
-    >
-      <div v-loading="aiSummaryLoading" element-loading-text="AI正在分析中...">
-        <!-- 提示词输入区域 -->
-        <div v-if="!aiSummaryContent && !aiSummaryLoading" class="ai-prompt-section">
-          <div class="prompt-header">
-            <el-icon class="prompt-icon"><EditPen /></el-icon>
-            <span class="prompt-title">主人特别关心的问题（可选）</span>
-          </div>
-          <div class="prompt-description">
-            您可以选择直接进行通用AI分析，或输入具体关注点获得个性化建议
-          </div>
-
-          <!-- 分析模式选择 -->
-          <div class="analysis-mode-selector">
-            <div class="mode-tabs">
-              <button
-                :class="['mode-tab', { active: !useCustomPrompt }]"
-                @click="useCustomPrompt = false"
-              >
-                <el-icon><MagicStick /></el-icon>
-                <span>通用分析</span>
-              </button>
-              <button
-                :class="['mode-tab', { active: useCustomPrompt }]"
-                @click="useCustomPrompt = true"
-              >
-                <el-icon><EditPen /></el-icon>
-                <span>个性化分析</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 个性化提示词输入 -->
-          <div v-if="useCustomPrompt" class="custom-prompt-input">
-            <el-form>
-              <el-form-item>
-                <el-input
-                  v-model="userPrompt"
-                  type="textarea"
-                  :rows="4"
-                  placeholder="例如：最近总是拉肚子，想了解消化系统健康情况；或者想知道怎么帮助宠物减肥..."
-                  maxlength="500"
-                  show-word-limit
-                  clearable
-                />
-              </el-form-item>
-            </el-form>
-            <div class="prompt-examples">
-              <div class="examples-title">快速选择：</div>
-              <div class="examples-list">
-                <span class="example-tag" @click="setExamplePrompt('最近总是呕吐，想了解消化系统健康情况')">消化问题</span>
-                <span class="example-tag" @click="setExamplePrompt('想知道怎么帮助宠物减肥')">体重管理</span>
-                <span class="example-tag" @click="setExamplePrompt('关节好像有问题，走路一瘸一拐')">关节健康</span>
-                <span class="example-tag" @click="setExamplePrompt('皮肤总是发痒，经常抓挠')">皮肤问题</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 通用分析说明 -->
-          <div v-else class="general-analysis-info">
-            <div class="info-card">
-              <el-icon class="info-icon"><MagicStick /></el-icon>
-              <div class="info-content">
-                <div class="info-title">通用AI健康分析</div>
-                <div class="info-description">基于宠物的所有活动记录和状态数据，AI将为您提供全面的健康分析和建议</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI分析结果 -->
-        <div v-if="aiSummaryContent" class="ai-summary-content">
-          <div class="ai-summary-header">
-            <el-icon class="ai-icon"><MagicStick /></el-icon>
-            <span>AI智能分析报告</span>
-          </div>
-          <div v-if="userPrompt && userPrompt.trim()" class="user-prompt-display">
-            <div class="prompt-display-title">您的关注点：</div>
-            <div class="prompt-display-content">{{ userPrompt }}</div>
-          </div>
-          <div class="ai-summary-text" v-html="formattedAISummary"></div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="showAISummaryDialog = false">关闭</el-button>
-        <el-button
-          v-if="!aiSummaryContent && !aiSummaryLoading && !useCustomPrompt"
-          type="primary"
-          @click="startGeneralAnalysis"
-        >
-          开始通用分析
-        </el-button>
-        <el-button
-          v-if="!aiSummaryContent && !aiSummaryLoading && useCustomPrompt"
-          type="primary"
-          @click="startCustomAnalysis"
-          :disabled="!userPrompt || !userPrompt.trim()"
-        >
-          开始个性化分析
-        </el-button>
-        <el-button
-          v-if="aiSummaryContent"
-          type="warning"
-          @click="reanalyzeWithNewPrompt"
-        >
-          重新分析
-        </el-button>
-        <el-button type="primary" @click="copyAISummary" v-if="aiSummaryContent">
-          复制报告
-        </el-button>
-      </template>
-    </el-dialog>
-
     <!-- 活动统计对话框 -->
     <el-dialog
       v-model="showStatsDialog"
@@ -1088,8 +611,6 @@
       :close-on-click-modal="false"
     >
       <div v-loading="statsLoading" element-loading-text="加载统计数据中...">
-        <div v-if="statsData" class="stats-content">
-          <!-- 统计周期切换 -->
           <div class="stats-period-selector">
             <el-radio-group v-model="statsPeriod" @change="handleStatsPeriodChange">
               <el-radio-button label="MONTHLY">月度统计</el-radio-button>
@@ -1158,10 +679,9 @@
             </div>
             <el-empty v-else description="暂无统计数据" :image-size="80" />
           </div>
-        </div>
-        <div v-else-if="!statsLoading" class="stats-empty">
-          <el-empty description="暂无统计数据" />
-        </div>
+          <div v-if="!statsLoading && !statsData" class="stats-empty">
+            <el-empty description="暂无统计数据" />
+          </div>
       </div>
       <template #footer>
         <el-button @click="showStatsDialog = false">关闭</el-button>
@@ -1274,6 +794,20 @@ const editStatusForm = ref({
 // 表单数据
 const addFormRef = ref()
 const editFormRef = ref()
+
+// 格式化日期为本地时间 (北京时间 UTC+8)
+// 返回格式: yyyy-MM-dd'T'HH:mm:ss (API要求的格式)
+const formatDateToLocal = (date) => {
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  const seconds = String(d.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+}
+
 const addForm = ref({
   petId: null,
   activityKindId: null,
@@ -1622,10 +1156,8 @@ const submitCreateActivity = async () => {
 
     ElMessage.success('活动创建成功！')
 
-    // 将新活动添加到用户活动列表
-    if (newActivity) {
-      userActivities.value.push(newActivity)
-    }
+    // 重新从API加载活动列表，确保获取最新数据
+    await loadUserActivities()
 
     // 关闭对话框并重置表单
     showCreateActivityDialog.value = false
@@ -1633,9 +1165,12 @@ const submitCreateActivity = async () => {
       activityName: ''
     }
 
-    // 自动选择新创建的活动
-    if (newActivity && newActivity.activityId) {
-      addForm.value.activityId = newActivity.activityId
+    // 自动选择新创建的活动（通过名称匹配）
+    const newlyCreatedActivity = userActivities.value.find(
+      a => a.activityName === activityData.activityName && a.activityKindId === activityData.activityKindId
+    )
+    if (newlyCreatedActivity) {
+      addForm.value.activityId = newlyCreatedActivity.activityId
     }
 
   } catch (error) {
@@ -1822,7 +1357,7 @@ const refreshData = async () => {
 const openAddDialog = () => {
   // 设置默认时间为当前系统时间
   const now = new Date()
-  const formattedNow = now.toISOString().slice(0, 19).replace('T', ' ') // 格式: YYYY-MM-DD HH:mm:ss
+  const formattedNow = formatDateToLocal(now)
   addForm.value.activityDate = formattedNow
 
   // 设置默认宠物为当前选中的宠物
@@ -1859,9 +1394,8 @@ const submitAddForm = async () => {
 
     const petId = pet.petId || pet.id
 
-    // 格式化日期为API要求的格式 yyyy-MM-dd'T'HH:mm:ss
-    const activityDate = new Date(addForm.value.activityDate)
-    const formattedDate = activityDate.toISOString().slice(0, 19) // 保留 'T'
+    // 格式化日期为API要求的格式 yyyy-MM-dd HH:mm:ss
+    const formattedDate = formatDateToLocal(addForm.value.activityDate)
 
     let recordData
     let result
@@ -1939,12 +1473,13 @@ const editRecord = (record) => {
     const pet = getPetInfo(record.petId)
 
     // 填充编辑表单
+    // 日期选择器value-format已配置为返回正确格式，无需再转换
     editForm.value = {
       activityRecordId: record.activityRecordId || record.id,
       petId: record.petId,
       petName: pet.name || '未知宠物',
       activityId: activityKindId, // 直接使用活动记录中的activityKindId
-      activityDate: record.activityDate ? new Date(record.activityDate).toISOString().slice(0, 19).replace('T', ' ') : '',
+      activityDate: record.activityDate || '',
       description: record.activityDescription || record.description || '',
       mediaFiles: record.mediaFiles || [] // 初始化媒体文件数组
     }
@@ -1975,9 +1510,8 @@ const submitEditForm = async () => {
 
     console.log('submitEditForm: 找到的匹配活动:', matchingActivity)
 
-    // 格式化日期为API要求的格式 yyyy-MM-dd'T'HH:mm:ss
-    const activityDate = new Date(editForm.value.activityDate)
-    const formattedDate = activityDate.toISOString().slice(0, 19) // 保留 'T'
+    // 格式化日期为API要求的格式 yyyy-MM-dd HH:mm:ss
+    const formattedDate = formatDateToLocal(editForm.value.activityDate)
 
     // 导入API并更新记录
     const { updateActivityRecord } = await import('@/api/activities')
@@ -2933,7 +2467,7 @@ watch([currentUserId], () => {
 .pets-sidebar {
   position: fixed;
   top: 120px;
-  left: calc(2rem + 140px);
+  left: calc(2rem + 40px);
   width: 280px;
   max-height: calc(100vh - 140px);
   background: white;
@@ -2994,7 +2528,7 @@ watch([currentUserId], () => {
   min-width: 0;
   position: relative;
   margin: 0 auto;
-  margin-left: calc(2rem + 410px);
+  margin-left: calc(2rem + 310px);
   margin-right: calc(2rem + 110px);
   max-width: 1300px;
   width: 100%;
@@ -3003,7 +2537,7 @@ watch([currentUserId], () => {
 /* 在小屏幕上调整布局 */
 @media (max-width: 1400px) {
   .main-content-area {
-    margin-left: calc(2rem + 350px);
+    margin-left: calc(2rem + 250px);
     margin-right: calc(2rem + 110px);
   }
 

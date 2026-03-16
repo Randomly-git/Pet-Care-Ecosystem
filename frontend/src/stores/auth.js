@@ -49,11 +49,11 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error(response.message || '登录失败')
       }
 
-      const { token: newToken, userId, name } = response.data
+      const { token: newToken, userId, name, nickname } = response.data
 
-      // 保存token和用户信息
+      // 保存token和用户信息（昵称用于社区等展示）
       token.value = newToken
-      user.value = { userId, name, username: name }
+      user.value = { userId, id: userId, name, nickname: nickname || name, username: name }
       loginTime.value = new Date().getTime()
 
       // 持久化存储

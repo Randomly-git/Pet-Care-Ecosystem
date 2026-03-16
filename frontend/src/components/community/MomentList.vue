@@ -21,6 +21,7 @@
           :key="moment.id"
           :moment="moment"
           :current-user-id="currentUserId"
+          :current-user-display-name="currentUserDisplayName"
           @like-updated="handleLikeUpdated"
           @comment-added="handleCommentAdded"
           @moment-deleted="handleMomentDeleted"
@@ -66,6 +67,11 @@ export default {
       type: Number,
       required: true
     },
+    /** 当前用户展示名，用于自己的帖子在刷新后仍显示昵称而非「用户X」 */
+    currentUserDisplayName: {
+      type: String,
+      default: ''
+    },
     pageSize: {
       type: Number,
       default: 10
@@ -73,6 +79,7 @@ export default {
   },
   emits: ['moment-updated'],
   setup(props, { emit }) {
+    const currentUserDisplayName = computed(() => props.currentUserDisplayName || '')
     const moments = ref([])
     const loading = ref(false)
     const loadingMore = ref(false)
@@ -174,6 +181,8 @@ export default {
       loadingMore,
       hasMore,
       loadMore,
+      currentUserId: () => props.currentUserId,
+      currentUserDisplayName,
       handleLikeUpdated,
       handleCommentAdded,
       handleMomentDeleted,
