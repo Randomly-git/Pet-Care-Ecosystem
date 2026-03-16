@@ -21,15 +21,15 @@ public interface StatusRepository extends JpaRepository<Status, Long> {
     // 根据状态名称查找
     List<Status> findByStatusName(String statusName);
 
-    // 根据宠物ID和状态名称查找
-    List<Status> findByPetPetIdAndStatusName(Long petId, String statusName);
+    // 根据宠物ID和状态名称查找（返回列表）
+    List<Status> findAllByPetPetIdAndStatusName(Long petId, String statusName);
 
     // 查找特定宠物的所有状态名称
     @Query("SELECT DISTINCT s.statusName FROM Status s WHERE s.pet.petId = :petId")
     List<String> findDistinctStatusNamesByPetId(@Param("petId") Long petId);
 
-    // 根据宠物和状态名称查找具体状态
-    Optional<Status> findByPetPetIdAndStatusName(Long petId, String statusName);
+    // 根据宠物和状态名称查找具体状态（返回单个Optional）
+    Optional<Status> findFirstByPetPetIdAndStatusName(Long petId, String statusName);
 
     // 检查宠物是否已有特定状态
     boolean existsByPetPetIdAndStatusName(Long petId, String statusName);

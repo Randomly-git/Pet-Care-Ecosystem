@@ -72,11 +72,10 @@ class StatusServiceIntegrationTest2 {
             testPet = pets.get(0);
         }
 
-        // 创建测试状态（现在关联用户而不是宠物）
+        // 创建测试状态（关联到宠物）
         testStatus = new Status();
         testStatus.setStatusName("健康状态");
-        testStatus.setUser(testUser); // 改为关联用户
-        testStatus.setState(1);
+        testStatus.setPet(testPet); // 关联到宠物
         testStatus = statusRepository.save(testStatus);
 
         // 创建测试状态记录（仍然关联宠物）

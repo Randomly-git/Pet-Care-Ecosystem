@@ -166,9 +166,9 @@ public class UserServiceImpl implements UserService {
                 new DefaultActivity(3L, Arrays.asList("剪指甲", "洗澡", "清理居所")),
                 new DefaultActivity(4L, Arrays.asList("散步", "去公园", "接触其他宠物", "接触流浪/野生动物")),
                 new DefaultActivity(5L, Arrays.asList("跑跳", "游泳", "玩球", "取物训练", "障碍训练")),
-                new DefaultActivity(6L, Arrays.asList("发情", "交配", "生产", "哺育幼崽")),
-                new DefaultActivity(7L, Arrays.asList("攻击人类", "攻击宠物", "破坏物品", "逃跑", "拒食", "持续吠叫/嚎叫", "异常叫声", "异常舔毛", "焦虑", "呕吐", "异常排泄")),
-                new DefaultActivity(8L, Arrays.asList("打疫苗", "驱虫", "体检", "手术", "绝育", "美容"))
+                new DefaultActivity(6L, Arrays.asList("打疫苗", "驱虫", "体检", "手术", "绝育", "美容")),
+                new DefaultActivity(7L, Arrays.asList("发情", "交配", "生产", "哺育幼崽")),
+                new DefaultActivity(8L, Arrays.asList("攻击人类", "攻击宠物", "破坏物品", "逃跑", "拒食", "持续吠叫/嚎叫", "异常叫声", "异常舔毛", "焦虑", "呕吐", "异常排泄"))
         );
 
         for (DefaultActivity defaultActivity : defaultActivities) {

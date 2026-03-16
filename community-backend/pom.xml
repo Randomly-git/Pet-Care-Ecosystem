@@ -165,23 +165,23 @@
                 <!-- 移除版本号，由父 POM 管理 (解决 "找不到插件" 问题) -->
                 <configuration>
                     <annotationProcessorPaths>
-                        <!-- 1. MapStruct Processor -->
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>${org.mapstruct.version}</version>
-                        </path>
-                        <!-- 2. Lombok Processor -->
+                        <!-- 1. Lombok Processor (先处理，让 MapStruct 看到生成的 getter/setter) -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
                         </path>
-                        <!-- 3. Lombok MapStruct Binding -->
+                        <!-- 2. Lombok MapStruct Binding -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok-mapstruct-binding</artifactId>
                             <version>0.2.0</version>
+                        </path>
+                        <!-- 3. MapStruct Processor (后处理) -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${org.mapstruct.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

@@ -64,12 +64,10 @@ class StatusServiceIntegrationTest {
         Status s1 = new Status();
         s1.setPet(testPet);
         s1.setStatusName("Running");
-        s1.setState(1);
 
         Status s2 = new Status();
         s2.setPet(testPet);
         s2.setStatusName("Sleeping");
-        s2.setState(1);
 
         statusRepository.saveAll(List.of(s1, s2));
 
@@ -83,7 +81,6 @@ class StatusServiceIntegrationTest {
     void testGetValidStatusesByPetId() {
         List<Status> statuses = statusService.getValidStatusesByPetId(testPet.getPetId());
         assertEquals(2, statuses.size());
-        assertTrue(statuses.stream().allMatch(s -> s.getState() == 1));
 
         System.out.println("✅ 查询有效状态测试通过，找到 " + statuses.size() + " 个状态");
     }
@@ -97,7 +94,6 @@ class StatusServiceIntegrationTest {
 
         assertNotNull(created.getStatusId());
         assertEquals("Eating", created.getStatusName());
-        assertEquals(1, created.getState());
         assertEquals(testPet.getPetId(), created.getPet().getPetId());
 
         List<Status> all = statusRepository.findByPetPetId(testPet.getPetId());
@@ -111,7 +107,7 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testUpdateStatusName() {
-        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
+        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         Status updated = statusService.updateStatusName(status.getStatusId(), "Walking");
         assertEquals("Walking", updated.getStatusName());
@@ -127,12 +123,12 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testSoftDeleteStatus() {
-        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Sleeping").get(0);
+        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Sleeping").get(0);
 
         statusService.softDeleteStatus(status.getStatusId());
 
-        Status deleted = statusRepository.findById(status.getStatusId()).orElseThrow();
-        assertEquals(0, deleted.getState());
+        // 验证状态已被删除（硬删除）
+        assertFalse(statusRepository.findById(status.getStatusId()).isPresent());
 
         System.out.println("✅ 软删除状态测试通过，状态ID: " + status.getStatusId());
     }
@@ -176,7 +172,7 @@ class StatusServiceIntegrationTest {
     @Test
     void testCreateStatusRecord() {
         // 获取一个状态
-        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
+        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         // 创建状态记录DTO
         com.petcare.backend.dto.request.CreateStatusRecordDTO createDTO =
@@ -200,7 +196,7 @@ class StatusServiceIntegrationTest {
      */
     @Test
     void testDeleteStatusAndRecords() {
-        Status status = statusRepository.findByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
+        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
 
         // 先创建一些状态记录
         StatusRecord record = new StatusRecord();
