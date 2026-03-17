@@ -2,10 +2,13 @@
  * 媒体文件上传 API 接口
  */
 
-import apiClient from './index'
+import { createUploadClient } from './index'
 
 // 媒体微服务的基础路径（通过前端代理服务器）
 const MEDIA_BASE_URL = '/media'
+
+// 创建专用的上传客户端（超时时间更长）
+const uploadClient = createUploadClient()
 
 /**
  * 上传单个媒体文件
@@ -48,13 +51,9 @@ export const uploadMedia = async (file, userId, businessType = 'MOMENT', busines
     }
 
     console.log('发送媒体上传请求到:', `${MEDIA_BASE_URL}/upload`)
-    console.log('FormData内容:')
-    for (let [key, value] of formData.entries()) {
-      console.log(`- ${key}:`, value)
-    }
 
-    // 使用apiClient处理文件上传
-    const response = await apiClient({
+    // 使用专用的上传客户端（更长超时）
+    const response = await uploadClient({
       url: `${MEDIA_BASE_URL}/upload`,
       method: 'POST',
       data: formData
@@ -65,19 +64,24 @@ export const uploadMedia = async (file, userId, businessType = 'MOMENT', busines
     return response
   } catch (error) {
     console.error('上传文件失败:', error)
+    console.error('文件', file?.name, '上传失败:', error)
     throw error
   }
 }
 
 /**
- * 批量上传媒体文件
+ * 批量上传媒体文件（分批上传，避免并发过高导致超时）
  * @param {FileList|Object} filesOrOptions - 要上传的文件列表，或包含所有参数的对象
  * @param {number} [userId] - 用户ID（当第一个参数为文件列表时使用）
  * @param {string} [businessType] - 业务类型（当第一个参数为文件列表时使用）
  * @param {number} [businessId] - 业务ID（当第一个参数为文件列表时使用）
+ * @param {Object} [options] - 额外选项
+ * @param {number} [options.batchSize=5] - 每批上传的文件数量
+ * @param {number} [options.delayMs=300] - 每批之间的延迟时间（毫秒）
+ * @param {Function} [options.onProgress] - 进度回调 (completed, total, currentFile)
  * @returns {Promise} 上传结果数组
  */
-export const uploadMultipleMedia = async (filesOrOptions, userId, businessType = 'MOMENT', businessId = null) => {
+export const uploadMultipleMedia = async (filesOrOptions, userId, businessType = 'MOMENT', businessId = null, options = {}) => {
   try {
     let files, finalUserId, finalBusinessType, finalBusinessId
 
@@ -94,6 +98,8 @@ export const uploadMultipleMedia = async (filesOrOptions, userId, businessType =
       finalUserId = filesOrOptions.userId
       finalBusinessType = filesOrOptions.relatedType || filesOrOptions.businessType || 'MOMENT'
       finalBusinessId = filesOrOptions.relatedId || filesOrOptions.businessId || null
+      // 合并选项
+      options = { ...options, ...filesOrOptions }
     }
 
     if (!files || files.length === 0) {
@@ -104,12 +110,70 @@ export const uploadMultipleMedia = async (filesOrOptions, userId, businessType =
       throw new Error('用户ID不能为空')
     }
 
-    const uploadPromises = Array.from(files).map(file =>
-      uploadMedia(file, finalUserId, finalBusinessType, finalBusinessId)
-    )
+    // 分批上传配置
+    const batchSize = options.batchSize || 5  // 默认每批5个
+    const delayMs = options.delayMs || 300     // 默认间隔300ms
+    const onProgress = options.onProgress
+    const fileArray = Array.from(files)
+    const total = fileArray.length
+    const results = []
+    const failedUploads = []
 
-    const results = await Promise.all(uploadPromises)
-    return results
+    console.log(`开始分批上传，共 ${total} 个文件，每批 ${batchSize} 个`)
+
+    // 分批处理
+    for (let i = 0; i < fileArray.length; i += batchSize) {
+      const batch = fileArray.slice(i, i + batchSize)
+      const batchNumber = Math.floor(i / batchSize) + 1
+      const totalBatches = Math.ceil(total / batchSize)
+
+      console.log(`上传第 ${batchNumber}/${totalBatches} 批，共 ${batch.length} 个文件`)
+
+      // 并行上传当前批次
+      const batchPromises = batch.map((file, index) => {
+        const fileIndex = i + index
+        return uploadMedia(file, finalUserId, finalBusinessType, finalBusinessId)
+          .then(result => {
+            results[fileIndex] = result
+            if (onProgress) {
+              onProgress(results.filter(r => r !== undefined).length, total, file.name)
+            }
+            return result
+          })
+          .catch(error => {
+            console.error(`文件 ${file.name} 上传失败:`, error)
+            failedUploads.push({ file, error })
+            results[fileIndex] = null
+            if (onProgress) {
+              onProgress(results.filter(r => r !== undefined).length, total, file.name)
+            }
+            return null
+          })
+      })
+
+      await Promise.all(batchPromises)
+
+      // 非最后一批则等待一段时间，避免请求过于密集
+      if (i + batchSize < fileArray.length) {
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
+
+    // 统计结果
+    const successfulResults = results.filter(r => r !== null)
+    const failedCount = failedUploads.length
+
+    if (failedCount > 0) {
+      console.warn(`批量上传完成：成功 ${successfulResults.length} 个，失败 ${failedCount} 个`)
+      // 如果全部失败，抛出异常
+      if (successfulResults.length === 0) {
+        throw new Error(`所有文件上传失败: ${failedUploads.map(f => f.file.name).join(', ')}`)
+      }
+    } else {
+      console.log(`批量上传完成：成功 ${successfulResults.length} 个文件`)
+    }
+
+    return successfulResults
   } catch (error) {
     console.error('批量上传文件失败:', error)
     throw error

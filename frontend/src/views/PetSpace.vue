@@ -705,15 +705,24 @@ const publishMoment = async () => {
           files: files,
           relatedType: 'MOMENT',
           relatedId: currentUserId.value,
-          userId: currentUserId.value
+          userId: currentUserId.value,
+          batchSize: 3,            // 每批上传3个文件，减少服务器压力
+          delayMs: 500,            // 每批间隔500ms，给服务器缓冲时间
+          onProgress: (completed, total, currentFile) => {
+            // 可选：更新进度提示
+            if (completed % 5 === 0 || completed === total) {
+              ElMessage.info(`上传进度: ${completed}/${total}`)
+            }
+          }
         })
 
         mediaIds = uploadResults.map(result => result.mediaId)
         ElMessage.success(`成功上传 ${mediaIds.length} 个文件`)
       } catch (uploadError) {
         console.error('上传媒体文件失败:', uploadError)
-        ElMessage.warning('媒体文件上传失败，将只发布文本内容')
-        mediaIds = []
+        ElMessage.warning('部分媒体文件上传失败，将只发布已上传的内容')
+        // 保留已成功的文件
+        mediaIds = uploadResults?.map(result => result?.mediaId).filter(id => id) || []
       }
     }
 

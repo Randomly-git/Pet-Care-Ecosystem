@@ -4,11 +4,13 @@ import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.dto.MomentCreateRequestDTO;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.service.MomentService;
+import petcare.example.community_backend.service.MediaEventPublisher;
 import petcare.example.community_backend.repository.PetMomentRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -20,12 +22,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/moments")
 @RequiredArgsConstructor
+@Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS})
 @Tag(name = "社区动态接口", description = "用于发布、查询和删除宠物社区动态")
 public class MomentController {
 
     private final MomentService momentService;
     private final PetMomentRepository momentRepository;
+    private final MediaEventPublisher mediaEventPublisher;
 
     /**
      * GET /api/v1/moments/user/{userId}
@@ -47,6 +51,11 @@ public class MomentController {
     public ResponseEntity<MomentResponseDTO> createMoment(
             @Valid @RequestBody MomentCreateRequestDTO requestDTO) {
 
+        // 记录接口开始处理时间
+        long startTime = System.currentTimeMillis();
+        log.info("【性能监控】开始创建社区动态，用户ID: {}, mediaIds: {}",
+                requestDTO.getUserId(), requestDTO.getMediaIds());
+
         try {
             // 1. 手动 DTO 转换为 Moment 实体
             PetMoment momentEntity = new PetMoment();
@@ -56,7 +65,28 @@ public class MomentController {
             // 2. 直接保存到数据库
             PetMoment savedEntity = momentRepository.save(momentEntity);
 
-            // 3. 将保存后的 Entity 转换回 Response DTO 返回
+            long saveEndTime = System.currentTimeMillis();
+            log.info("【性能监控】动态保存完成，动态ID: {}, 耗时: {}ms",
+                    savedEntity.getId(), (saveEndTime - startTime));
+
+            // 3. 使用 MQ 异步关联媒体文件
+            if (requestDTO.getMediaIds() != null && !requestDTO.getMediaIds().isEmpty()) {
+                try {
+                    // 通过 MQ 发送媒体关联事件
+                    mediaEventPublisher.publishCommunityMediaBindEvent(
+                            savedEntity.getId(),
+                            requestDTO.getMediaIds(),
+                            requestDTO.getUserId()
+                    );
+                    log.info("【性能监控】媒体关联消息已发送，动态ID: {}", savedEntity.getId());
+                } catch (Exception e) {
+                    log.error("【MQ】发送媒体关联消息失败，动态ID: {}, error: {}",
+                            savedEntity.getId(), e.getMessage());
+                    // MQ 发送失败不影响动态创建成功
+                }
+            }
+
+            // 4. 将保存后的 Entity 转换回 Response DTO 返回
             MomentResponseDTO responseDTO = new MomentResponseDTO();
             responseDTO.setId(savedEntity.getId());
             responseDTO.setUserId(savedEntity.getUserId());
@@ -66,10 +96,13 @@ public class MomentController {
             responseDTO.setLikeCount(0);
             responseDTO.setCommentCount(0);
 
+            long endTime = System.currentTimeMillis();
+            log.info("【性能监控】创建社区动态总耗时: {}ms", (endTime - startTime));
+
             return new ResponseEntity<>(responseDTO, HttpStatus.CREATED);
 
         } catch (Exception e) {
-            System.err.println("创建动态失败: " + e.getMessage());
+            log.error("创建动态失败: " + e.getMessage());
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

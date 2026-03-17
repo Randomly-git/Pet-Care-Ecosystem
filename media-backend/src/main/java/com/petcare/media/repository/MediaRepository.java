@@ -83,4 +83,11 @@ public interface MediaRepository extends JpaRepository<MediaFile, Long> {
     @Modifying
     @Query("UPDATE MediaFile m SET m.status = :status WHERE m.mediaId IN :mediaIds")
     void batchUpdateStatus(@Param("mediaIds") List<Long> mediaIds, @Param("status") String status);
+
+    // 批量更新关联ID（用于MQ消息处理）
+    @Modifying
+    @Query("UPDATE MediaFile m SET m.relatedId = :newRelatedId WHERE m.mediaId IN :mediaIds AND m.relatedType = :relatedType")
+    int batchUpdateRelatedId(@Param("mediaIds") List<Long> mediaIds,
+                            @Param("relatedType") String relatedType,
+                            @Param("newRelatedId") Long newRelatedId);
 }

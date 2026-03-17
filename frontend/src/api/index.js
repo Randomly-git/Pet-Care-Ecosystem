@@ -7,12 +7,69 @@ const API_BASE_URL = '/api'  // 使用前端代理，不再直接指定端口
 // 创建axios实例
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,            // 默认超时 30 秒
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 })
+
+// 为文件上传请求设置更长超时的辅助函数
+export const createUploadClient = () => {
+  const uploadClient = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 120000,         // 文件上传超时 2 分钟
+    headers: {
+      'Accept': 'application/json'
+    }
+  })
+
+  // 复制拦截器
+  uploadClient.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem('authToken')
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+      if (config.data instanceof FormData) {
+        delete config.headers['Content-Type']
+      }
+      config.metadata = { startTime: new Date() }
+      return config
+    },
+    (error) => Promise.reject(error)
+  )
+
+  uploadClient.interceptors.response.use(
+    (response) => {
+      const { config } = response
+      const duration = new Date() - config.metadata.startTime
+      console.log(`✅ 上传响应 [${config.method?.toUpperCase()}] ${config.url} (${duration}ms)`)
+      if (response.data && typeof response.data === 'object') {
+        if ('success' in response.data) {
+          return response.data
+        }
+        return response.data
+      }
+      return response.data
+    },
+    (error) => {
+      const { config, response } = error
+      const duration = config?.metadata ? new Date() - config.metadata.startTime : 0
+      console.error(`❌ 上传错误 [${config?.method?.toUpperCase()}] ${config?.url} (${duration}ms)`, error.message)
+      return Promise.reject({
+        message: error.message,
+        status: response?.status,
+        data: response?.data
+      })
+    }
+  )
+
+  return uploadClient
+}
+
+// 使用专用的上传客户端
+const uploadClient = createUploadClient()
 
 // 请求拦截器
 apiClient.interceptors.request.use(

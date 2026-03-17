@@ -10,9 +10,11 @@ import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.service.ActivityService;
+import com.petcare.backend.service.MediaEventPublisher;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,15 +30,12 @@ import java.util.Optional;
 @RequestMapping("/api/activities")
 @Slf4j
 @Tag(name = "宠物活动管理", description = "处理宠物活动类型的定义及具体的活动打卡记录")
+@RequiredArgsConstructor
 public class ActivityController {
 
     private final ActivityService activityService;
     private final MediaServiceClient mediaServiceClient;
-
-    public ActivityController(ActivityService activityService, MediaServiceClient mediaServiceClient) {
-        this.activityService = activityService;
-        this.mediaServiceClient = mediaServiceClient;
-    }
+    private final MediaEventPublisher mediaEventPublisher;
 
     @Operation(summary = "获取用户的活动列表", description = "根据用户ID获取其创建的活动，可选按活动种类过滤")
     @GetMapping("/user/{userId}")
@@ -157,21 +157,37 @@ public class ActivityController {
         log.info("创建活动记录，宠物ID: {}, 活动ID: {}, 用户ID: {}, 文件: {}",
                 petId, activityId, userId, file != null ? file.getOriginalFilename() : "无");
 
+        // 记录接口开始处理时间
+        long startTime = System.currentTimeMillis();
+
         ActivityRecord record = activityService.createActivityRecord(petId, activityId, description, date);
 
         if (file != null && !file.isEmpty()) {
             try {
-                new Thread(() -> {
-                    try {
-                        mediaServiceClient.uploadFile(file, userId, "ACTIVITY", record.getActivityRecordId());
-                    } catch (Exception e) {
-                        log.error("活动记录 {} 的文件上传失败", record.getActivityRecordId(), e);
-                    }
-                }).start();
+                // 同步上传文件，获取媒体ID
+                long uploadStartTime = System.currentTimeMillis();
+                MediaResponse mediaResponse = mediaServiceClient.uploadFile(file, userId, "ACTIVITY", record.getActivityRecordId());
+                long uploadEndTime = System.currentTimeMillis();
+
+                log.info("【性能监控】活动记录 {} 文件上传耗时: {}ms",
+                        record.getActivityRecordId(), (uploadEndTime - uploadStartTime));
+
+                // 发送 MQ 消息，异步更新关联（用于耗时监控演示）
+                // 注意：这里 mediaId 已经通过 uploadFile 关联好了，MQ 主要是演示和监控目的
+                if (mediaResponse != null && mediaResponse.getMediaId() != null) {
+                    mediaEventPublisher.publishActivityMediaBindEvent(
+                            record.getActivityRecordId(),
+                            Collections.singletonList(mediaResponse.getMediaId()),
+                            userId
+                    );
+                }
             } catch (Exception e) {
-                log.warn("活动记录 {} 的文件上传线程启动失败", record.getActivityRecordId(), e);
+                log.error("活动记录 {} 的文件上传失败", record.getActivityRecordId(), e);
             }
         }
+
+        long endTime = System.currentTimeMillis();
+        log.info("【性能监控】创建活动记录总耗时: {}ms", (endTime - startTime));
 
         return ResponseEntity.ok(record);
     }
@@ -188,22 +204,40 @@ public class ActivityController {
 
         log.info("更新活动记录ID: {}, 文件: {}", recordId, file != null ? file.getOriginalFilename() : "无");
 
+        // 记录接口开始处理时间
+        long startTime = System.currentTimeMillis();
+
         ActivityRecord record = activityService.updateActivityRecord(recordId, newActivityId, description, date);
 
         if (file != null && !file.isEmpty() && userId != null) {
             try {
-                new Thread(() -> {
-                    try {
-                        mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
-                        mediaServiceClient.uploadFile(file, userId, "ACTIVITY", recordId);
-                    } catch (Exception e) {
-                        log.error("活动记录 {} 的文件更新失败", recordId, e);
-                    }
-                }).start();
+                long fileOpStartTime = System.currentTimeMillis();
+
+                // 先删除旧文件
+                mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
+                // 上传新文件
+                MediaResponse mediaResponse = mediaServiceClient.uploadFile(file, userId, "ACTIVITY", recordId);
+
+                long fileOpEndTime = System.currentTimeMillis();
+
+                log.info("【性能监控】更新活动记录 {} 文件操作耗时: {}ms",
+                        recordId, (fileOpEndTime - fileOpStartTime));
+
+                // 发送 MQ 消息（用于耗时监控演示）
+                if (mediaResponse != null && mediaResponse.getMediaId() != null) {
+                    mediaEventPublisher.publishActivityMediaBindEvent(
+                            recordId,
+                            Collections.singletonList(mediaResponse.getMediaId()),
+                            userId
+                    );
+                }
             } catch (Exception e) {
-                log.warn("活动记录 {} 的文件更新线程启动失败", recordId, e);
+                log.error("活动记录 {} 的文件更新失败", recordId, e);
             }
         }
+
+        long endTime = System.currentTimeMillis();
+        log.info("【性能监控】更新活动记录总耗时: {}ms", (endTime - startTime));
 
         return ResponseEntity.ok(record);
     }
