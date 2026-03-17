@@ -85,6 +85,28 @@ const router = createRouter({
         title: '宠物社区'
       }
     },
+    // 宠物空间页面
+    {
+      path: '/space',
+      name: 'space',
+      component: () => import('../views/PetSpace.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '我的空间'
+      }
+    },
+    // 医疗诊断页面（暂未实现）
+    {
+      path: '/medical',
+      name: 'medical',
+      redirect: '/'
+    },
+    // 购物商城页面（暂未实现）
+    {
+      path: '/shop',
+      name: 'shop',
+      redirect: '/'
+    },
   ],
 })
 
