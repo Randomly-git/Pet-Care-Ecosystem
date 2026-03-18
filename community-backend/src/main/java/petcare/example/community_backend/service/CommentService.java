@@ -6,7 +6,10 @@ import petcare.example.community_backend.model.Comment;
 import petcare.example.community_backend.dto.CommentCreateRequestDTO;
 import petcare.example.community_backend.dto.CommentResponseDTO;
 import petcare.example.community_backend.repository.CommentRepository;
+import petcare.example.community_backend.repository.PetMomentRepository;
 import petcare.example.community_backend.model.TargetType;
+import petcare.example.community_backend.event.NotificationEvent;
+import petcare.example.community_backend.event.NotificationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j; // 引入 Slf4j 日志
 import org.springframework.stereotype.Service;
@@ -24,8 +27,10 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentRepository commentRepository;
+    private final PetMomentRepository petMomentRepository;
     private final LikeService likeService;
     private final UserServiceFacade userServiceFacade; // 注入用户服务门面
+    private final NotificationEventPublisher notificationEventPublisher; // 注入通知发布者
 
     /**
      * 创建评论或回复
@@ -35,12 +40,20 @@ public class CommentService {
     @Transactional
     public CommentResponseDTO createComment(CommentCreateRequestDTO requestDTO) {
         // 1. 业务校验（检查 parentId 是否存在且属于同一 moment）
+        Long targetUserId = null; // 被通知的用户ID
+
         if (requestDTO.getParentId() != null) {
             Comment parentComment = commentRepository.findById(requestDTO.getParentId())
                     .orElseThrow(() -> new IllegalArgumentException("回复的评论 (parentId) 不存在."));
             if (!parentComment.getMomentId().equals(requestDTO.getMomentId())) {
                 throw new IllegalArgumentException("回复的评论不属于目标动态.");
             }
+            // 获取被回复人的用户ID（用于发送通知）
+            targetUserId = parentComment.getUserId();
+        } else {
+            // 顶级评论：通知动态作者
+            // TODO: 需要从 MomentService 获取动态作者ID
+            targetUserId = getMomentAuthorId(requestDTO.getMomentId());
         }
 
         // 2. DTO -> Entity 并保存
@@ -62,8 +75,60 @@ public class CommentService {
         }
         Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
 
-        // 4. Entity -> ResponseDTO (新建评论点赞数为 0)
+        // 4. 发送评论通知（异步 MQ）
+        sendCommentNotification(requestDTO, savedComment.getId(), targetUserId);
+
+        // 5. Entity -> ResponseDTO (新建评论点赞数为 0)
         return convertToDto(savedComment, userMap, 0);
+    }
+
+    /**
+     * 发送评论通知
+     */
+    private void sendCommentNotification(CommentCreateRequestDTO requestDTO, Long commentId, Long targetUserId) {
+        if (targetUserId == null || targetUserId.equals(requestDTO.getUserId())) {
+            return; // 没有目标用户或是自己
+        }
+
+        try {
+            // 获取评论者信息
+            Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(Set.of(requestDTO.getUserId()));
+            String actorUserName = userMap.getOrDefault(requestDTO.getUserId(),
+                    new UserResponseDTO(requestDTO.getUserId(), "用户" + requestDTO.getUserId(), null))
+                    .getNickname();
+
+            NotificationEvent event;
+            if (requestDTO.getParentId() != null) {
+                // 回复评论
+                event = NotificationEvent.createReplyEvent(
+                        requestDTO.getUserId(),
+                        actorUserName,
+                        targetUserId,
+                        commentId,
+                        requestDTO.getParentId()
+                );
+            } else {
+                // 顶级评论
+                event = NotificationEvent.createCommentEvent(
+                        requestDTO.getUserId(),
+                        actorUserName,
+                        targetUserId,
+                        commentId,
+                        requestDTO.getMomentId()
+                );
+            }
+            notificationEventPublisher.publishCommentNotification(event);
+        } catch (Exception e) {
+            log.error("发送评论通知失败: userId={}, momentId={}, error={}",
+                    requestDTO.getUserId(), requestDTO.getMomentId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 获取动态作者ID
+     */
+    private Long getMomentAuthorId(Long momentId) {
+        return petMomentRepository.findUserIdById(momentId).orElse(null);
     }
 
 
