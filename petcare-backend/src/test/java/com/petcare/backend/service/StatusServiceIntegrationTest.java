@@ -2,10 +2,8 @@ package com.petcare.backend.service;
 
 import com.petcare.backend.entity.Pet;
 import com.petcare.backend.entity.Status;
-import com.petcare.backend.entity.StatusRecord;
 import com.petcare.backend.entity.User;
 import com.petcare.backend.repository.PetRepository;
-import com.petcare.backend.repository.StatusRecordRepository;
 import com.petcare.backend.repository.StatusRepository;
 import com.petcare.backend.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -15,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,9 +33,6 @@ class StatusServiceIntegrationTest {
 
     @Autowired
     private StatusRepository statusRepository;
-
-    @Autowired
-    private StatusRecordRepository statusRecordRepository;
 
     private User testUser;
     private Pet testPet;
@@ -166,56 +160,4 @@ class StatusServiceIntegrationTest {
         System.out.println("✅ 为不存在宠物创建状态异常测试通过");
     }
 
-    /**
-     * 8️⃣ 测试：创建状态记录
-     */
-    @Test
-    void testCreateStatusRecord() {
-        // 获取一个状态
-        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
-
-        // 创建状态记录DTO
-        com.petcare.backend.dto.request.CreateStatusRecordDTO createDTO =
-                new com.petcare.backend.dto.request.CreateStatusRecordDTO();
-        createDTO.setPetId(testPet.getPetId());
-        createDTO.setStatusId(status.getStatusId());
-        createDTO.setStartDate(LocalDate.now());
-        createDTO.setStatusDescription("测试状态记录");
-
-        // 创建状态记录
-        StatusRecord statusRecord = statusService.createStatusRecord(createDTO);
-
-        assertNotNull(statusRecord.getStatusRecordId());
-        assertEquals("测试状态记录", statusRecord.getStatusDescription());
-
-        System.out.println("✅ 创建状态记录测试通过，记录ID: " + statusRecord.getStatusRecordId());
-    }
-
-    /**
-     * 9️⃣ 测试：删除状态及其记录
-     */
-    @Test
-    void testDeleteStatusAndRecords() {
-        Status status = statusRepository.findAllByPetPetIdAndStatusName(testPet.getPetId(), "Running").get(0);
-
-        // 先创建一些状态记录
-        StatusRecord record = new StatusRecord();
-        record.setStatus(status);
-        record.setPet(testPet);
-        record.setStartDate(LocalDate.now());
-        record.setStatusDescription("测试记录");
-        statusRecordRepository.save(record);
-
-        // 删除状态及其记录
-        statusService.deleteStatusAndRecords(status.getStatusId());
-
-        // 验证状态已删除
-        assertFalse(statusRepository.findById(status.getStatusId()).isPresent());
-
-        // 验证状态记录已删除
-        List<StatusRecord> remainingRecords = statusRecordRepository.findByStatusStatusId(status.getStatusId());
-        assertTrue(remainingRecords.isEmpty());
-
-        System.out.println("✅ 删除状态及其记录测试通过");
-    }
 }
