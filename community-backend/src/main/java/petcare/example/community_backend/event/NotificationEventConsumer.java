@@ -1,24 +1,29 @@
+// event/NotificationEventConsumer.java
 package petcare.example.community_backend.event;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import petcare.example.community_backend.entity.Notification;
+import petcare.example.community_backend.repository.NotificationRepository;
+import petcare.example.community_backend.service.WebSocketService;
+
+import java.time.LocalDateTime;
 
 import static petcare.example.community_backend.config.RabbitMQConfig.NOTIFICATION_QUEUE;
 
 /**
  * 通知事件消费者
- * 负责处理来自 MQ 的通知事件
+ * 负责处理来自 MQ 的通知事件，保存通知并推送 WebSocket
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationEventConsumer {
 
-    // 后续可以注入通知服务、WebSocket服务等进行实际处理
-    // private final NotificationService notificationService;
-    // private final WebSocketService webSocketService;
+    private final NotificationRepository notificationRepository;
+    private final WebSocketService webSocketService;
 
     /**
      * 处理通知事件
@@ -52,11 +57,13 @@ public class NotificationEventConsumer {
                 return;
             }
 
-            // TODO: 这里可以调用通知服务保存通知记录
-            // 例如：notificationService.saveNotification(event);
+            // 1. 保存通知到数据库
+            Notification notification = saveNotification(event);
+            log.info("【MQ消费】通知已保存: id={}, userId={}", notification.getId(), notification.getUserId());
 
-            // TODO: 可以通过 WebSocket 实时推送通知
-            // 例如：webSocketService.sendNotification(event.getTargetUserId(), event);
+            // 2. 通过 WebSocket 推送实时通知
+            webSocketService.sendNotificationToUser(event.getTargetUserId(), notification);
+            log.info("【MQ消费】WebSocket 通知已推送: userId={}", event.getTargetUserId());
 
             // 处理完成
             long elapsed = System.currentTimeMillis() - startTime;
@@ -72,6 +79,26 @@ public class NotificationEventConsumer {
                     e.getMessage(), e);
             throw e; // 重新抛出异常，让 MQ 进行重试
         }
+    }
+
+    /**
+     * 保存通知到数据库
+     */
+    private Notification saveNotification(NotificationEvent event) {
+        Notification notification = Notification.builder()
+                .type(event.getType() != null ? event.getType().name() : "UNKNOWN")
+                .userId(event.getTargetUserId())
+                .actorUserId(event.getActorUserId())
+                .actorUserName(event.getActorUserName())
+                .actorUserAvatar(null) // 可以后续通过用户服务获取
+                .businessId(event.getBusinessId())
+                .businessType(event.getBusinessType())
+                .content(event.getContent())
+                .isRead(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        return notificationRepository.save(notification);
     }
 
     /**

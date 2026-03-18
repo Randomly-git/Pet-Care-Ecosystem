@@ -12,7 +12,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 
@@ -30,6 +29,7 @@ public class MediaService {
 
     private final MediaRepository mediaRepository; // 使用 final 字段
     private final CosStorageService cosStorageService; // 使用 final 字段
+    private final MediaOperationPublisher mediaOperationPublisher; // MQ 发布者
 
     // --- 核心业务逻辑方法 ---
 
@@ -185,37 +185,46 @@ public class MediaService {
      * 根据数据类型采取不同的恢复策略：
      * 1. 私人数据（活动/状态记录）：恢复后保持10分钟临时访问
      * 2. 社区动态：立即恢复，重新开始7天倒计时
-     * 
+     * 使用 MQ 异步处理恢复操作
+     *
      * @param mediaFile 媒体文件
      */
     private void handleColdDataAccess(MediaFile mediaFile) {
         RelatedType relatedType = mediaFile.getRelatedType();
         String fileUrl = mediaFile.getFileUrl();
-        
+
         try {
             if (relatedType == RelatedType.ACTIVITY || relatedType == RelatedType.STATUS) {
                 // 私人数据：恢复归档文件（10分钟临时访问）
                 log.info("访问私人冷数据，准备恢复: mediaId={}, type={}", mediaFile.getMediaId(), relatedType);
-                cosStorageService.restoreArchivedFile(fileUrl);
+
+                // 发送 MQ 消息异步恢复（不等待结果）
+                mediaOperationPublisher.publishRestoreArchivedEvent(
+                        mediaFile.getMediaId(),
+                        fileUrl
+                );
                 // 注意：私人数据访问后不改变状态，保持Cold
-                
+
             } else if (relatedType == RelatedType.MOMENT) {
                 // 社区动态：恢复并重新激活
                 log.info("访问社区冷数据，恢复激活: mediaId={}", mediaFile.getMediaId());
-                
-                // 恢复归档文件
-                cosStorageService.restoreArchivedFile(fileUrl);
-                
-                // 重新设置为热数据
-                mediaFile.setStatus("Hot");
+
+                // 发送 MQ 消息异步恢复
+                mediaOperationPublisher.publishRestoreArchivedEvent(
+                        mediaFile.getMediaId(),
+                        fileUrl
+                );
+
+                // 更新状态为 RESTORING（恢复中），等待消费者处理
+                mediaFile.setStatus("Restoring");
                 // 移除COS标签（可选，让文件重新开始生命周期倒计时）
                 // cosStorageService.setFileTagging(fileUrl, "Status", "Hot");
-                
-                log.info("社区冷数据已激活，重新开始7天倒计时: mediaId={}", mediaFile.getMediaId());
+
+                log.info("社区冷数据已发送恢复任务，重新开始7天倒计时: mediaId={}", mediaFile.getMediaId());
             }
-            
+
         } catch (Exception e) {
-            log.error("处理冷数据访问失败: mediaId={}, error={}", mediaFile.getMediaId(), e.getMessage());
+            log.error("发送冷数据恢复任务失败: mediaId={}, error={}", mediaFile.getMediaId(), e.getMessage());
             // 不抛出异常，允许用户尝试获取文件
         }
     }
@@ -248,31 +257,35 @@ public class MediaService {
 
     /**
      * 手动恢复冷数据
-     * 
+     * 使用 MQ 异步处理恢复操作
+     *
      * @param mediaId 媒体文件ID
      * @return 恢复结果信息
      */
     @Transactional
     public String restoreColdData(Long mediaId) {
         MediaFile mediaFile = getMediaFileById(mediaId);
-        
+
         if (!"Cold".equals(mediaFile.getStatus())) {
             return "文件不是冷数据，无需恢复";
         }
-        
+
         try {
-            // 恢复COS文件
-            String result = cosStorageService.restoreArchivedFile(mediaFile.getFileUrl());
-            
-            // 更新数据库状态
-            mediaFile.setStatus("Hot");
+            // 发送 MQ 消息，异步恢复归档文件
+            mediaOperationPublisher.publishRestoreArchivedEvent(
+                    mediaFile.getMediaId(),
+                    mediaFile.getFileUrl()
+            );
+
+            // 更新数据库状态为 RESTORING（恢复中）
+            mediaFile.setStatus("Restoring");
             mediaRepository.save(mediaFile);
-            
-            log.info("冷数据手动恢复成功: mediaId={}", mediaId);
-            return "恢复成功: " + result;
-            
+
+            log.info("冷数据恢复任务已发送: mediaId={}", mediaId);
+            return "恢复任务已发送，请稍候...";
+
         } catch (Exception e) {
-            log.error("冷数据手动恢复失败: mediaId={}, error={}", mediaId, e.getMessage());
+            log.error("发送冷数据恢复任务失败: mediaId={}, error={}", mediaId, e.getMessage());
             return "恢复失败: " + e.getMessage();
         }
     }

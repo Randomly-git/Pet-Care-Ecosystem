@@ -2,6 +2,7 @@
  * 媒体文件上传 API 接口
  */
 
+import apiClient from './index'
 import { createUploadClient } from './index'
 
 // 媒体微服务的基础路径（通过前端代理服务器）

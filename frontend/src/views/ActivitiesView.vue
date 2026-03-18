@@ -1007,28 +1007,29 @@ const filteredRecords = computed(() => {
     })
   }
 
-  // 按活动类型筛选
-  if (selectedActivityTypes.value.length > 0) {
-    console.log('筛选前记录数量:', filtered.length)
-    console.log('选择的活动类型:', selectedActivityTypes.value)
+    // 按活动类型筛选
+    if (selectedActivityTypes.value.length > 0) {
+      console.log('筛选前记录数量:', filtered.length)
+      console.log('选择的活动类型:', selectedActivityTypes.value)
 
-    filtered = filtered.filter(record => {
-      // 直接使用活动记录中的activityKindId
-      const shouldInclude = selectedActivityTypes.value.includes(record.activityKindId)
+      filtered = filtered.filter(record => {
+        // 确保类型一致：将activityKindId转为字符串比较
+        const recordKindId = String(record.activityKindId)
+        const shouldInclude = selectedActivityTypes.value.some(type => String(type) === recordKindId)
 
-      console.log('记录筛选结果:', {
-        recordId: record.activityRecordId,
-        recordActivityKindId: record.activityKindId,
-        recordActivityName: record.activityName,
-        shouldInclude,
-        selectedTypes: selectedActivityTypes.value
+        console.log('记录筛选结果:', {
+          recordId: record.activityRecordId,
+          recordActivityKindId: record.activityKindId,
+          recordActivityName: record.activityName,
+          shouldInclude,
+          selectedTypes: selectedActivityTypes.value
+        })
+
+        return shouldInclude
       })
 
-      return shouldInclude
-    })
-
-    console.log('筛选后记录数量:', filtered.length)
-  }
+      console.log('筛选后记录数量:', filtered.length)
+    }
 
   return filtered.sort((a, b) => new Date(b.activityDate) - new Date(a.activityDate))
 })
@@ -1289,20 +1290,50 @@ const loadActivityRecords = async () => {
 
     // 批量获取活动记录
     console.log('loadActivityRecords: 开始调用API获取活动记录')
-    const recordsResponse = await getActivityRecordsByPetIds([selectedPetId.value], {
-      startDate: dateRange.value[0] ? new Date(dateRange.value[0]).toISOString() : null,
-      endDate: dateRange.value[1] ? new Date(dateRange.value[1]).toISOString() : null
-    })
+    
+    // 构建查询参数
+    const params = {
+      page: 0,
+      size: 100
+    }
+    
+    // 只有当有日期选择时才添加日期参数
+    if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+      const startDate = new Date(dateRange.value[0])
+      params.startDate = startDate.toISOString()
+      const endDate = new Date(dateRange.value[1])
+      // 设置为当天的最后一刻
+      endDate.setHours(23, 59, 59, 999)
+      params.endDate = endDate.toISOString()
+    }
+    
+    const recordsResponse = await getActivityRecordsByPetIds([selectedPetId.value], params)
 
     console.log('loadActivityRecords: API原始响应:', recordsResponse)
+    console.log('loadActivityRecords: 请求参数:', params)
 
-    // 处理API响应格式
+    // 处理API响应格式 - 支持数组和Page对象两种格式
     let records = []
-    if (recordsResponse && recordsResponse.data) {
-      records = Array.isArray(recordsResponse.data) ? recordsResponse.data : []
-    } else if (Array.isArray(recordsResponse)) {
-      records = recordsResponse
+    if (recordsResponse) {
+      // 方式1: Spring Page对象格式 (有content属性)
+      if (recordsResponse.content && Array.isArray(recordsResponse.content)) {
+        records = recordsResponse.content
+      }
+      // 方式2: 直接数组格式
+      else if (Array.isArray(recordsResponse)) {
+        records = recordsResponse
+      }
+      // 方式3: 有data属性的响应
+      else if (recordsResponse.data) {
+        if (recordsResponse.data.content && Array.isArray(recordsResponse.data.content)) {
+          records = recordsResponse.data.content
+        } else if (Array.isArray(recordsResponse.data)) {
+          records = recordsResponse.data
+        }
+      }
     }
+
+    console.log('loadActivityRecords: 解析后的活动记录:', records)
 
     // 为每个活动记录获取关联的媒体文件
     console.log('loadActivityRecords: 开始获取媒体文件信息')

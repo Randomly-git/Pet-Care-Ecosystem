@@ -395,19 +395,31 @@ export const getActivityRecordsByPetIds = async (petIds, searchParams = {}) => {
       request({
         url: `/activities/records/pet/${petId}`,
         method: 'GET',
-        params: searchParams
+        params: {
+          page: searchParams.page || 0,
+          size: searchParams.size || 100,
+          sort: searchParams.sort || 'activityDate,desc',
+          startDate: searchParams.startDate,
+          endDate: searchParams.endDate,
+          activityKindId: searchParams.activityKindId
+        }
       })
     )
 
     const responses = await Promise.all(promises)
 
-    // 合并所有响应的数据
+    // 合并所有响应的数据 - 支持数组和Page对象两种格式
     let allRecords = []
     responses.forEach(response => {
       if (Array.isArray(response)) {
         allRecords = allRecords.concat(response)
+      } else if (response && response.content && Array.isArray(response.content)) {
+        // Spring Page对象格式
+        allRecords = allRecords.concat(response.content)
       } else if (response && Array.isArray(response.data)) {
         allRecords = allRecords.concat(response.data)
+      } else if (response && response.data && response.data.content && Array.isArray(response.data.content)) {
+        allRecords = allRecords.concat(response.data.content)
       }
     })
 
