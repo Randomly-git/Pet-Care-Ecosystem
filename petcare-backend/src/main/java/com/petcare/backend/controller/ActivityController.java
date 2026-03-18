@@ -10,7 +10,6 @@ import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.service.ActivityService;
-import com.petcare.backend.service.MediaEventPublisher;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,7 +35,6 @@ public class ActivityController {
 
     private final ActivityService activityService;
     private final MediaServiceClient mediaServiceClient;
-    private final MediaEventPublisher mediaEventPublisher;
 
     @Operation(summary = "获取用户的活动列表", description = "根据用户ID获取其创建的活动，可选按活动种类过滤")
     @GetMapping("/user/{userId}")
@@ -176,15 +173,8 @@ public class ActivityController {
                 log.info("【性能监控】活动记录 {} 文件上传耗时: {}ms",
                         record.getActivityRecordId(), (uploadEndTime - uploadStartTime));
 
-                // 发送 MQ 消息，异步更新关联（用于耗时监控演示）
-                // 注意：这里 mediaId 已经通过 uploadFile 关联好了，MQ 主要是演示和监控目的
-                if (mediaResponse != null && mediaResponse.getMediaId() != null) {
-                    mediaEventPublisher.publishActivityMediaBindEvent(
-                            record.getActivityRecordId(),
-                            Collections.singletonList(mediaResponse.getMediaId()),
-                            userId
-                    );
-                }
+                // 注意：文件上传时已通过 mediaServiceClient.uploadFile() 的 relatedId 参数即时关联
+                // 无需额外操作，媒体关联已在上传步骤中完成
             } catch (Exception e) {
                 log.error("活动记录 {} 的文件上传失败", record.getActivityRecordId(), e);
             }
@@ -227,14 +217,7 @@ public class ActivityController {
                 log.info("【性能监控】更新活动记录 {} 文件操作耗时: {}ms",
                         recordId, (fileOpEndTime - fileOpStartTime));
 
-                // 发送 MQ 消息（用于耗时监控演示）
-                if (mediaResponse != null && mediaResponse.getMediaId() != null) {
-                    mediaEventPublisher.publishActivityMediaBindEvent(
-                            recordId,
-                            Collections.singletonList(mediaResponse.getMediaId()),
-                            userId
-                    );
-                }
+                // 注意：文件上传时已即时关联，无需额外操作
             } catch (Exception e) {
                 log.error("活动记录 {} 的文件更新失败", recordId, e);
             }

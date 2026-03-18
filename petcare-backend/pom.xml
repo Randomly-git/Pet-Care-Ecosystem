@@ -155,12 +155,6 @@
             <version>2.3.0</version>
         </dependency>
 
-        <!-- RabbitMQ -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
-        </dependency>
-
     </dependencies>
 
     <dependencyManagement>

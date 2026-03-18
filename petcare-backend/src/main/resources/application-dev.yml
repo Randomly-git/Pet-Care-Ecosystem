@@ -29,18 +29,6 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
-  # RabbitMQ 配置
-  rabbitmq:
-    host: ${rabbitmq.host:localhost}
-    port: ${rabbitmq.port:5672}
-    username: ${rabbitmq.username:guest}
-    password: ${rabbitmq.password:guest}
-    virtual-host: ${rabbitmq.virtual-host:/}
-    listener:
-      simple:
-        acknowledge-mode: auto
-        prefetch: 10
-
   jpa:
     show-sql: true
     hibernate:
