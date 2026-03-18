@@ -7,6 +7,10 @@ import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.dto.request.CreateActivityDTO;
 import com.petcare.backend.dto.request.UpdateActivityDTO;
 import com.petcare.backend.dto.response.ActivityKindDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+
 import java.time.LocalDateTime;
 
 import java.util.List;
@@ -35,10 +39,11 @@ public interface ActivityService {
     List<ActivityKindDTO> getAllActivityKinds();
 
     // 1. 查找宠物的所有活动记录（日期 & kind 可选） - 这个保持不变，因为记录还是基于宠物
-    List<ActivityRecordDTO> searchActivityRecords(Long petId,
+    Page<ActivityRecordDTO> searchActivityRecords(Long petId,
                                                   LocalDateTime startDate,  // 可为空
                                                   LocalDateTime endDate,    // 可为空
-                                                  Long activityKindId);     // 可为空
+                                                  Long activityKindId,// 可为空
+                                                  Pageable pageable);
 
     // 2. 删除活动记录（软删除 or 直接删？这里选择硬删除）
     boolean deleteActivityRecord(Long activityRecordId);

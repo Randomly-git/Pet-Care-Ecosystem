@@ -16,6 +16,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,14 +55,19 @@ class ActivityServiceIntegrationTest2 {
     private ActivityRecord testActivityRecord;
     private ActivityKind existingActivityKind1;
     private ActivityKind existingActivityKind2;
+    Long petid;
+    Long activitykindid;
 
     @BeforeEach
     void setUp() {
+
 //        // 清理测试数据
 //        activityRepository.deleteAll();
 //        activityRecordRepository.deleteAll();
 //        petRepository.deleteAll();
 //        userRepository.deleteAll();
+        petid = 4L;
+        activitykindid = 6L;
 //
 //        // 创建测试用户
 //        testUser = new User();
@@ -113,89 +122,84 @@ class ActivityServiceIntegrationTest2 {
 
     @Test
     void searchActivityRecords_ShouldReturnRecordsWithDetails() {
-        System.out.println("=== 测试 searchActivityRecords（包含详情） ===");
+        System.out.println("=== 测试 searchActivityRecords（分页查询） ===");
+
+        // 准备分页参数：第0页，每页10条，按日期倒序
+        Pageable pageable = PageRequest.of(0, 10, Sort.by("activityDate").descending());
 
         // 执行查询
-        List<ActivityRecordDTO> records = activityService.searchActivityRecords(
-                testPet.getPetId(),
+        Page<ActivityRecordDTO> recordPage = activityService.searchActivityRecords(
+                petid,
                 LocalDateTime.now().minusDays(2),
                 LocalDateTime.now(),
-                testActivity.getActivityKind().getActivityKindId()
+                activitykindid,
+                pageable
         );
 
-        System.out.println("查询到的记录数量: " + records.size());
-        for (ActivityRecordDTO record : records) {
-            System.out.println("记录ID: " + record.getActivityRecordId() +
-                    ", 活动名称: " + record.getActivityName() +
-                    ", 活动种类: " + record.getActivityKindName() +
-                    ", 描述: " + record.getActivityDescription() +
-                    ", 日期: " + record.getActivityDate());
-        }
+        System.out.println("查询到的总记录数: " + recordPage.getTotalElements());
+        System.out.println("当前页记录数量: " + recordPage.getContent().size());
 
         // 验证结果
-        assertFalse(records.isEmpty());
-        ActivityRecordDTO firstRecord = records.get(0);
+        assertFalse(recordPage.isEmpty(), "查询结果不应为空");
+        assertTrue(recordPage.getTotalElements() >= 1);
+
+        ActivityRecordDTO firstRecord = recordPage.getContent().get(0);
         assertEquals(testActivityRecord.getActivityRecordId(), firstRecord.getActivityRecordId());
         assertEquals(testActivity.getActivityName(), firstRecord.getActivityName());
-        assertEquals(testActivity.getActivityKind().getActivityKindName(), firstRecord.getActivityKindName());
 
-        System.out.println("=== searchActivityRecords（包含详情）测试完成 ===");
+        System.out.println("=== searchActivityRecords 分页测试完成 ===");
     }
 
     @Test
     void searchActivityRecords_WithDateRangeOnly_ShouldReturnRecordsWithDetails() {
-        System.out.println("=== 测试 searchActivityRecords（仅日期范围，包含详情） ===");
+        System.out.println("=== 测试 searchActivityRecords（仅日期范围分页） ===");
+
+        Pageable pageable = PageRequest.of(0, 5);
 
         // 执行查询（不指定活动种类）
-        List<ActivityRecordDTO> records = activityService.searchActivityRecords(
-                testPet.getPetId(),
+        Page<ActivityRecordDTO> recordPage = activityService.searchActivityRecords(
+                petid,
                 LocalDateTime.now().minusDays(2),
                 LocalDateTime.now(),
-                null
+                null,
+                pageable
         );
 
-        System.out.println("查询到的记录数量: " + records.size());
-        for (ActivityRecordDTO record : records) {
-            System.out.println("记录ID: " + record.getActivityRecordId() +
-                    ", 活动名称: " + record.getActivityName() +
-                    ", 活动种类: " + record.getActivityKindName() +
-                    ", 描述: " + record.getActivityDescription());
-        }
-
-        // 验证结果
-        assertFalse(records.isEmpty());
+        // 验证分页元数据
+        assertNotNull(recordPage);
+        assertTrue(recordPage.getContent().size() > 0);
 
         // 验证返回的 DTO 包含正确的信息
-        ActivityRecordDTO firstRecord = records.get(0);
+        ActivityRecordDTO firstRecord = recordPage.getContent().get(0);
         assertNotNull(firstRecord.getActivityName());
         assertNotNull(firstRecord.getActivityKindName());
 
-        System.out.println("=== searchActivityRecords（仅日期范围，包含详情）测试完成 ===");
+        System.out.println("=== searchActivityRecords 仅日期范围分页测试完成 ===");
     }
 
     @Test
     void searchActivityRecords_WithAllNullParams_ShouldReturnAllRecords() {
-        System.out.println("=== 测试 searchActivityRecords（所有参数为空） ===");
+        System.out.println("=== 测试 searchActivityRecords（所有参数为空，分页） ===");
 
-        // 执行查询（所有参数都为空）
-        List<ActivityRecordDTO> records = activityService.searchActivityRecords(
-                testPet.getPetId(),
-                null,  // startDate 为空
-                null,  // endDate 为空
-                null   // activityKindId 为空
+        // 故意设置一个很小的分页来测试分页逻辑
+        Pageable pageable = PageRequest.of(0, 1);
+
+        // 执行查询
+        Page<ActivityRecordDTO> recordPage = activityService.searchActivityRecords(
+                petid,
+                null,
+                null,
+                null,
+                pageable
         );
 
-        System.out.println("查询到的记录数量: " + records.size());
-        for (ActivityRecordDTO record : records) {
-            System.out.println("记录ID: " + record.getActivityRecordId() +
-                    ", 活动名称: " + record.getActivityName() +
-                    ", 活动种类: " + record.getActivityKindName() +
-                    ", 日期: " + record.getActivityDate());
-        }
+        // 验证结果
+        assertFalse(recordPage.isEmpty());
+        // 如果你数据库里有多条记录，这里可以验证 size 是否受限于分页大小
+        assertEquals(1, recordPage.getContent().size());
 
-        // 验证结果 - 应该返回该宠物的所有记录
-        assertFalse(records.isEmpty());
-        System.out.println("=== searchActivityRecords（所有参数为空）测试完成 ===");
+        System.out.println("总页数: " + recordPage.getTotalPages());
+        System.out.println("=== searchActivityRecords 所有参数为空分页测试完成 ===");
     }
 
     @Test

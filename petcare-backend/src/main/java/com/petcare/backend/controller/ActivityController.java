@@ -16,6 +16,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -114,34 +116,36 @@ public class ActivityController {
         return ResponseEntity.ok(activityKinds);
     }
 
-    @Operation(summary = "搜索活动记录", description = "根据宠物、时间范围和种类筛选打卡记录，结果包含媒体文件链接")
+    @Operation(summary = "搜索活动记录（分页）", description = "根据宠物、时间范围和种类筛选打卡记录，支持分页，结果包含媒体文件链接")
     @GetMapping("/records/pet/{petId}")
-    public ResponseEntity<List<ActivityRecordDTO>> searchActivityRecords(
+    public ResponseEntity<Page<ActivityRecordDTO>> searchActivityRecords(
             @Parameter(description = "宠物ID") @PathVariable Long petId,
             @Parameter(description = "开始时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @Parameter(description = "结束时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @Parameter(description = "活动种类ID") @RequestParam(required = false) Long activityKindId) {
+            @Parameter(description = "活动种类ID") @RequestParam(required = false) Long activityKindId,
+            @Parameter(description = "分页参数(page, size, sort)") Pageable pageable) { // 注入分页对象
 
-        log.info("搜索宠物ID: {} 的活动记录，开始时间: {}, 结束时间: {}, 活动种类ID: {}",
-                petId, startDate, endDate, activityKindId);
+        log.info("分页搜索宠物ID: {} 的活动记录，页码: {}, 每页大小: {}",
+                petId, pageable.getPageNumber(), pageable.getPageSize());
 
-        List<ActivityRecordDTO> records = activityService.searchActivityRecords(
-                petId, startDate, endDate, activityKindId);
+        // 1. 调用 Service 获取分页数据
+        Page<ActivityRecordDTO> recordPage = activityService.searchActivityRecords(
+                petId, startDate, endDate, activityKindId, pageable);
 
-        if (records != null) {
-            for (ActivityRecordDTO record : records) {
+        // 2. 批量处理媒体文件（建议：如果记录较多，此处循环调用 Feign 可能会有性能瓶颈）
+        if (recordPage.hasContent()) {
+            for (ActivityRecordDTO record : recordPage.getContent()) {
                 try {
                     List<MediaResponse> mediaFiles = mediaServiceClient.getRelatedFiles("ACTIVITY", record.getActivityRecordId());
                     record.setMediaFiles(mediaFiles);
                 } catch (Exception e) {
-                    log.warn("获取活动记录 {} 的媒体文件失败: {}", record.getActivityRecordId(), e.getMessage());
-                    // 媒体获取失败不影响主数据返回
+                    log.warn("获取记录 {} 媒体失败: {}", record.getActivityRecordId(), e.getMessage());
                     record.setMediaFiles(List.of());
                 }
             }
         }
 
-        return ResponseEntity.ok(records);
+        return ResponseEntity.ok(recordPage);
     }
 
     @Operation(summary = "创建活动记录", description = "为宠物添加一次活动记录（如：今天喂食了），支持上传照片")

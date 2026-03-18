@@ -4,6 +4,8 @@ import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.Activity;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.entity.Pet;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -46,7 +48,7 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
     @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.pet.petId = :petId")
     Long countByPetPetId(@Param("petId") Long petId);
 
-    @Query("SELECT new com.petcare.backend.dto.response.ActivityRecordDTO(" +
+    @Query(value = "SELECT new com.petcare.backend.dto.response.ActivityRecordDTO(" +
             "ar.activityRecordId, a.activityId, a.activityName, " +
             "ak.activityKindId, ak.activityKindName, p.petId, " +
             "ar.activityDescription, ar.activityDate) " +
@@ -57,12 +59,18 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
             "WHERE p.petId = :petId " +
             "AND (:startDate IS NULL OR ar.activityDate >= :startDate) " +
             "AND (:endDate IS NULL OR ar.activityDate <= :endDate) " +
-            "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId) " +
-            "ORDER BY ar.activityDate DESC")
-    List<ActivityRecordDTO> findActivityRecordsWithDetails(@Param("petId") Long petId,
+            "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId)",
+            countQuery = "SELECT count(ar) FROM ActivityRecord ar " +
+                    "JOIN ar.activity a JOIN a.activityKind ak JOIN ar.pet p " +
+                    "WHERE p.petId = :petId " +
+                    "AND (:startDate IS NULL OR ar.activityDate >= :startDate) " +
+                    "AND (:endDate IS NULL OR ar.activityDate <= :endDate) " +
+                    "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId)")
+    Page<ActivityRecordDTO> findActivityRecordsWithDetails(@Param("petId") Long petId,
                                                            @Param("startDate") LocalDateTime startDate,
                                                            @Param("endDate") LocalDateTime endDate,
-                                                           @Param("activityKindId") Long activityKindId);
+                                                           @Param("activityKindId") Long activityKindId,
+                                                           Pageable pageable); // 必须添加此参数
 
     // 根据宠物ID列表批量查找活动记录
     List<ActivityRecord> findByPetPetIdIn(List<Long> petIds);

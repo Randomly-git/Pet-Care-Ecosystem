@@ -12,6 +12,8 @@ import com.petcare.backend.repository.*;
 import com.petcare.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -160,11 +162,14 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
-    public List<ActivityRecordDTO> searchActivityRecords(Long petId,
+    public Page<ActivityRecordDTO> searchActivityRecords(Long petId,
                                                          LocalDateTime startDate,
                                                          LocalDateTime endDate,
-                                                         Long activityKindId) {
-        return activityRecordRepository.findActivityRecordsWithDetails(petId, startDate, endDate, activityKindId);
+                                                         Long activityKindId,
+                                                         Pageable pageable) {
+        // 直接返回 Page 对象
+        return activityRecordRepository.findActivityRecordsWithDetails(
+                petId, startDate, endDate, activityKindId, pageable);
     }
 
     @Override
