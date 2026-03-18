@@ -112,18 +112,24 @@ public class MediaOperationConsumer {
 
     /**
      * 处理删除文件事件
+     * 注意：数据库记录已在 MediaService 中提前删除，此处仅处理 COS 文件删除
      */
     private void handleDeleteFile(MediaOperationEvent event) {
-        log.info("【MQ消费】开始删除文件: eventId={}, mediaId={}",
-                event.getEventId(), event.getMediaId());
+        log.info("【MQ消费】收到COS文件删除任务: eventId={}, mediaId={}, fileUrl={}",
+                event.getEventId(), event.getMediaId(), event.getFileUrl());
 
-        // 1. 调用 COS API 删除文件
-        cosStorageService.deleteFile(event.getFileUrl());
+        try {
+            // 调用 COS API 删除文件
+            cosStorageService.deleteFile(event.getFileUrl());
 
-        // 2. 从数据库删除记录
-        mediaRepository.deleteById(event.getMediaId());
+            log.info("【MQ消费】COS文件删除成功: eventId={}, mediaId={}, fileUrl={}",
+                    event.getEventId(), event.getMediaId(), event.getFileUrl());
 
-        log.info("【MQ消费】文件删除成功: eventId={}, mediaId={}",
-                event.getEventId(), event.getMediaId());
+        } catch (Exception e) {
+            log.error("【MQ消费】COS文件删除失败: eventId={}, mediaId={}, fileUrl={}, error={}",
+                    event.getEventId(), event.getMediaId(), event.getFileUrl(), e.getMessage(), e);
+            // 抛出异常触发重试机制
+            throw e;
+        }
     }
 }

@@ -33,9 +33,10 @@ public class ActivityServiceImpl implements ActivityService {
     private final ActivityRecordRepository activityRecordRepository;
     private final ActivityKindRepository activityKindRepository;
     private final PetRepository petRepository;
-    private final UserRepository userRepository; // 新增
-    private final FixedActivityRepository fixedActivityRepository; // 新增
-    private final ActivityReminderRepository activityReminderRepository; // 新增
+    private final UserRepository userRepository;
+    private final FixedActivityRepository fixedActivityRepository;
+    private final ActivityReminderRepository activityReminderRepository;
+    private final MediaServiceClient mediaServiceClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -179,6 +180,15 @@ public class ActivityServiceImpl implements ActivityService {
             ActivityRecord record = activityRecordRepository.findById(recordId)
                     .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
 
+            // 先删除关联的媒体文件（通过MQ异步删除COS）
+            try {
+                mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
+                log.debug("删除活动记录 {} 的关联媒体成功", recordId);
+            } catch (Exception e) {
+                log.warn("删除活动记录 {} 的关联媒体失败，继续删除记录: {}", recordId, e.getMessage());
+            }
+
+            // 再删除记录
             activityRecordRepository.delete(record);
             log.info("已删除活动记录 ID={}", recordId);
             return true;
@@ -312,14 +322,27 @@ public class ActivityServiceImpl implements ActivityService {
         Activity activity = activityRepository.findById(activityId)
                 .orElseThrow(() -> new RuntimeException("活动不存在 ID=" + activityId));
 
-        // 删除所有相关 record
+        // 获取所有相关 record
         List<ActivityRecord> records = activityRecordRepository.findByActivityActivityId(activityId);
+
+        // 先删除所有关联的媒体文件
+        for (ActivityRecord record : records) {
+            try {
+                mediaServiceClient.deleteRelatedFiles("ACTIVITY", record.getActivityRecordId());
+                log.debug("删除活动记录 {} 的关联媒体成功", record.getActivityRecordId());
+            } catch (Exception e) {
+                log.warn("删除活动记录 {} 的关联媒体失败，继续删除活动记录: {}",
+                        record.getActivityRecordId(), e.getMessage());
+            }
+        }
+
+        // 删除所有相关 record
         activityRecordRepository.deleteAll(records);
 
         // 再删除 activity
         activityRepository.delete(activity);
 
-        log.info("彻底删除 activity={}, 以及所有 {} 条记录", activityId, records.size());
+        log.info("彻底删除 activity={}, 以及所有 {} 条记录及其关联媒体", activityId, records.size());
     }
 
     /**

@@ -321,50 +321,64 @@ public class MediaService {
 
     /**
      * 删除单个媒体文件
+     * 删除顺序：先删数据库记录，后MQ异步删除COS文件
+     * 这样设计确保：
+     * 1. 用户能快速得到删除成功的响应
+     * 2. COS删除失败不影响本地数据一致性（通过MQ重试机制）
      */
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(allEntries = true)
     public void deleteMediaFile(Long mediaId) {
         MediaFile mediaFile = getMediaFileById(mediaId);
+        String fileUrl = mediaFile.getFileUrl();
 
         try {
-            // 从腾讯云COS删除文件
-            cosStorageService.deleteFile(mediaFile.getFileUrl());
-
-            // 从数据库删除记录
+            // 1. 先从数据库删除记录
             mediaRepository.deleteById(mediaId);
+            log.info("媒体文件记录从数据库删除成功: mediaId={}", mediaId);
 
-            log.info("媒体文件删除成功: mediaId={}", mediaId);
+            // 2. 通过MQ异步删除COS文件
+            // 使用MQ的好处：失败可重试，解耦主流程
+            mediaOperationPublisher.publishDeleteFileEvent(mediaId, fileUrl);
+            log.info("媒体文件COS删除任务已提交MQ: mediaId={}, fileUrl={}", mediaId, fileUrl);
 
         } catch (Exception e) {
-            log.error("媒体文件删除失败: mediaId={}", mediaId, e);
-            // 统一抛出 MediaServiceException
+            log.error("媒体文件删除失败: mediaId={}, error={}", mediaId, e.getMessage(), e);
             throw new MediaServiceException("文件删除失败: " + e.getMessage());
         }
     }
 
     /**
      * 删除特定业务记录的所有媒体文件
+     * 删除顺序：先删数据库记录，后MQ异步删除COS文件
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteMediaFilesByRelated(RelatedType relatedType, Long relatedId) {
         List<MediaFile> mediaFiles = getMediaFilesByRelated(relatedType, relatedId);
 
+        if (mediaFiles.isEmpty()) {
+            log.info("没有找到关联的媒体文件: relatedType={}, relatedId={}", relatedType, relatedId);
+            return;
+        }
+
+        // 1. 先从数据库批量删除记录
+        int deletedCount = mediaRepository.deleteByRelatedTypeAndRelatedId(relatedType, relatedId);
+        log.info("媒体文件记录从数据库删除成功: relatedType={}, relatedId={}, deletedCount={}",
+                relatedType, relatedId, deletedCount);
+
+        // 2. 通过MQ异步批量删除COS文件
         for (MediaFile mediaFile : mediaFiles) {
             try {
-                // 从腾讯云COS删除文件
-                cosStorageService.deleteFile(mediaFile.getFileUrl());
+                mediaOperationPublisher.publishDeleteFileEvent(mediaFile.getMediaId(), mediaFile.getFileUrl());
+                log.debug("COS删除任务已提交MQ: mediaId={}, fileUrl={}", mediaFile.getMediaId(), mediaFile.getFileUrl());
             } catch (Exception e) {
-                log.warn("删除云存储文件失败，事务回滚: {}", mediaFile.getFileUrl(), e);
-                // 统一抛出 MediaServiceException，确保事务能正确回滚
-                throw new MediaServiceException(50002, "删除云存储文件失败，事务已回滚: " + e.getMessage());
+                log.warn("提交COS删除任务失败，继续处理下一个文件: mediaId={}, error={}",
+                        mediaFile.getMediaId(), e.getMessage());
             }
         }
 
-        // 从数据库批量删除记录
-        int deletedCount = mediaRepository.deleteByRelatedTypeAndRelatedId(relatedType, relatedId);
-        log.info("删除业务记录关联的媒体文件成功: relatedType={}, relatedId={}, deletedCount={}",
-                relatedType, relatedId, deletedCount);
+        log.info("批量媒体文件删除任务已提交MQ: relatedType={}, relatedId={}, totalCount={}",
+                relatedType, relatedId, mediaFiles.size());
     }
 
     /**
