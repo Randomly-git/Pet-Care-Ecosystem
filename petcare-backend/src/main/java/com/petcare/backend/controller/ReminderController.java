@@ -27,17 +27,21 @@ public class ReminderController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * 合并后的确认接口
+     * 如果请求体中包含 description，则调用带描述的确认逻辑；否则执行普通确认。
+     */
     @PutMapping("/{activityReminderId}/confirm")
-    public ResponseEntity<Void> confirmReminderWithoutDescription(@PathVariable Long activityReminderId) {
-        reminderService.confirmReminderWithoutDescription(activityReminderId);
-        return ResponseEntity.ok().build();
-    }
-
-    @PutMapping("/{activityReminderId}/confirm-with-description")
-    public ResponseEntity<Void> confirmReminderWithDescription(
+    public ResponseEntity<Void> confirmReminder(
             @PathVariable Long activityReminderId,
             @RequestBody(required = false) String description) {
-        reminderService.confirmReminderWithDescription(activityReminderId, description);
+
+        if (description != null && !description.trim().isEmpty()) {
+            reminderService.confirmReminderWithDescription(activityReminderId, description);
+        } else {
+            reminderService.confirmReminderWithoutDescription(activityReminderId);
+        }
+
         return ResponseEntity.ok().build();
     }
 }
