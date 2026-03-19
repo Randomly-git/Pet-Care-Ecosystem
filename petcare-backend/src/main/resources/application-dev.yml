@@ -1,52 +1,34 @@
-# 在文件开头或合适的位置添加
-#server:
-#  port: 8082  # 添加这一行，与前端配置保持一致
-#  address: 0.0.0.0  # 可选，允许外部访问
-
-server:
-  port: 0 # 随机端口
-
+# 开发环境配置文件
+# 基础配置
 spring:
-  config:
-    import:
-      - optional:file:./program-config.yml  # 试试当前目录
-      - optional:file:../program-config.yml # 试试上级目录
   application:
-    name: petcare-backend # 这个名字要和网关配置里的 lb:// 后面一致
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${nacos.host:localhost}:${nacos.port:8848}
-  datasource:
-    url: jdbc:mysql://${mysql.host:localhost}:${mysql.port:3306}/${mysql.database:pet_system}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
-    username: ${mysql.username:root}
-    password: ${mysql.password:password}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+    name: petcare-backend
 
-  jpa:
-    show-sql: true
-    hibernate:
-      ddl-auto: none
-    properties:
-      hibernate:
-        format_sql: true
+# 引入外部配置文件
+spring.config.import: optional:file:./program-config.yml
 
-  # 文件上传配置 - 单个文件和整个请求都最大100MB
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 100MB
-      max-request-size: 100MB
-      file-size-threshold: 2MB
+# HBase 配置 (从 program-config.yml 读取)
+hbase:
+  host: ${hbase.host:8.136.215.16}
+  port: ${hbase.port:2181}
+  zookeeper-property-clientPort: ${hbase.zookeeper-property-clientPort:2181}
+  zookeeper-znode-parent: ${hbase.zookeeper-znode-parent:/hbase}
+  namespace: ${hbase.namespace:petcare_cold}
+  pool:
+    max-total: ${hbase.pool.max-total:100}
+    max-idle: ${hbase.pool.max-idle:20}
+    min-idle: ${hbase.pool.min-idle:5}
+    test-on-borrow: ${hbase.pool.test-on-borrow:true}
+    test-while-idle: ${hbase.pool.test-while-idle:true}
+  cold-data:
+    activity-record:
+      days-threshold: ${hbase.cold-data.activity-record.days-threshold:30}
+      batch-size: ${hbase.cold-data.activity-record.batch-size:1000}
+      migration-cron: ${hbase.cold-data.activity-record.migration-cron:0 0 2 * * ?}
 
-# 开发环境日志级别
+# 日志配置
 logging:
   level:
-    com.petcare.backend: DEBUG
-    org.hibernate.SQL: DEBUG
+    com.petcare.backend: INFO
+    org.apache.hadoop: WARN
+    org.apache.hbase: INFO
