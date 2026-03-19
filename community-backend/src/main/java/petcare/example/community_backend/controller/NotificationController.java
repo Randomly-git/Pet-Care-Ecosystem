@@ -12,8 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import petcare.example.community_backend.dto.NotificationDTO;
-import petcare.example.community_backend.entity.Notification;
-import petcare.example.community_backend.repository.NotificationRepository;
+import petcare.example.community_backend.model.Notification;
+import petcare.example.community_backend.service.NotificationService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 @Tag(name = "通知管理", description = "用户通知相关接口")
 public class NotificationController {
 
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     /**
      * 获取用户通知列表（分页）
@@ -46,7 +46,7 @@ public class NotificationController {
         log.info("获取用户通知列表: userId={}, page={}, size={}", userId, page, size);
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<Notification> notificationPage = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        Page<Notification> notificationPage = notificationService.getUserNotifications(userId, pageable);
 
         // 转换为 DTO
         List<NotificationDTO> notifications = notificationPage.getContent().stream()
@@ -54,7 +54,7 @@ public class NotificationController {
                 .collect(Collectors.toList());
 
         // 获取未读数量
-        long unreadCount = notificationRepository.countByUserIdAndIsReadFalse(userId);
+        long unreadCount = notificationService.getUnreadCount(userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("notifications", notifications);
@@ -75,7 +75,7 @@ public class NotificationController {
     public ResponseEntity<Map<String, Object>> getUnreadCount(
             @Parameter(description = "用户ID") @RequestParam Long userId) {
 
-        long count = notificationRepository.countByUserIdAndIsReadFalse(userId);
+        long count = notificationService.getUnreadCount(userId);
         log.info("用户未读通知数量: userId={}, count={}", userId, count);
 
         Map<String, Object> result = new HashMap<>();
@@ -95,7 +95,7 @@ public class NotificationController {
 
         log.info("获取用户未读通知: userId={}", userId);
 
-        List<Notification> notifications = notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
+        List<Notification> notifications = notificationService.getUnreadNotifications(userId);
 
         List<NotificationDTO> dtos = notifications.stream()
                 .map(this::toDTO)
@@ -114,12 +114,12 @@ public class NotificationController {
 
         log.info("标记通知为已读: id={}", id);
 
-        int updated = notificationRepository.markAsReadById(id);
+        boolean success = notificationService.markAsRead(id);
 
         Map<String, Object> result = new HashMap<>();
         result.put("id", id);
-        result.put("success", updated > 0);
-        result.put("message", updated > 0 ? "标记成功" : "通知不存在或已读");
+        result.put("success", success);
+        result.put("message", success ? "标记成功" : "通知不存在或已读");
 
         return ResponseEntity.ok(result);
     }
@@ -134,7 +134,7 @@ public class NotificationController {
 
         log.info("标记所有通知为已读: userId={}", userId);
 
-        int updated = notificationRepository.markAllAsReadByUserId(userId);
+        int updated = notificationService.markAllAsRead(userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("userId", userId);
@@ -154,7 +154,7 @@ public class NotificationController {
 
         log.info("删除通知: id={}", id);
 
-        notificationRepository.deleteById(id);
+        notificationService.deleteNotification(id);
 
         Map<String, Object> result = new HashMap<>();
         result.put("id", id);
@@ -173,7 +173,7 @@ public class NotificationController {
 
         log.info("删除用户所有通知: userId={}", userId);
 
-        notificationRepository.deleteByUserId(userId);
+        notificationService.deleteAllUserNotifications(userId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("userId", userId);

@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import petcare.example.community_backend.entity.Notification;
+import petcare.example.community_backend.model.Notification;
 
 import java.util.List;
 

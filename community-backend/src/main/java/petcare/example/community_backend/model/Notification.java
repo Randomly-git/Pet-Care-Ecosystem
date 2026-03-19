@@ -1,5 +1,4 @@
-// entity/Notification.java
-package petcare.example.community_backend.entity;
+package petcare.example.community_backend.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

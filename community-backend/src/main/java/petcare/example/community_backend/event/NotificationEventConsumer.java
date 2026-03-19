@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-import petcare.example.community_backend.entity.Notification;
+import petcare.example.community_backend.model.Notification;
 import petcare.example.community_backend.repository.NotificationRepository;
 import petcare.example.community_backend.service.WebSocketService;
 
