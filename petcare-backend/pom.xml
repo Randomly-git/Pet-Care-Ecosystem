@@ -32,6 +32,10 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-logging</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.apache.tomcat.embed</groupId>
+                    <artifactId>tomcat-embed-jasper</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -169,6 +173,18 @@
                     <groupId>log4j</groupId>
                     <artifactId>log4j</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.web</groupId>
+                    <artifactId>javax.servlet.jsp</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.hbase</groupId>
+                    <artifactId>hbase-http</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -186,6 +202,18 @@
                     <groupId>log4j</groupId>
                     <artifactId>log4j</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>javax.servlet</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.glassfish.web</groupId>
+                    <artifactId>javax.servlet.jsp</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.hbase</groupId>
+                    <artifactId>hbase-http</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -194,6 +222,12 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
             <version>2.12.0</version>
+        </dependency>
+
+        <!-- RabbitMQ (用于冷数据迁移) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
     </dependencies>

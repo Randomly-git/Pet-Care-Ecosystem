@@ -1,5 +1,6 @@
 package com.petcare.backend.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -12,9 +13,12 @@ public class ActivityRecordDTO {
     private Long activityKindId;
     private String activityKindName;
     private Long petId;
+    private String petName;
+    private Long userId;
     private String activityDescription;
-    private LocalDateTime activityDate;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime activityDate;
 
     // 新增媒体相关字段
     private List<MediaResponse> mediaFiles;  // 媒体文件列表

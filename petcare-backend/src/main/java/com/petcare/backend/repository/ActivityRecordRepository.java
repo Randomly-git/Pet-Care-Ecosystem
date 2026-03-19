@@ -67,11 +67,62 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
                     "AND (:endDate IS NULL OR ar.activityDate <= :endDate) " +
                     "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId)")
     Page<ActivityRecordDTO> findActivityRecordsWithDetails(@Param("petId") Long petId,
-                                                           @Param("startDate") LocalDateTime startDate,
-                                                           @Param("endDate") LocalDateTime endDate,
-                                                           @Param("activityKindId") Long activityKindId,
-                                                           Pageable pageable); // 必须添加此参数
+                                                          @Param("startDate") LocalDateTime startDate,
+                                                          @Param("endDate") LocalDateTime endDate,
+                                                          @Param("activityKindId") Long activityKindId,
+                                                          Pageable pageable);
 
     // 根据宠物ID列表批量查找活动记录
     List<ActivityRecord> findByPetPetIdIn(List<Long> petIds);
+
+    // ==================== 冷热分离查询方法（简化后） ====================
+
+    /**
+     * 查询需要迁移的记录（超过指定天数且未开始迁移）
+     * 根据 activity_date 判断，不需要 last_access_time
+     */
+    @Query("SELECT ar FROM ActivityRecord ar WHERE ar.activityDate < :threshold " +
+           "AND (ar.migrationStatus IS NULL OR ar.migrationStatus = 'NONE')")
+    Page<ActivityRecord> findRecordsToMigrate(@Param("threshold") LocalDateTime threshold, Pageable pageable);
+
+    /**
+     * 查询迁移中的记录
+     */
+    @Query("SELECT ar FROM ActivityRecord ar WHERE ar.migrationStatus = 'MIGRATING'")
+    List<ActivityRecord> findMigratingRecords(Pageable pageable);
+
+    /**
+     * 查询超过指定天数的记录数量
+     */
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.activityDate < :threshold " +
+           "AND (ar.migrationStatus IS NULL OR ar.migrationStatus = 'NONE')")
+    long countOldRecordsNeedingMigration(@Param("threshold") LocalDateTime threshold);
+
+    // ==================== 统计查询方法（简化后） ====================
+
+    /**
+     * 统计总记录数
+     */
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar")
+    long countTotalRecords();
+
+    /**
+     * 统计待迁移记录数
+     */
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.migrationStatus = 'NONE' " +
+           "AND ar.activityDate < :threshold")
+    long countPendingMigrationRecords(@Param("threshold") LocalDateTime threshold);
+
+    /**
+     * 统计迁移中记录数
+     */
+    @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.migrationStatus = 'MIGRATING'")
+    long countMigratingRecords();
+
+    /**
+     * 查找解冻过期的冷数据（用于清理）
+     */
+    @Query("SELECT ar FROM ActivityRecord ar WHERE ar.migrationStatus = 'NONE' " +
+           "AND ar.thawExpireTime IS NOT NULL AND ar.thawExpireTime < :now")
+    List<ActivityRecord> findExpiredThawRecords(@Param("now") LocalDateTime now);
 }

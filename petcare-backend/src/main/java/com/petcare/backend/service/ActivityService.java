@@ -65,4 +65,23 @@ public interface ActivityService {
 
     // 6. 批量获取多个宠物的活动记录（用于统计）
     List<ActivityRecordDTO> getActivityRecordsByPetIds(List<Long> petIds);
+
+    // ==================== 冷热分离相关方法 ====================
+
+    /**
+     * 查询活动记录（自动路由热/冷数据）
+     * 自动判断查询范围是否涉及冷数据，合并返回结果
+     */
+    List<ActivityRecordDTO> queryActivityRecords(Long petId, LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * 访问冷数据记录（触发解冻）
+     * 访问冷数据时，更新最后访问时间
+     */
+    void accessColdRecord(Long activityRecordId);
+
+    /**
+     * 获取迁移统计信息
+     */
+    Object getMigrationStats();
 }

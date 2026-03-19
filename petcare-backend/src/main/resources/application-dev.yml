@@ -3,9 +3,51 @@
 spring:
   application:
     name: petcare-backend
+  config:
+    import:
+      - optional:file:./program-config.yml  # 试试当前目录
+      - optional:file:../program-config.yml # 试试上级目录
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${nacos.host:localhost}:${nacos.port:8848}
+  datasource:
+    url: jdbc:mysql://${mysql.host:localhost}:${mysql.port:3306}/${mysql.database:pet_system}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+    username: ${mysql.username:root}
+    password: ${mysql.password:password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
 
-# 引入外部配置文件
-spring.config.import: optional:file:./program-config.yml
+  # RabbitMQ 配置
+  rabbitmq:
+    host: ${rabbitmq.host:localhost}
+    port: ${rabbitmq.port:5672}
+    username: ${rabbitmq.username:guest}
+    password: ${rabbitmq.password:guest}
+    virtual-host: ${rabbitmq.virtual-host:/}
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 10
+        retry:
+          enabled: true
+          initial-interval: 3000
+          max-attempts: 3
+          max-interval: 10000
+          multiplier: 2
 
 # HBase 配置 (从 program-config.yml 读取)
 hbase:
@@ -19,7 +61,7 @@ hbase:
     max-idle: ${hbase.pool.max-idle:20}
     min-idle: ${hbase.pool.min-idle:5}
     test-on-borrow: ${hbase.pool.test-on-borrow:true}
-    test-while-idle: ${hbase.pool.test-while-idle:true}
+    test-while-idle: ${hbase.pool.test-on-return:true}
   cold-data:
     activity-record:
       days-threshold: ${hbase.cold-data.activity-record.days-threshold:30}
