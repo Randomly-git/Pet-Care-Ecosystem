@@ -1,10 +1,11 @@
 package petcare.example.community_backend.repository;
 
-import org.springframework.data.jpa.repository.Query;
 import petcare.example.community_backend.model.Like;
 import petcare.example.community_backend.model.TargetType;
 import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.Collection;
 import java.util.List;
@@ -37,4 +38,32 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     // 批量删除点赞记录，用于级联删除
     @Modifying
     void deleteByTargetTypeAndTargetIdIn(TargetType targetType, Collection<Long> targetIds);
+
+    // ==================== 冷热分离查询方法 ====================
+
+    /**
+     * 按目标类型和目标ID查询点赞
+     */
+    List<Like> findByTargetTypeAndTargetId(TargetType targetType, Long targetId);
+
+    /**
+     * 按目标ID列表查询点赞
+     */
+    List<Like> findByTargetTypeAndTargetIdIn(TargetType targetType, Collection<Long> targetIds);
+
+    /**
+     * 统计需要迁移的点赞数
+     */
+    @Query("SELECT COUNT(l) FROM Like l WHERE l.targetType = :targetType AND l.targetId = :targetId " +
+           "AND (l.migrationStatus IS NULL OR l.migrationStatus = 'NONE')")
+    long countPendingMigrationByTarget(@Param("targetType") TargetType targetType, @Param("targetId") Long targetId);
+
+    /**
+     * 批量更新点赞迁移状态
+     */
+    @Modifying
+    @Query("UPDATE Like l SET l.migrationStatus = :status WHERE l.targetType = :targetType AND l.targetId = :targetId")
+    void updateMigrationStatusByTarget(@Param("targetType") TargetType targetType,
+                                      @Param("targetId") Long targetId,
+                                      @Param("status") String status);
 }

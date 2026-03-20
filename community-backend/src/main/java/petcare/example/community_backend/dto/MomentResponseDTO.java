@@ -19,8 +19,13 @@ public class MomentResponseDTO {
     private String authorName;
     private String authorAvatar;
 
+    // 位置和标签
+    private String location;
+    private String tags;
+
     // 从媒体微服务获取 URL 列表
     private List<String> mediaUrls;
-    private int commentCount = 0;
-    private int likeCount = 0;
+    private Integer commentCount = 0;
+    private Integer likeCount = 0;
+    private Integer shareCount = 0;
 }

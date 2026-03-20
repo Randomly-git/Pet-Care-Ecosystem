@@ -15,6 +15,17 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
+    // ==================== 冷数据迁移交换机 ====================
+    public static final String COLD_MIGRATION_EXCHANGE = "petcare.community.cold.migration.exchange";
+
+    // ==================== 冷数据迁移队列 ====================
+    public static final String COLD_MIGRATION_QUEUE = "petcare.community.cold.migration.queue";
+    public static final String COLD_MIGRATION_DLQ = "petcare.community.cold.migration.dlq";
+
+    // ==================== 冷数据迁移路由键 ====================
+    public static final String COLD_MIGRATION_ROUTING_KEY = "community.cold.migration";
+    public static final String COLD_MIGRATION_DL_ROUTING_KEY = "community.cold.migration.dl";
+
     // ==================== 交换机 ====================
     public static final String MEDIA_EXCHANGE = "petcare.media.exchange";
     public static final String NOTIFICATION_EXCHANGE = "petcare.notification.exchange";
@@ -32,6 +43,55 @@ public class RabbitMQConfig {
     public static final String NOTIFICATION_LIKE_ROUTING_KEY = "notification.like";
     public static final String NOTIFICATION_COMMENT_ROUTING_KEY = "notification.comment";
     public static final String NOTIFICATION_FOLLOW_ROUTING_KEY = "notification.follow";
+
+    // ==================== 冷数据迁移相关 Bean ====================
+
+    /**
+     * 声明冷数据迁移交换机
+     */
+    @Bean
+    public DirectExchange communityColdMigrationExchange() {
+        return new DirectExchange(COLD_MIGRATION_EXCHANGE, true, false);
+    }
+
+    /**
+     * 声明冷数据迁移队列
+     */
+    @Bean
+    public Queue communityColdMigrationQueue() {
+        return QueueBuilder.durable(COLD_MIGRATION_QUEUE)
+                .withArgument("x-dead-letter-exchange", COLD_MIGRATION_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", COLD_MIGRATION_DL_ROUTING_KEY)
+                .build();
+    }
+
+    /**
+     * 声明冷数据迁移死信队列
+     */
+    @Bean
+    public Queue communityColdMigrationDLQueue() {
+        return QueueBuilder.durable(COLD_MIGRATION_DLQ).build();
+    }
+
+    /**
+     * 绑定冷数据迁移队列到交换机
+     */
+    @Bean
+    public Binding communityColdMigrationBinding() {
+        return BindingBuilder.bind(communityColdMigrationQueue())
+                .to(communityColdMigrationExchange())
+                .with(COLD_MIGRATION_ROUTING_KEY);
+    }
+
+    /**
+     * 绑定冷数据迁移死信队列到交换机
+     */
+    @Bean
+    public Binding communityColdMigrationDLBinding() {
+        return BindingBuilder.bind(communityColdMigrationDLQueue())
+                .to(communityColdMigrationExchange())
+                .with(COLD_MIGRATION_DL_ROUTING_KEY);
+    }
 
     // ==================== 媒体相关 Bean ====================
 

@@ -50,6 +50,25 @@ logging:
     com.petcare.backend: DEBUG
     org.hibernate.SQL: DEBUG
 
+# HBase 配置 (从 program-config.yml 读取)
+hbase:
+  host: ${hbase.host:8.136.215.16}
+  port: ${hbase.port:2181}
+  zookeeper-property-clientPort: ${hbase.zookeeper-property-clientPort:2181}
+  zookeeper-znode-parent: ${hbase.zookeeper-znode-parent:/hbase}
+  namespace: ${hbase.namespace:petcare_cold}
+  pool:
+    max-total: ${hbase.pool.max-total:100}
+    max-idle: ${hbase.pool.max-idle:20}
+    min-idle: ${hbase.pool.min-idle:5}
+    test-on-borrow: ${hbase.pool.test-on-borrow:true}
+    test-while-idle: ${hbase.pool.test-on-return:true}
+  cold-data:
+    community:
+      days-threshold: 7
+      batch-size: 1000
+      migration-cron: "0 0 3 * * ?"
+
 app:
   # 媒体服务地址，根据实际部署情况修改
   media-service:

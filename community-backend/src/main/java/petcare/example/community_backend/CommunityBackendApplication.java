@@ -2,10 +2,11 @@ package petcare.example.community_backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-public class
-  CommunityBackendApplication {
+@EnableScheduling
+public class CommunityBackendApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(CommunityBackendApplication.class, args);
