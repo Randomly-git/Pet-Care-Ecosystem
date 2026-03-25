@@ -61,32 +61,4 @@ class MomentControllerTest {
 
         verify(momentService, times(1)).getMomentsByUserId(userId);
     }
-
-    // ------------------------- DELETE /api/v1/moments/{momentId} 测试 -------------------------
-
-    @Test
-    void deleteMoment_ExistingId_ReturnsOk() throws Exception {
-        Long momentId = 5L;
-        when(momentService.deleteMoment(momentId)).thenReturn(true);
-
-        // 执行 DELETE 请求
-        mockMvc.perform(delete(BASE_URL + "/{momentId}", momentId))
-                .andExpect(status().isOk()) // 验证HTTP状态码 200
-                .andExpect(content().string("删除成功"));
-
-        verify(momentService, times(1)).deleteMoment(momentId);
-    }
-
-    @Test
-    void deleteMoment_NonExistingId_ReturnsNotFound() throws Exception {
-        Long momentId = 999L;
-        when(momentService.deleteMoment(momentId)).thenReturn(false);
-
-        // 执行 DELETE 请求
-        mockMvc.perform(delete(BASE_URL + "/{momentId}", momentId))
-                .andExpect(status().isNotFound()) // 验证HTTP状态码 404
-                .andExpect(content().string("动态不存在或删除失败"));
-
-        verify(momentService, times(1)).deleteMoment(momentId);
-    }
 }

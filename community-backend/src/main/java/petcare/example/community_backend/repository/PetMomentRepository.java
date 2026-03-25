@@ -63,4 +63,27 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
      */
     @Query("UPDATE PetMoment m SET m.lastAccessTime = :now WHERE m.id IN :ids")
     void batchUpdateLastAccessTime(@Param("ids") List<Long> ids, @Param("now") LocalDateTime now);
+
+    // ==================== 状态机锁定方法 ====================
+
+    /**
+     * 原子性更新迁移状态（乐观锁）
+     * 只有当当前状态等于 expectedStatus 时才更新为 newStatus
+     *
+     * @param id 动态ID
+     * @param expectedStatus 期望的当前状态
+     * @param newStatus 新状态
+     * @return 更新影响的行数（1表示成功，0表示状态不匹配）
+     */
+    @Query("UPDATE PetMoment m SET m.migrationStatus = :newStatus WHERE m.id = :id AND m.migrationStatus = :expectedStatus")
+    int updateMigrationStatus(@Param("id") Long id, @Param("expectedStatus") String expectedStatus, @Param("newStatus") String newStatus);
+
+    /**
+     * 查询待迁移的动态（状态为 NONE 且超过指定天数未访问）
+     *
+     * @param status 迁移状态
+     * @param threshold 时间阈值
+     * @return 待迁移的动态列表
+     */
+    List<PetMoment> findByMigrationStatusAndLastAccessTimeBefore(String status, LocalDateTime threshold);
 }

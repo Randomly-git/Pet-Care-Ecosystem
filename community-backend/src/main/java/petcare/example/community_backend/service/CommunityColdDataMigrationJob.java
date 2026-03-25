@@ -1,6 +1,16 @@
 package petcare.example.community_backend.service;
 
-import petcare.example.community_backend.config.HBaseProperties;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import petcare.example.community_backend.client.UserServiceFacade;
+import petcare.example.community_backend.client.dto.UserResponseDTO;
+import petcare.example.community_backend.dto.ColdArchiveData;
+import petcare.example.community_backend.dto.HBaseArchiveRecord;
 import petcare.example.community_backend.model.Comment;
 import petcare.example.community_backend.model.Like;
 import petcare.example.community_backend.model.PetMoment;
@@ -8,262 +18,315 @@ import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.repository.CommentRepository;
 import petcare.example.community_backend.repository.LikeRepository;
 import petcare.example.community_backend.repository.PetMomentRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
- * 社区模块冷数据迁移定时任务
- * 
+ * 社区模块冷数据迁移任务（扁平化单表 + 状态机锁定设计）
+ *
  * 设计原则：
- * 1. 只保留 NONE/MIGRATING 两种状态
- * 2. 迁移成功后删除 MySQL 记录
- * 3. MQ 负责重试，不需要 MySQL 记录重试次数
- * 
- * 执行流程：
- * 1. 扫描 MySQL 中超过7天未访问的动态
- * 2. 发布迁移任务到 MQ（级联发布 comments 和 likes）
- * 3. MQ 消费者执行实际迁移（HBase写入 + MySQL删除）
+ * 1. 扁平化归档：评论和点赞序列化到 full_data 列
+ * 2. 状态机锁定：使用 MIGRATING 状态防止并发问题
+ * 3. 幂等性：先写 HBase，再删 MySQL
+ *
+ * 迁移流程：
+ * 1. 查询 7 天无访问的动态
+ * 2. 设置 MIGRATING 状态（锁定）
+ * 3. 查询关联的评论和点赞
+ * 4. 构建扁平化归档数据（JSON）
+ * 5. 写入 HBase（幂等检查）
+ * 6. 验证 HBase 写入成功
+ * 7. 删除 MySQL 数据
+ *
+ * 安全措施：
+ * - MIGRATING 状态防止级联删除误杀新数据
+ * - 先写后删保证数据不丢失
+ * - 批量操作减少事务时间
  */
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class CommunityColdDataMigrationJob {
+public class CommunityColdDataMigrationJob implements ApplicationRunner {
 
     private final PetMomentRepository momentRepository;
     private final CommentRepository commentRepository;
     private final LikeRepository likeRepository;
-    private final CommunityColdStorageEventPublisher eventPublisher;
     private final CommunityHBaseColdStorageService hBaseService;
+    private final UserServiceFacade userServiceFacade;
 
-    @Value("${hbase.cold-data.community.days-threshold:7}")
-    private int daysThreshold;
+    // 迁移开关（可通过配置或接口控制）
+    private final AtomicBoolean migrationEnabled = new AtomicBoolean(true);
 
-    @Value("${hbase.cold-data.community.batch-size:1000}")
-    private int batchSize;
+    // 最大评论数阈值（超过则跳过迁移）
+    private static final int MAX_COMMENT_THRESHOLD = 2000;
 
     /**
-     * 每天北京时间 3:00 执行冷数据迁移任务
-     * 
-     * cron表达式说明：
-     * - 秒(0) 分(0) 时(3) 日(*) 月(*) 周(?)
-     * - 北京时间3:00 = UTC 19:00
+     * 启动时执行一次
      */
-    @Scheduled(cron = "${hbase.cold-data.community.migration-cron:0 0 3 * * ?}", zone = "Asia/Shanghai")
-    @Transactional
-    public void migrateToColdStorage() {
-        log.info("================= 社区动态冷数据迁移任务开始 =================");
-
-        LocalDateTime threshold = LocalDateTime.now().minusDays(daysThreshold);
-
-        // 1. 处理新发现的待迁移记录（状态为 NONE）
-        int newPublished = scanAndPublishMigrationTasks(threshold);
-
-        // 2. 处理之前卡住的记录（状态为 MIGRATING，可能是 MQ 消费失败）
-        int stuckResolved = resolveStuckMigrations();
-
-        log.info("================= 社区动态冷数据迁移任务完成 =================");
-        log.info("新增发布迁移任务数: {}, 处理卡住记录数: {}", newPublished, stuckResolved);
+    @Override
+    public void run(ApplicationArguments args) {
+        log.info("【冷迁移】社区模块冷数据迁移任务已启动");
+        // 可选：启动时执行一次迁移
+        // executeMigration();
     }
 
     /**
-     * 扫描并发布迁移任务（状态为 NONE 的记录）
+     * 定时任务：每天凌晨 2:00 执行
+     * 使用 cron 表达式可根据实际情况调整
      */
-    private int scanAndPublishMigrationTasks(LocalDateTime threshold) {
-        log.info("【新迁移】开始扫描待迁移记录，超过 {} 天未访问", daysThreshold);
-
-        int publishedCount = 0;
-        int pageNumber = 0;
-
-        while (true) {
-            // 分页查询待迁移的记录（状态为 NONE 且超过7天未访问）
-            Page<PetMoment> page = momentRepository
-                    .findRecordsToMigrate(threshold, PageRequest.of(pageNumber, batchSize));
-
-            if (page.isEmpty()) {
-                break;
-            }
-
-            for (PetMoment moment : page.getContent()) {
-                try {
-                    // 收集关联的评论ID和点赞ID
-                    List<Long> commentIds = collectCommentIds(moment.getId());
-                    List<Long> likeIds = collectLikeIds(moment.getId());
-
-                    // 发布迁移消息到 MQ
-                    eventPublisher.publishMigrateToColdEvent(
-                            moment.getId(),
-                            moment.getUserId(),
-                            commentIds,
-                            likeIds
-                    );
-
-                    // 更新状态为迁移中
-                    moment.setMigrationStatus("MIGRATING");
-                    momentRepository.save(moment);
-                    publishedCount++;
-
-                } catch (Exception e) {
-                    log.error("【新迁移】发送迁移任务失败: momentId={}, error={}",
-                            moment.getId(), e.getMessage());
-                }
-            }
-
-            if (!page.hasNext()) {
-                break;
-            }
-            pageNumber++;
+    @Scheduled(cron = "0 0 2 * * ?")
+    public void scheduledMigration() {
+        if (!migrationEnabled.get()) {
+            log.info("【冷迁移】迁移任务已禁用，跳过执行");
+            return;
         }
 
-        log.info("【新迁移】完成，共发布 {} 条迁移任务", publishedCount);
-        return publishedCount;
+        log.info("【冷迁移】定时任务开始执行");
+        executeMigration();
     }
 
     /**
-     * 处理卡住的迁移记录（状态为 MIGRATING）
+     * 执行迁移
      */
-    private int resolveStuckMigrations() {
-        log.info("【卡住处理】开始处理卡住的迁移记录");
+    public MigrationStats executeMigration() {
+        long startTime = System.currentTimeMillis();
+        MigrationStats stats = new MigrationStats();
 
-        // 查询所有状态为 MIGRATING 的记录
-        Page<PetMoment> stuckPage = momentRepository
-                .findMigratingRecords(PageRequest.of(0, batchSize));
+        log.info("【冷迁移】开始扫描待迁移动态...");
 
-        int resolvedCount = 0;
+        // 1. 查询 7 天无访问的动态
+        LocalDateTime threshold = LocalDateTime.now().minusDays(7);
+        List<PetMoment> coldMoments = momentRepository.findByMigrationStatusAndLastAccessTimeBefore("NONE", threshold);
 
-        for (PetMoment moment : stuckPage.getContent()) {
+        log.info("【冷迁移】找到 {} 条待迁移动态", coldMoments.size());
+
+        for (PetMoment moment : coldMoments) {
             try {
-                // 生成新格式 RowKey
-                String rowKey = hBaseService.generateMomentRowKey(
-                        moment.getUserId(),
-                        moment.getId()
-                );
-
-                // 检查 HBase 是否已存在
-                if (hBaseService.existsInColdStorage("community_moments", rowKey)) {
-                    // HBase 已有数据，说明迁移已完成，直接删除 MySQL 记录
-                    log.info("【卡住处理】HBase已存在，直接删除MySQL记录: momentId={}, rowKey={}",
-                            moment.getId(), rowKey);
-                    deleteMomentAndRelated(moment);
+                boolean success = migrateSingleMoment(moment);
+                if (success) {
+                    stats.incrementSuccess();
                 } else {
-                    // HBase 没有数据，需要重新写入
-                    log.info("【卡住处理】HBase不存在，重新迁移: momentId={}, rowKey={}",
-                            moment.getId(), rowKey);
-
-                    // 发布新的迁移事件
-                    List<Long> commentIds = collectCommentIds(moment.getId());
-                    List<Long> likeIds = collectLikeIds(moment.getId());
-
-                    eventPublisher.publishMigrateToColdEvent(
-                            moment.getId(),
-                            moment.getUserId(),
-                            commentIds,
-                            likeIds
-                    );
+                    stats.incrementSkipped();
                 }
-                resolvedCount++;
-
             } catch (Exception e) {
-                log.error("【卡住处理】处理卡住记录失败: momentId={}, error={}",
-                        moment.getId(), e.getMessage());
+                log.error("【冷迁移】迁移动态失败: momentId={}, error={}", moment.getId(), e.getMessage(), e);
+                stats.incrementFailed();
             }
         }
 
-        log.info("【卡住处理】完成，共处理 {} 条卡住记录", resolvedCount);
-        return resolvedCount;
+        long elapsed = System.currentTimeMillis() - startTime;
+        stats.setElapsedMs(elapsed);
+
+        log.info("【冷迁移】迁移任务完成: 成功={}, 跳过={}, 失败={}, 耗时={}ms",
+                stats.getSuccess(), stats.getSkipped(), stats.getFailed(), elapsed);
+
+        return stats;
     }
 
     /**
-     * 收集动态关联的评论ID
+     * 迁移单个动态（状态机锁定 + 扁平化归档）
+     *
+     * 流程：
+     * 1. 尝试设置 MIGRATING 状态（原子操作）
+     * 2. 检查评论数量阈值
+     * 3. 查询关联数据
+     * 4. 构建归档数据
+     * 5. 写入 HBase
+     * 6. 删除 MySQL 数据
      */
-    private List<Long> collectCommentIds(Long momentId) {
-        List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
-        return comments.stream()
-                .map(Comment::getId)
-                .toList();
-    }
+    @Transactional
+    public boolean migrateSingleMoment(PetMoment moment) {
+        Long momentId = moment.getId();
+        Long userId = moment.getUserId();
 
-    /**
-     * 收集动态关联的点赞ID
-     * 包括动态本身的点赞和评论的点赞
-     */
-    private List<Long> collectLikeIds(Long momentId) {
-        Set<Long> likeIds = new HashSet<>();
+        log.debug("【冷迁移】开始处理动态: momentId={}, userId={}", momentId, userId);
 
-        // 收集动态的点赞ID
-        List<Like> momentLikes = likeRepository.findByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
-        momentLikes.forEach(like -> likeIds.add(like.getId()));
-
-        // 收集评论的点赞ID
-        List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
-        for (Comment comment : comments) {
-            List<Like> commentLikes = likeRepository.findByTargetTypeAndTargetId(
-                    TargetType.COMMENT, comment.getId());
-            commentLikes.forEach(like -> likeIds.add(like.getId()));
+        // ========== 步骤 1：状态机锁定 ==========
+        // 使用乐观锁：只有状态为 NONE 时才能设置为 MIGRATING
+        int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
+        if (updated == 0) {
+            log.debug("【冷迁移】动态状态不是 NONE，可能正在被处理: momentId={}", momentId);
+            return false;
         }
 
-        return likeIds.stream().toList();
+        // 重新查询最新状态
+        PetMoment currentMoment = momentRepository.findById(momentId).orElse(null);
+        if (currentMoment == null) {
+            log.warn("【冷迁移】动态不存在: momentId={}", momentId);
+            return false;
+        }
+
+        // 再次检查状态
+        if (!"MIGRATING".equals(currentMoment.getMigrationStatus())) {
+            log.debug("【冷迁移】动态状态已变更: momentId={}, status={}", momentId, currentMoment.getMigrationStatus());
+            return false;
+        }
+
+        // ========== 步骤 2：检查评论数量阈值 ==========
+        List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
+        if (comments.size() > MAX_COMMENT_THRESHOLD) {
+            log.info("【冷迁移】动态评论数超过阈值，跳过迁移: momentId={}, commentCount={}, threshold={}",
+                    momentId, comments.size(), MAX_COMMENT_THRESHOLD);
+            // 恢复状态
+            momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+            return false;
+        }
+
+        // ========== 步骤 3：查询关联数据 ==========
+        // 查询动态的点赞
+        List<Like> momentLikes = likeRepository.findByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
+
+        // 查询评论的点赞
+        List<Like> commentLikes = new ArrayList<>();
+        Set<Long> commentIds = comments.stream().map(Comment::getId).collect(Collectors.toSet());
+        if (!commentIds.isEmpty()) {
+            commentLikes = likeRepository.findByTargetTypeAndTargetIdIn(TargetType.COMMENT, commentIds);
+        }
+
+        // 获取评论用户信息
+        List<Long> commentUserIds = comments.stream().map(Comment::getUserId).collect(Collectors.toList());
+        List<Long> likeUserIds = momentLikes.stream().map(Like::getUserId).collect(Collectors.toSet())
+                .stream()
+                .collect(Collectors.toList());
+        commentUserIds.addAll(likeUserIds);
+        Set<Long> allUserIds = commentUserIds.stream().collect(Collectors.toSet());
+
+        java.util.Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(allUserIds);
+
+        // ========== 步骤 4：构建扁平化归档数据 ==========
+        // 构建评论归档数据
+        List<ColdArchiveData.ArchivedComment> archivedComments = comments.stream()
+                .map(c -> {
+                    UserResponseDTO u = userMap.get(c.getUserId());
+                    return ColdArchiveData.ArchivedComment.builder()
+                            .commentId(c.getId())
+                            .momentId(c.getMomentId())
+                            .userId(c.getUserId())
+                            .content(c.getContent())
+                            .parentId(c.getParentId())
+                            .userName(u != null ? u.getNickname() : "")
+                            .userAvatar(u != null ? u.getAvatarUrl() : "")
+                            .createdAt(c.getCreatedAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // 构建点赞归档数据
+        List<ColdArchiveData.ArchivedLike> archivedLikes = new ArrayList<>();
+
+        // 动态点赞
+        for (Like like : momentLikes) {
+            UserResponseDTO u = userMap.get(like.getUserId());
+            archivedLikes.add(ColdArchiveData.ArchivedLike.builder()
+                    .likeId(like.getId())
+                    .userId(like.getUserId())
+                    .targetType(ColdArchiveData.ArchivedLikeTargetType.MOMENT)
+                    .targetId(like.getTargetId())
+                    .userName(u != null ? u.getNickname() : "")
+                    .userAvatar(u != null ? u.getAvatarUrl() : "")
+                    .createdAt(like.getCreatedAt())
+                    .build());
+        }
+
+        // 评论点赞
+        for (Like like : commentLikes) {
+            UserResponseDTO u = userMap.get(like.getUserId());
+            archivedLikes.add(ColdArchiveData.ArchivedLike.builder()
+                    .likeId(like.getId())
+                    .userId(like.getUserId())
+                    .targetType(ColdArchiveData.ArchivedLikeTargetType.COMMENT)
+                    .targetId(like.getTargetId())
+                    .userName(u != null ? u.getNickname() : "")
+                    .userAvatar(u != null ? u.getAvatarUrl() : "")
+                    .createdAt(like.getCreatedAt())
+                    .build());
+        }
+
+        // 构建归档元数据
+        ColdArchiveData archiveData = ColdArchiveData.builder()
+                .comments(archivedComments)
+                .likes(archivedLikes)
+                .metadata(ColdArchiveData.ArchiveMetadata.builder()
+                        .commentCount(comments.size())
+                        .likeCount(archivedLikes.size())
+                        .snapshotTime(LocalDateTime.now())
+                        .build())
+                .build();
+
+        // 构建归档记录
+        HBaseArchiveRecord archiveRecord = HBaseArchiveRecord.builder()
+                .momentId(momentId)
+                .userId(userId)
+                .content(currentMoment.getContent())
+                .createdAt(currentMoment.getCreatedAt())
+                .build();
+
+        // ========== 步骤 5：写入 HBase（幂等检查） ==========
+        // 检查是否已存在（幂等性）
+        if (hBaseService.exists(userId, momentId)) {
+            log.info("【冷迁移】HBase中已存在数据（幂等跳过）: momentId={}", momentId);
+            // 直接删除 MySQL 数据
+            deleteFromMySql(momentId, comments, momentLikes, commentLikes);
+            return true;
+        }
+
+        // 写入 HBase
+        hBaseService.saveArchive(archiveRecord, archiveData);
+
+        // 验证 HBase 写入成功
+        if (!hBaseService.exists(userId, momentId)) {
+            log.error("【冷迁移】HBase写入验证失败: momentId={}", momentId);
+            // 恢复状态
+            momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+            throw new RuntimeException("HBase写入验证失败");
+        }
+
+        // ========== 步骤 6：删除 MySQL 数据 ==========
+        deleteFromMySql(momentId, comments, momentLikes, commentLikes);
+
+        log.info("【冷迁移】动态迁移成功: momentId={}, 评论数={}, 点赞数={}",
+                momentId, comments.size(), archivedLikes.size());
+
+        return true;
     }
 
     /**
-     * 删除动态及其关联的评论和点赞
+     * 删除 MySQL 中的数据
      */
-    private void deleteMomentAndRelated(PetMoment moment) {
-        Long momentId = moment.getId();
-
-        // 1. 查询并删除评论的点赞
-        List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
+    private void deleteFromMySql(Long momentId, List<Comment> comments,
+                                  List<Like> momentLikes, List<Like> commentLikes) {
+        // 删除评论的点赞
         for (Comment comment : comments) {
             likeRepository.deleteByTargetTypeAndTargetId(TargetType.COMMENT, comment.getId());
         }
 
-        // 2. 删除评论
+        // 删除评论
         commentRepository.deleteByMomentId(momentId);
 
-        // 3. 删除动态的点赞
+        // 删除动态的点赞
         likeRepository.deleteByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
 
-        // 4. 删除动态本身
-        momentRepository.delete(moment);
+        // 删除动态
+        momentRepository.deleteById(momentId);
     }
 
     /**
-     * 手动触发迁移任务（用于测试或紧急迁移）
+     * 迁移统计
      */
-    public void manualMigrate() {
-        log.info("手动触发冷数据迁移任务");
-        migrateToColdStorage();
+    @lombok.Data
+    public static class MigrationStats {
+        private int success = 0;
+        private int skipped = 0;
+        private int failed = 0;
+        private long elapsedMs = 0;
+
+        public void incrementSuccess() { success++; }
+        public void incrementSkipped() { skipped++; }
+        public void incrementFailed() { failed++; }
     }
-
-    /**
-     * 获取迁移统计信息
-     */
-    public MigrationStats getMigrationStats() {
-        LocalDateTime threshold = LocalDateTime.now().minusDays(daysThreshold);
-
-        return new MigrationStats(
-                momentRepository.count(),
-                momentRepository.countPendingMigrationRecords(threshold),
-                momentRepository.countMigratingRecords()
-        );
-    }
-
-    /**
-     * 迁移统计信息
-     */
-    public record MigrationStats(
-            long totalRecords,
-            long pendingRecords,
-            long migratingRecords
-    ) {}
 }

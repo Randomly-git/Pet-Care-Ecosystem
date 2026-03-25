@@ -4,6 +4,7 @@ import petcare.example.community_backend.client.UserServiceFacade;
 import petcare.example.community_backend.client.dto.MediaResponse;
 import petcare.example.community_backend.client.dto.UserResponseDTO;
 import petcare.example.community_backend.model.PetMoment;
+import petcare.example.community_backend.dto.ColdArchiveData;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.repository.PetMomentRepository;
 import petcare.example.community_backend.mapper.MomentMapper;
@@ -37,8 +38,11 @@ public class MomentService {
     /**
      * 获取特定用户ID的所有动态，并转换为 DTO 列表。
      * 核心：负责从多个服务（用户、媒体、点赞、评论）聚合数据。
-     * 
+     *
      * 冷热分离：同时查询 MySQL（热数据）和 HBase（冷数据）
+     *
+     * 注意：由于扁平化设计，HBase 查询需要前端传入 userId
+     * 当前方法主要用于获取当前用户自己的动态列表
      */
     public List<MomentResponseDTO> getMomentsByUserId(Long userId) {
         List<MomentResponseDTO> result = new ArrayList<>();
@@ -47,46 +51,36 @@ public class MomentService {
         List<PetMoment> mysqlMoments = momentRepository.findByUserIdOrderByCreatedAtDesc(userId);
         log.debug("查询MySQL动态: userId={}, count={}", userId, mysqlMoments.size());
 
-        // 2. 查询 HBase（冷数据）
-        List<MomentResponseDTO> hbaseMoments = hBaseService.queryMomentsByUserId(userId);
-        log.debug("查询HBase动态: userId={}, count={}", userId, hbaseMoments.size());
-
-        // 3. 合并结果
-        Set<Long> allMomentIds = new HashSet<>();
-
-        // 处理 MySQL 数据
-        for (PetMoment moment : mysqlMoments) {
-            allMomentIds.add(moment.getId());
-            // 更新最后访问时间
-            updateLastAccessTime(moment);
-        }
-
-        // 处理 HBase 数据
-        for (MomentResponseDTO hbaseMoment : hbaseMoments) {
-            if (!allMomentIds.contains(hbaseMoment.getId())) {
-                allMomentIds.add(hbaseMoment.getId());
-                result.add(hbaseMoment);
-            }
-        }
-
-        if (allMomentIds.isEmpty()) {
+        if (mysqlMoments.isEmpty()) {
             return Collections.emptyList();
         }
 
-        // 4. 批量聚合数据（排除 HBase 数据中已有的）
-        Set<Long> mysqlMomentIds = mysqlMoments.stream().map(PetMoment::getId).collect(Collectors.toSet());
+        // 2. 更新最后访问时间
+        Set<Long> mysqlMomentIds = new HashSet<>();
+        for (PetMoment moment : mysqlMoments) {
+            mysqlMomentIds.add(moment.getId());
+            updateLastAccessTime(moment);
+        }
+
+        // 3. 收集所需 ID
         Set<Long> userIds = mysqlMoments.stream().map(PetMoment::getUserId).collect(Collectors.toSet());
 
-        // 5. 批量聚合数据
+        // 4. 批量聚合数据
         Map<Long, List<MediaResponse>> mediaMap = mediaServiceFacade.batchGetMediaMap("MOMENT", mysqlMomentIds);
         Map<Long, Long> likeCounts = likeService.countLikesByTargetIds(TargetType.MOMENT, mysqlMomentIds);
         Map<Long, Long> commentCounts = commentService.countCommentsByMomentIds(mysqlMomentIds);
         Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
 
-        // 6. 组装 MySQL 的 DTO 列表
+        // 5. 组装 DTO 列表
         for (PetMoment moment : mysqlMoments) {
             MomentResponseDTO dto = momentMapper.toResponseDTO(moment);
             Long currentMomentId = moment.getId();
+
+            // 检查 MIGRATING 状态
+            if ("MIGRATING".equals(moment.getMigrationStatus())) {
+                log.debug("动态正在迁移中: momentId={}", currentMomentId);
+                continue; // 跳过迁移中的动态
+            }
 
             // 聚合媒体 URLs
             List<String> mediaUrls = mediaMap.getOrDefault(currentMomentId, Collections.emptyList()).stream()
@@ -108,17 +102,7 @@ public class MomentService {
             result.add(dto);
         }
 
-        // 7. 为 HBase 数据补充聚合信息
-        for (MomentResponseDTO dto : hbaseMoments) {
-            List<String> mediaUrls = mediaMap.getOrDefault(dto.getId(), Collections.emptyList()).stream()
-                    .map(MediaResponse::getFileUrl)
-                    .collect(Collectors.toList());
-            dto.setMediaUrls(mediaUrls);
-
-            // HBase 中已有点赞数和评论数，不需要额外查询
-        }
-
-        // 8. 按创建时间倒序排序
+        // 6. 按创建时间倒序排序
         result.sort((a, b) -> {
             if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
             return b.getCreatedAt().compareTo(a.getCreatedAt());
@@ -329,34 +313,59 @@ public class MomentService {
     }
 
     /**
-     * 查询冷数据
+     * 查询冷数据（扁平化版本）
      *
      * @param momentId 动态ID
-     * @param userId   用户ID（可选，推荐传入）
-     *                 传入 userId 时直接拼装 RowKey 查询
-     *                 未传入 userId 时尝试从 HBase 扫描（性能较差）
+     * @param userId   用户ID（必须传入，用于拼装 RowKey）
+     *
+     * 扁平化设计优势：
+     * - 只需 1 次 HBase Get 操作
+     * - 评论和点赞已包含在 full_data 中，无需额外查询
      */
     private Optional<MomentResponseDTO> queryColdMomentById(Long momentId, Long userId) {
-        String rowKey;
-
-        if (userId != null) {
-            // 方案A：直接通过 userId 拼装 RowKey（推荐）
-            rowKey = hBaseService.generateMomentRowKey(userId, momentId);
-            log.debug("【冷数据查询】通过 userId 直接生成 RowKey: momentId={}, userId={}, rowKey={}",
-                    momentId, userId, rowKey);
-        } else {
-            // 方案B：扫描 HBase 查找匹配的 momentId（兜底，性能差）
-            log.warn("【冷数据查询】未传入 userId，将进行全表扫描，性能较差: momentId={}", momentId);
-            Optional<String> rowKeyOpt = hBaseService.scanForMomentRowKey(momentId);
-            if (rowKeyOpt.isEmpty()) {
-                log.debug("【冷数据查询】HBase 中未找到记录: momentId={}", momentId);
-                return Optional.empty();
-            }
-            rowKey = rowKeyOpt.get();
+        if (userId == null) {
+            log.error("【冷数据查询】缺少 userId，无法定位冷数据: momentId={}", momentId);
+            return Optional.empty();
         }
 
-        // 通过 RowKey 查询 HBase
-        return hBaseService.getMomentFromColdStorageByRowKey(rowKey);
+        // 直接通过 userId 拼装 RowKey 查询
+        var archiveRecordOpt = hBaseService.getArchive(userId, momentId);
+        if (archiveRecordOpt.isEmpty()) {
+            log.debug("【冷数据查询】HBase 中未找到记录: momentId={}, userId={}", momentId, userId);
+            return Optional.empty();
+        }
+
+        var record = archiveRecordOpt.get();
+
+        // 从 full_data 获取完整数据
+        ColdArchiveData archiveData = hBaseService.getArchiveData(userId, momentId);
+
+        // 构建 MomentResponseDTO
+        MomentResponseDTO dto = new MomentResponseDTO();
+        dto.setId(record.getMomentId());
+        dto.setUserId(record.getUserId());
+        dto.setContent(record.getContent());
+        dto.setCreatedAt(record.getCreatedAt());
+
+        // 从 UserService 获取作者信息
+        UserResponseDTO author = userServiceFacade.batchGetUsers(Set.of(record.getUserId()))
+                .get(record.getUserId());
+        if (author != null) {
+            dto.setAuthorName(author.getNickname() != null ? author.getNickname() : "宠物爱好者");
+            dto.setAuthorAvatar(author.getAvatarUrl());
+        }
+
+        // 从 full_data 的元数据获取计数
+        if (archiveData != null && archiveData.getMetadata() != null) {
+            dto.setLikeCount(archiveData.getMetadata().getLikeCount());
+            dto.setCommentCount(archiveData.getMetadata().getCommentCount());
+        } else {
+            dto.setLikeCount(0);
+            dto.setCommentCount(0);
+        }
+
+        log.info("【冷数据查询】从HBase读取成功: momentId={}, userId={}", momentId, userId);
+        return Optional.of(dto);
     }
 
     /**
