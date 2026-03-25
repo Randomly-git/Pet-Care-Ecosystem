@@ -43,13 +43,17 @@ public class CommunityColdStorageEventPublisher {
 
     /**
      * 发布从冷库恢复事件
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（用于拼装 RowKey）
      */
-    public void publishRestoreFromColdEvent(Long momentId) {
+    public void publishRestoreFromColdEvent(Long momentId, Long userId) {
         CommunityColdStorageEvent event = CommunityColdStorageEvent.builder()
                 .eventId(java.util.UUID.randomUUID().toString())
                 .operationType(CommunityColdStorageEvent.ColdStorageOperationType.RESTORE_FROM_COLD)
                 .targetType(CommunityColdStorageEvent.TargetType.MOMENT)
                 .momentId(momentId)
+                .userId(userId)
                 .createdAt(java.time.LocalDateTime.now())
                 .retryCount(0)
                 .maxRetries(3)
@@ -60,13 +64,22 @@ public class CommunityColdStorageEventPublisher {
 
     /**
      * 发布从冷库删除事件
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（用于拼装 HBase RowKey）
      */
-    public void publishDeleteFromColdEvent(Long momentId) {
+    public void publishDeleteFromColdEvent(Long momentId, Long userId) {
+        if (userId == null) {
+            log.error("【MQ发布】删除冷库事件缺少 userId，无法删除: momentId={}", momentId);
+            throw new IllegalArgumentException("删除冷库数据必须提供 userId");
+        }
+
         CommunityColdStorageEvent event = CommunityColdStorageEvent.builder()
                 .eventId(java.util.UUID.randomUUID().toString())
                 .operationType(CommunityColdStorageEvent.ColdStorageOperationType.DELETE_FROM_COLD)
                 .targetType(CommunityColdStorageEvent.TargetType.MOMENT)
                 .momentId(momentId)
+                .userId(userId)
                 .createdAt(java.time.LocalDateTime.now())
                 .retryCount(0)
                 .maxRetries(3)

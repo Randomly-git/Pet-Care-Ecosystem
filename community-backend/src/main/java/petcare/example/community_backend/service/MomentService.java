@@ -7,8 +7,6 @@ import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.repository.PetMomentRepository;
 import petcare.example.community_backend.mapper.MomentMapper;
-import petcare.example.community_backend.repository.CommentRepository;
-import petcare.example.community_backend.repository.LikeRepository;
 import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.client.MediaServiceFacade;
 import lombok.RequiredArgsConstructor;
@@ -29,8 +27,6 @@ public class MomentService {
 
     private final PetMomentRepository momentRepository;
     private final MomentMapper momentMapper;
-    private final CommentRepository commentRepository;
-    private final LikeRepository likeRepository;
     private final CommentService commentService;
     private final LikeService likeService;
     private final MediaServiceFacade mediaServiceFacade;
@@ -208,12 +204,31 @@ public class MomentService {
 
     /**
      * 删除动态（应确保事务一致性，同时删除评论、点赞和媒体文件）
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（用于权限验证和冷库删除）
+     * @return true 删除成功
+     * @throws SecurityException 如果用户不是动态的作者
      */
     @Transactional(rollbackFor = Exception.class)
-    public boolean deleteMoment(Long momentId) {
+    public boolean deleteMoment(Long momentId, Long userId) {
+        if (userId == null) {
+            log.error("删除动态失败：userId 不能为空");
+            throw new IllegalArgumentException("userId 不能为空");
+        }
+
         Optional<PetMoment> momentOpt = momentRepository.findById(momentId);
 
         if (momentOpt.isPresent()) {
+            PetMoment moment = momentOpt.get();
+
+            // 【权限验证】确保只有动态作者才能删除
+            if (!moment.getUserId().equals(userId)) {
+                log.warn("【权限校验】用户 {} 无权删除动态 {}，该动态属于用户 {}",
+                        userId, momentId, moment.getUserId());
+                throw new SecurityException("无权删除他人的动态");
+            }
+
             // 1. 级联删除评论及其点赞 (调用 CommentService)
             commentService.deleteCommentsByMomentId(momentId);
 
@@ -226,21 +241,41 @@ public class MomentService {
             // 4. 删除动态主体
             momentRepository.deleteById(momentId);
 
+            // 5. 【冷库清理】如果动态已被迁移到冷库，需要发送 MQ 事件删除冷库数据
+            // 注意：正常情况下，动态应该在 MySQL 中被找到并删除
+            // 但如果 MySQL 中没有记录（已被迁移后删除），则需要从冷库删除
+            // 这种情况通常发生在：迁移成功 -> MySQL 删除 -> 再次删除请求
+            log.info("【冷库清理】动态已从 MySQL 删除，发送冷库清理事件: momentId={}, userId={}",
+                    momentId, userId);
+            eventPublisher.publishDeleteFromColdEvent(momentId, userId);
+
             return true;
         }
-        return false;
+
+        // MySQL 中没有记录，可能是冷数据（已被迁移）
+        // 需要从冷库中删除
+        log.info("【冷库清理】MySQL 中无记录，检查冷库: momentId={}, userId={}", momentId, userId);
+
+        // 直接发送冷库删除事件（幂等操作，已删除则无影响）
+        eventPublisher.publishDeleteFromColdEvent(momentId, userId);
+
+        return true;
     }
 
     /**
-     * 根据ID获取单个动态
-     * 
+     * 根据ID获取单个动态（推荐版本）
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（可选，推荐传入）
+     *                 传入 userId 时可直接拼装 HBase RowKey 快速定位冷数据
+     *
      * 冷热分离：
      * 1. 先查询 MySQL
      * 2. 如果 MySQL 存在且状态为 MIGRATING，说明正在迁移中，触发恢复
-     * 3. 如果 MySQL 不存在，从 HBase 查询
+     * 3. 如果 MySQL 不存在，根据 userId 查询 HBase
      * 4. 如果 HBase 存在，说明是冷数据，触发恢复并写回 MySQL
      */
-    public Optional<MomentResponseDTO> getMomentById(Long momentId) {
+    public Optional<MomentResponseDTO> getMomentById(Long momentId, Long userId) {
         // 1. 查询 MySQL
         Optional<PetMoment> momentOpt = momentRepository.findById(momentId);
 
@@ -251,7 +286,7 @@ public class MomentService {
             if ("MIGRATING".equals(moment.getMigrationStatus())) {
                 // 正在迁移中，等待完成后再返回
                 log.info("动态正在迁移中，发送恢复请求: momentId={}", momentId);
-                eventPublisher.publishRestoreFromColdEvent(momentId);
+                eventPublisher.publishRestoreFromColdEvent(momentId, moment.getUserId());
                 return Optional.empty();
             }
 
@@ -263,19 +298,16 @@ public class MomentService {
         }
 
         // 2. MySQL 不存在，从 HBase 查询
-        log.info("MySQL中无记录，尝试从HBase查询: momentId={}", momentId);
+        log.info("MySQL中无记录，尝试从HBase查询: momentId={}, userId={}", momentId, userId);
 
-        // 由于 RowKey 需要 userId 和 createdAt，这里简化处理
-        // 实际场景中应该通过其他索引或缓存获取这些信息
-        // 或者在消息中携带这些信息
-        Optional<MomentResponseDTO> coldMomentOpt = queryColdMomentById(momentId);
+        Optional<MomentResponseDTO> coldMomentOpt = queryColdMomentById(momentId, userId);
 
         if (coldMomentOpt.isPresent()) {
             MomentResponseDTO coldMoment = coldMomentOpt.get();
 
             // 发送恢复事件
             log.info("HBase中存在冷数据，发送恢复请求: momentId={}", momentId);
-            eventPublisher.publishRestoreFromColdEvent(momentId);
+            eventPublisher.publishRestoreFromColdEvent(momentId, userId);
 
             return Optional.of(coldMoment);
         }
@@ -286,15 +318,45 @@ public class MomentService {
     }
 
     /**
-     * 查询冷数据
-     * 由于 RowKey 格式需要 userId 和 createdAt，这里需要特殊处理
-     * 简化方案：扫描 HBase 查找指定 ID 的记录
+     * 根据ID获取单个动态（兼容版本，不推荐）
+     *
+     * @param momentId 动态ID
+     * @deprecated 请使用 {@link #getMomentById(Long, Long)} 并传入 userId
      */
-    private Optional<MomentResponseDTO> queryColdMomentById(Long momentId) {
-        // TODO: 实现根据 momentId 扫描 HBase 的逻辑
-        // 实际生产中可以通过维护一个 MySQL 索引表来快速定位
-        log.debug("查询冷数据: momentId={} (需要实现索引定位)", momentId);
-        return Optional.empty();
+    @Deprecated
+    public Optional<MomentResponseDTO> getMomentById(Long momentId) {
+        return getMomentById(momentId, null);
+    }
+
+    /**
+     * 查询冷数据
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（可选，推荐传入）
+     *                 传入 userId 时直接拼装 RowKey 查询
+     *                 未传入 userId 时尝试从 HBase 扫描（性能较差）
+     */
+    private Optional<MomentResponseDTO> queryColdMomentById(Long momentId, Long userId) {
+        String rowKey;
+
+        if (userId != null) {
+            // 方案A：直接通过 userId 拼装 RowKey（推荐）
+            rowKey = hBaseService.generateMomentRowKey(userId, momentId);
+            log.debug("【冷数据查询】通过 userId 直接生成 RowKey: momentId={}, userId={}, rowKey={}",
+                    momentId, userId, rowKey);
+        } else {
+            // 方案B：扫描 HBase 查找匹配的 momentId（兜底，性能差）
+            log.warn("【冷数据查询】未传入 userId，将进行全表扫描，性能较差: momentId={}", momentId);
+            Optional<String> rowKeyOpt = hBaseService.scanForMomentRowKey(momentId);
+            if (rowKeyOpt.isEmpty()) {
+                log.debug("【冷数据查询】HBase 中未找到记录: momentId={}", momentId);
+                return Optional.empty();
+            }
+            rowKey = rowKeyOpt.get();
+        }
+
+        // 通过 RowKey 查询 HBase
+        return hBaseService.getMomentFromColdStorageByRowKey(rowKey);
     }
 
     /**

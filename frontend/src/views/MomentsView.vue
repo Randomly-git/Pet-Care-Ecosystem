@@ -482,7 +482,8 @@ const deleteMoment = async (momentId) => {
       type: 'warning'
     })
 
-    await deleteMomentApi(momentId)
+    // 传递 userId 进行权限验证和冷库清理
+    await deleteMomentApi(momentId, authStore.userId)
 
     const index = moments.value.findIndex(m => m.id === momentId)
     if (index > -1) {

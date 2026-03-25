@@ -80,20 +80,28 @@ export const getUserMoments = async (userId) => {
 /**
  * 删除动态
  * @param {number} momentId - 动态ID
+ * @param {number} userId - 用户ID（用于权限验证和冷库清理）
  * @returns {Promise} 删除结果
  */
-export const deleteMoment = async (momentId) => {
+export const deleteMoment = async (momentId, userId) => {
   try {
     if (!momentId) {
       throw new Error('动态ID不能为空')
     }
+    if (!userId) {
+      throw new Error('用户ID不能为空，无法验证权限')
+    }
 
-    // 使用统一的request模块
+    console.log('删除动态请求:', { momentId, userId })
+
+    // 使用统一的request模块，userId 作为查询参数
     const response = await request({
       url: `${COMMUNITY_BASE_URL}/moments/${momentId}`,
-      method: 'DELETE'
+      method: 'DELETE',
+      params: { userId }
     })
 
+    console.log('删除动态成功:', response)
     return response
   } catch (error) {
     console.error('删除动态失败:', error)

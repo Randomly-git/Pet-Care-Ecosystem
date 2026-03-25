@@ -329,10 +329,10 @@ export const communityService = {
     return DataTransformer.transformBatch<Moment>(response, 'moment')
   },
 
-  // 删除动态
-  async deleteMoment(momentId: number) {
-    await communityApi.deleteMoment(momentId)
-    return true
+  // 删除动态（需要 userId 进行权限验证和冷库清理）
+  async deleteMoment(momentId: number, userId: number) {
+    const response = await communityApi.deleteMoment(momentId, userId)
+    return response
   },
 
   // 创建评论

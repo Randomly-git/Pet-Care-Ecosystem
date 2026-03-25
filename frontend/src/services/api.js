@@ -267,8 +267,8 @@ export const communityAPI = {
     }).then(res => res.json())
   },
 
-  deleteMoment: (momentId) => {
-    const endpoint = `/api/v1/moments/${momentId}`
+  deleteMoment: (momentId, userId) => {
+    const endpoint = `/api/v1/moments/${momentId}?userId=${userId}`
     return fetch(endpoint, {
       method: 'DELETE'
     }).then(res => res.ok)

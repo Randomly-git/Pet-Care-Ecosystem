@@ -142,13 +142,17 @@ public class CommunityColdStorageEvent implements Serializable {
 
     /**
      * 创建恢复事件
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（用于拼装 RowKey）
      */
-    public static CommunityColdStorageEvent createRestoreEvent(Long momentId) {
+    public static CommunityColdStorageEvent createRestoreEvent(Long momentId, Long userId) {
         return CommunityColdStorageEvent.builder()
                 .eventId(java.util.UUID.randomUUID().toString())
                 .operationType(ColdStorageOperationType.RESTORE_FROM_COLD)
                 .targetType(TargetType.MOMENT)
                 .momentId(momentId)
+                .userId(userId)
                 .createdAt(LocalDateTime.now())
                 .retryCount(0)
                 .maxRetries(3)

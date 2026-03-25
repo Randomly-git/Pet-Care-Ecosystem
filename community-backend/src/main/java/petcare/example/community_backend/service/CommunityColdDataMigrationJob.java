@@ -143,10 +143,9 @@ public class CommunityColdDataMigrationJob {
 
         for (PetMoment moment : stuckPage.getContent()) {
             try {
-                // 生成 RowKey
+                // 生成新格式 RowKey
                 String rowKey = hBaseService.generateMomentRowKey(
                         moment.getUserId(),
-                        moment.getCreatedAt(),
                         moment.getId()
                 );
 

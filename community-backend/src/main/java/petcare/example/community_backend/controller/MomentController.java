@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/moments")
@@ -30,6 +31,38 @@ public class MomentController {
     private final MomentService momentService;
     private final PetMomentRepository momentRepository;
     private final MediaEventPublisher mediaEventPublisher;
+
+    /**
+     * GET /api/v1/moments/{momentId}
+     * 获取单条动态详情
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（可选但推荐传入，用于快速定位冷数据）
+     *                 传入 userId 时：
+     *                 1. 热数据：从 MySQL 直接返回
+     *                 2. 冷数据：从 HBase 快速定位并返回
+     *                 未传入 userId 时：
+     *                 1. 热数据：从 MySQL 返回
+     *                 2. 冷数据：需要额外查询定位，可能较慢
+     */
+    @GetMapping("/{momentId}")
+    @Operation(summary = "获取动态详情", description = "根据动态ID获取单条动态详情，支持冷热数据分离存储。" +
+            "推荐传入 userId 参数以提升冷数据查询性能。")
+    public ResponseEntity<MomentResponseDTO> getMomentById(
+            @Parameter(description = "动态ID", required = true) @PathVariable Long momentId,
+            @Parameter(description = "用户ID（推荐传入，用于快速定位冷数据）", required = false)
+            @RequestParam(required = false) Long userId) {
+
+        log.debug("【API】获取动态详情: momentId={}, userId={}", momentId, userId);
+
+        Optional<MomentResponseDTO> momentOpt = momentService.getMomentById(momentId, userId);
+
+        if (momentOpt.isPresent()) {
+            return ResponseEntity.ok(momentOpt.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
 
     /**
      * GET /api/v1/moments/user/{userId}
@@ -121,19 +154,36 @@ public class MomentController {
     }
 
     /**
-     * DELETE /api/v1/moments/{momentId}
-     * 删除动态
+     * DELETE /api/v1/moments/{momentId}?userId={userId}
+     * 删除动态（需要用户ID以验证权限并处理冷库数据）
+     *
+     * @param momentId 动态ID
+     * @param userId   用户ID（必须传入，用于权限验证和冷库删除）
      */
     @DeleteMapping("/{momentId}")
-    @Operation(summary = "删除动态", description = "根据动态ID删除指定的动态内容")
+    @Operation(summary = "删除动态", description = "根据动态ID删除指定的动态内容，需要提供用户ID进行权限验证")
     public ResponseEntity<String> deleteMoment(
-            @Parameter(description = "动态ID", required = true) @PathVariable Long momentId) {
-        boolean deleted = momentService.deleteMoment(momentId);
+            @Parameter(description = "动态ID", required = true) @PathVariable Long momentId,
+            @Parameter(description = "用户ID（必须传入）", required = true) @RequestParam Long userId) {
 
-        if (deleted) {
-            return ResponseEntity.ok("删除成功");
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("动态不存在或删除失败");
+        log.info("【API】删除动态请求: momentId={}, userId={}", momentId, userId);
+
+        try {
+            boolean deleted = momentService.deleteMoment(momentId, userId);
+
+            if (deleted) {
+                log.info("【API】删除动态成功: momentId={}, userId={}", momentId, userId);
+                return ResponseEntity.ok("删除成功");
+            } else {
+                log.warn("【API】删除动态失败，动态不存在: momentId={}", momentId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("动态不存在");
+            }
+        } catch (SecurityException e) {
+            log.warn("【API】删除动态权限不足: momentId={}, userId={}, error={}", momentId, userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("无权删除他人的动态");
+        } catch (Exception e) {
+            log.error("【API】删除动态异常: momentId={}, userId={}, error={}", momentId, userId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("删除失败: " + e.getMessage());
         }
     }
 }

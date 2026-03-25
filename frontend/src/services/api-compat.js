@@ -280,8 +280,8 @@ export const communityAPI = {
     return response
   },
 
-  deleteMoment: async (momentId) => {
-    await communityApi.deleteMoment(momentId)
+  deleteMoment: async (momentId, userId) => {
+    await communityApi.deleteMoment(momentId, userId)
     return true
   },
 

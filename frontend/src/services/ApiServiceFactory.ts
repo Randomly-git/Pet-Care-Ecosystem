@@ -355,8 +355,8 @@ class CommunityApiService extends BaseApiService {
     return this.get<any[]>(`${API_ENDPOINTS.community.moments.user}/${userId}`)
   }
 
-  async deleteMoment(momentId: number) {
-    return this.delete(`${API_ENDPOINTS.community.moments.delete}/${momentId}`)
+  async deleteMoment(momentId: number, userId: number) {
+    return this.delete(`${API_ENDPOINTS.community.moments.delete}/${momentId}`, { userId })
   }
 
   // 评论相关

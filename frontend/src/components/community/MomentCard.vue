@@ -195,14 +195,14 @@ export default {
       return imageExtensions.some(ext => url.toLowerCase().includes(ext))
     }
 
-    // 删除动态
+    // 删除动态（需要传递 userId 进行权限验证）
     const deleteMoment = async () => {
       if (!confirm('确定要删除这条动态吗？')) {
         return
       }
 
       try {
-        const success = await communityAPI.deleteMoment(props.moment.id)
+        const success = await communityAPI.deleteMoment(props.moment.id, props.currentUserId)
         if (success) {
           emit('moment-deleted', props.moment.id)
         }
