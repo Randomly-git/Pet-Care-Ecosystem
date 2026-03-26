@@ -1,5 +1,7 @@
 package petcare.example.community_backend.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -7,6 +9,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import petcare.example.community_backend.client.UserServiceFacade;
 import petcare.example.community_backend.client.dto.UserResponseDTO;
 import petcare.example.community_backend.dto.ColdArchiveData;
@@ -53,6 +56,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CommunityColdDataMigrationJob implements ApplicationRunner {
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    private final TransactionTemplate newTransactionTemplate;
+
     private final PetMomentRepository momentRepository;
     private final CommentRepository commentRepository;
     private final LikeRepository likeRepository;
@@ -61,6 +69,20 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
 
     // 迁移开关（可通过配置或接口控制）
     private final AtomicBoolean migrationEnabled = new AtomicBoolean(true);
+
+    /**
+     * 设置迁移开关状态
+     */
+    public void setMigrationEnabled(boolean enabled) {
+        this.migrationEnabled.set(enabled);
+    }
+
+    /**
+     * 获取迁移开关状态
+     */
+    public boolean isMigrationEnabled() {
+        return this.migrationEnabled.get();
+    }
 
     // 最大评论数阈值（超过则跳过迁移）
     private static final int MAX_COMMENT_THRESHOLD = 2000;
@@ -91,31 +113,57 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
     }
 
     /**
-     * 执行迁移
+     * 执行迁移主流程
      */
+    @Transactional
     public MigrationStats executeMigration() {
         long startTime = System.currentTimeMillis();
         MigrationStats stats = new MigrationStats();
 
         log.info("【冷迁移】开始扫描待迁移动态...");
 
-        // 1. 查询 7 天无访问的动态
+        // 1. 查询待迁移的动态
+        // NONE 状态：需要同时满足 7 天无访问条件
+        // MIGRATING 状态：表示上次迁移失败遗留的数据，继续处理（不检查 lastAccessTime）
         LocalDateTime threshold = LocalDateTime.now().minusDays(7);
-        List<PetMoment> coldMoments = momentRepository.findByMigrationStatusAndLastAccessTimeBefore("NONE", threshold);
+        List<PetMoment> noneStatusMoments = momentRepository.findByMigrationStatusAndLastAccessTimeBefore("NONE", threshold);
+        List<PetMoment> stuckMoments = momentRepository.findByMigrationStatus("MIGRATING");
 
-        log.info("【冷迁移】找到 {} 条待迁移动态", coldMoments.size());
+        // 合并两个列表
+        List<PetMoment> coldMoments = new ArrayList<>();
+        coldMoments.addAll(noneStatusMoments);
+        coldMoments.addAll(stuckMoments);
 
-        for (PetMoment moment : coldMoments) {
-            try {
-                boolean success = migrateSingleMoment(moment);
-                if (success) {
-                    stats.incrementSuccess();
-                } else {
-                    stats.incrementSkipped();
+        log.info("【冷迁移】找到 {} 条待迁移动态 (NONE={}, MIGRATING={})",
+                coldMoments.size(), noneStatusMoments.size(), stuckMoments.size());
+
+        // 释放持久化上下文，避免实体与原事务绑定
+        entityManager.flush();
+        entityManager.clear();
+
+        // 提取所有需要迁移的 momentId
+        List<Long> momentIds = coldMoments.stream()
+                .map(PetMoment::getId)
+                .collect(Collectors.toList());
+
+        for (Long momentId : momentIds) {
+            // 使用 TransactionTemplate 为每个动态的迁移创建独立事务
+            // PROPAGATION_REQUIRES_NEW 确保每个迁移在独立事务中执行
+            // 这样即使某个迁移失败，也不会影响其他迁移和外层事务
+            Boolean success = newTransactionTemplate.execute(status -> {
+                try {
+                    return migrateSingleMoment(momentId);
+                } catch (Exception e) {
+                    log.error("【冷迁移】迁移动态失败: momentId={}, error={}", momentId, e.getMessage(), e);
+                    status.setRollbackOnly();
+                    return false;
                 }
-            } catch (Exception e) {
-                log.error("【冷迁移】迁移动态失败: momentId={}, error={}", moment.getId(), e.getMessage(), e);
-                stats.incrementFailed();
+            });
+
+            if (Boolean.TRUE.equals(success)) {
+                stats.incrementSuccess();
+            } else {
+                stats.incrementSkipped();
             }
         }
 
@@ -130,42 +178,61 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
 
     /**
      * 迁移单个动态（状态机锁定 + 扁平化归档）
+     * 在独立事务中执行，确保每个动态的迁移互不影响
      *
      * 流程：
-     * 1. 尝试设置 MIGRATING 状态（原子操作）
-     * 2. 检查评论数量阈值
-     * 3. 查询关联数据
-     * 4. 构建归档数据
-     * 5. 写入 HBase
-     * 6. 删除 MySQL 数据
+     * 1. 查询动态（在新事务中重新加载）
+     * 2. 尝试设置 MIGRATING 状态（原子操作）
+     * 3. 检查评论数量阈值
+     * 4. 查询关联数据
+     * 5. 构建扁平化归档数据
+     * 6. 写入 HBase
+     * 7. 删除 MySQL 数据
      */
     @Transactional
-    public boolean migrateSingleMoment(PetMoment moment) {
-        Long momentId = moment.getId();
-        Long userId = moment.getUserId();
+    public boolean migrateSingleMoment(Long momentId) {
+        log.info("【冷迁移】开始处理动态: momentId={}", momentId);
 
-        log.debug("【冷迁移】开始处理动态: momentId={}, userId={}", momentId, userId);
-
-        // ========== 步骤 1：状态机锁定 ==========
-        // 使用乐观锁：只有状态为 NONE 时才能设置为 MIGRATING
-        int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
-        if (updated == 0) {
-            log.debug("【冷迁移】动态状态不是 NONE，可能正在被处理: momentId={}", momentId);
-            return false;
-        }
-
-        // 重新查询最新状态
-        PetMoment currentMoment = momentRepository.findById(momentId).orElse(null);
-        if (currentMoment == null) {
+        // 在当前事务中重新查询动态，避免与查询阶段的事务混淆
+        PetMoment moment = momentRepository.findById(momentId).orElse(null);
+        if (moment == null) {
             log.warn("【冷迁移】动态不存在: momentId={}", momentId);
             return false;
         }
 
-        // 再次检查状态
-        if (!"MIGRATING".equals(currentMoment.getMigrationStatus())) {
-            log.debug("【冷迁移】动态状态已变更: momentId={}, status={}", momentId, currentMoment.getMigrationStatus());
+        Long userId = moment.getUserId();
+        String currentStatus = moment.getMigrationStatus();
+        log.info("【冷迁移】查询到动态: momentId={}, userId={}, status={}, lastAccessTime={}",
+                momentId, userId, currentStatus, moment.getLastAccessTime());
+
+        // ========== 步骤 1：在状态改变之前检查 lastAccessTime ==========
+        // 如果用户最近访问过（lastAccessTime 被更新），则不进行迁移
+        // 这个检查必须在状态改变之前，确保迁移开始前一刻数据仍然是冷的
+        LocalDateTime coldThreshold = LocalDateTime.now().minusDays(7);
+        if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(coldThreshold)) {
+            log.info("【冷迁移】动态最近被访问过，跳过迁移: momentId={}, lastAccessTime={}",
+                    momentId, moment.getLastAccessTime());
             return false;
         }
+
+        // ========== 步骤 1.5：状态机锁定 ==========
+        // 如果状态已经是 MIGRATING，说明是上次迁移失败遗留的数据，直接继续执行迁移
+        // 如果状态是 NONE，尝试获取锁
+        boolean isResumingFromFailure = "MIGRATING".equals(currentStatus);
+        if (!isResumingFromFailure) {
+            // 使用乐观锁：只有状态为 NONE 时才能设置为 MIGRATING
+            int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
+            log.info("【冷迁移】尝试获取锁: momentId={}, updated={}", momentId, updated);
+            if (updated == 0) {
+                log.warn("【冷迁移】动态状态不是 NONE 或 MIGRATING，跳过: momentId={}, status={}", momentId, currentStatus);
+                return false;
+            }
+        } else {
+            log.info("【冷迁移】检测到上次迁移失败的遗留数据，继续迁移: momentId={}", momentId);
+        }
+
+        // 状态已经锁定为 MIGRATING，后续步骤中即使 lastAccessTime 变化也不检查了
+        // 因为状态锁定本身就表示"我正在处理这个"，不应该被用户访问打断
 
         // ========== 步骤 2：检查评论数量阈值 ==========
         List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
@@ -262,31 +329,31 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         HBaseArchiveRecord archiveRecord = HBaseArchiveRecord.builder()
                 .momentId(momentId)
                 .userId(userId)
-                .content(currentMoment.getContent())
-                .createdAt(currentMoment.getCreatedAt())
+                .content(moment.getContent())
+                .createdAt(moment.getCreatedAt())
                 .build();
 
         // ========== 步骤 5：写入 HBase（幂等检查） ==========
         // 检查是否已存在（幂等性）
         if (hBaseService.exists(userId, momentId)) {
             log.info("【冷迁移】HBase中已存在数据（幂等跳过）: momentId={}", momentId);
-            // 直接删除 MySQL 数据
-            deleteFromMySql(momentId, comments, momentLikes, commentLikes);
-            return true;
-        }
+        } else {
+            // 写入 HBase
+            log.debug("【冷迁移】写入 HBase: momentId={}", momentId);
+            hBaseService.saveArchive(archiveRecord, archiveData);
 
-        // 写入 HBase
-        hBaseService.saveArchive(archiveRecord, archiveData);
-
-        // 验证 HBase 写入成功
-        if (!hBaseService.exists(userId, momentId)) {
-            log.error("【冷迁移】HBase写入验证失败: momentId={}", momentId);
-            // 恢复状态
-            momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
-            throw new RuntimeException("HBase写入验证失败");
+            // 验证 HBase 写入成功
+            if (!hBaseService.exists(userId, momentId)) {
+                log.error("【冷迁移】HBase写入验证失败: momentId={}", momentId);
+                // 恢复状态
+                momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+                throw new RuntimeException("HBase写入验证失败");
+            }
+            log.debug("【冷迁移】HBase写入验证通过: momentId={}", momentId);
         }
 
         // ========== 步骤 6：删除 MySQL 数据 ==========
+        log.info("【冷迁移】开始删除MySQL数据: momentId={}", momentId);
         deleteFromMySql(momentId, comments, momentLikes, commentLikes);
 
         log.info("【冷迁移】动态迁移成功: momentId={}, 评论数={}, 点赞数={}",
@@ -296,23 +363,35 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
     }
 
     /**
-     * 删除 MySQL 中的数据
+     * 删除 MySQL 中的数据（按正确顺序，确保外键约束不被违反）
      */
     private void deleteFromMySql(Long momentId, List<Comment> comments,
                                   List<Like> momentLikes, List<Like> commentLikes) {
-        // 删除评论的点赞
+        log.debug("【冷迁移】开始删除 MySQL 数据: momentId={}", momentId);
+
+        // 1. 删除评论的点赞（先删子表）
         for (Comment comment : comments) {
             likeRepository.deleteByTargetTypeAndTargetId(TargetType.COMMENT, comment.getId());
         }
 
-        // 删除评论
+        // 2. 删除评论
         commentRepository.deleteByMomentId(momentId);
 
-        // 删除动态的点赞
+        // 3. 删除动态的点赞
         likeRepository.deleteByTargetTypeAndTargetId(TargetType.MOMENT, momentId);
 
-        // 删除动态
+        // 4. 删除动态（最后删主表）
         momentRepository.deleteById(momentId);
+
+        // 5. 显式 flush，确保所有删除操作立即执行
+        entityManager.flush();
+
+        // 6. 验证删除成功
+        if (momentRepository.existsById(momentId)) {
+            throw new RuntimeException("动态删除失败: momentId=" + momentId);
+        }
+
+        log.debug("【冷迁移】MySQL 数据删除完成: momentId={}", momentId);
     }
 
     /**

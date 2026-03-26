@@ -12,6 +12,7 @@ import petcare.example.community_backend.dto.CommunityColdStorageEvent;
 import petcare.example.community_backend.model.Comment;
 import petcare.example.community_backend.model.Like;
 import petcare.example.community_backend.model.PetMoment;
+import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.repository.CommentRepository;
 import petcare.example.community_backend.repository.LikeRepository;
 import petcare.example.community_backend.repository.PetMomentRepository;
@@ -84,9 +85,9 @@ public class CommunityColdStorageEventConsumer {
      * 4. 批量写入 MySQL
      * 5. 从 HBase 删除
      *
-     * 性能优势：
-     * - 只需 1 次 HBase Get 操作
-     * - 评论和点赞从 full_data 直接解析，无需额外查询
+     * 幂等性：
+     * - 检查评论和点赞是否已存在，避免重复插入
+     * - 使用 try-catch 包装单个记录，避免一个失败影响全部
      */
     private void handleRestoreFromCold(CommunityColdStorageEvent event) {
         Long momentId = event.getMomentId();
@@ -122,12 +123,14 @@ public class CommunityColdStorageEventConsumer {
                 archiveData != null && archiveData.getComments() != null ? archiveData.getComments().size() : 0,
                 archiveData != null && archiveData.getLikes() != null ? archiveData.getLikes().size() : 0);
 
-        // 4. 写入 MySQL - 动态
+        // 4. 写入 MySQL - 动态（必须先存在，才能插入评论）
         PetMoment newMoment = archiveRecord.toPetMoment();
+        newMoment.setId(momentId);  // 使用事件的 momentId，而不是 HBase 中的值
         momentRepository.save(newMoment);
+        momentRepository.flush();  // 确保 moment 立即写入，获取 ID
         log.debug("【MQ消费】动态已写入MySQL: momentId={}", momentId);
 
-        // 5. 写入 MySQL - 评论（批量）
+        // 5. 写入 MySQL - 评论（批量，幂等处理）
         List<ColdArchiveData.ArchivedComment> archivedComments =
                 archiveData != null && archiveData.getComments() != null
                         ? archiveData.getComments()
@@ -135,29 +138,75 @@ public class CommunityColdStorageEventConsumer {
 
         List<Comment> savedComments = new ArrayList<>();
         for (ColdArchiveData.ArchivedComment ac : archivedComments) {
-            Comment comment = HBaseArchiveRecord.toCommentEntity(ac);
-            commentRepository.save(comment);
-            savedComments.add(comment);
+            try {
+                Long commentId = ac.getCommentId();
+                // 幂等检查：评论是否已存在
+                if (commentRepository.existsById(commentId)) {
+                    log.debug("【MQ消费】评论已存在，跳过: commentId={}", commentId);
+                    continue;
+                }
+                
+                // 直接创建 Comment 实体，使用事件的 momentId
+                Comment comment = new Comment();
+                comment.setId(commentId);
+                comment.setMomentId(momentId);  // 使用事件的 momentId
+                comment.setUserId(ac.getUserId());
+                comment.setContent(ac.getContent());
+                comment.setParentId(ac.getParentId());
+                comment.setCreatedAt(ac.getCreatedAt());
+                comment.setMigrationStatus("NONE");
+                
+                commentRepository.save(comment);
+                savedComments.add(comment);
+            } catch (Exception e) {
+                log.warn("【MQ消费】保存评论失败，跳过: commentId={}, error={}", ac.getCommentId(), e.getMessage());
+            }
         }
         log.debug("【MQ消费】评论已写入MySQL: momentId={}, count={}", momentId, savedComments.size());
 
-        // 6. 写入 MySQL - 点赞（批量）
+        // 6. 写入 MySQL - 点赞（批量，幂等处理）
         List<ColdArchiveData.ArchivedLike> archivedLikes =
                 archiveData != null && archiveData.getLikes() != null
                         ? archiveData.getLikes()
                         : new ArrayList<>();
 
+        int savedLikes = 0;
         for (ColdArchiveData.ArchivedLike al : archivedLikes) {
-            Like like = HBaseArchiveRecord.toLikeEntity(al);
-            likeRepository.save(like);
+            try {
+                Long likeId = al.getLikeId();
+                // 幂等检查：点赞是否已存在
+                if (likeRepository.existsById(likeId)) {
+                    log.debug("【MQ消费】点赞已存在，跳过: likeId={}", likeId);
+                    continue;
+                }
+                
+                // 直接创建 Like 实体，使用事件的 momentId
+                Like like = new Like();
+                like.setId(likeId);
+                like.setUserId(al.getUserId());
+                like.setTargetType(TargetType.valueOf(al.getTargetType().name()));
+                // 对于 MOMENT 类型的点赞，使用事件的 momentId
+                if (al.getTargetType() == ColdArchiveData.ArchivedLikeTargetType.MOMENT) {
+                    like.setTargetId(momentId);
+                } else {
+                    like.setTargetId(al.getTargetId());  // 评论点赞保持原值
+                }
+                like.setCreatedAt(al.getCreatedAt());
+                like.setMigrationStatus("NONE");
+                
+                likeRepository.save(like);
+                savedLikes++;
+            } catch (Exception e) {
+                log.warn("【MQ消费】保存点赞失败，跳过: likeId={}, error={}", al.getLikeId(), e.getMessage());
+            }
         }
-        log.debug("【MQ消费】点赞已写入MySQL: momentId={}, count={}", momentId, archivedLikes.size());
+        log.debug("【MQ消费】点赞已写入MySQL: momentId={}, count={}", momentId, savedLikes);
 
         // 7. 从 HBase 删除归档记录
         hBaseService.deleteArchive(userId, momentId);
 
         log.info("【MQ消费】恢复完成: momentId={}, 评论数={}, 点赞数={}",
-                momentId, savedComments.size(), archivedLikes.size());
+                momentId, savedComments.size(), savedLikes);
     }
 
     /**

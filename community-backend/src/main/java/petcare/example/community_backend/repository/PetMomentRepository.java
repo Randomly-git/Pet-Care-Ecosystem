@@ -4,6 +4,7 @@ import petcare.example.community_backend.model.PetMoment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -61,6 +62,7 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
     /**
      * 批量更新最后访问时间
      */
+    @Modifying
     @Query("UPDATE PetMoment m SET m.lastAccessTime = :now WHERE m.id IN :ids")
     void batchUpdateLastAccessTime(@Param("ids") List<Long> ids, @Param("now") LocalDateTime now);
 
@@ -75,6 +77,7 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
      * @param newStatus 新状态
      * @return 更新影响的行数（1表示成功，0表示状态不匹配）
      */
+    @Modifying
     @Query("UPDATE PetMoment m SET m.migrationStatus = :newStatus WHERE m.id = :id AND m.migrationStatus = :expectedStatus")
     int updateMigrationStatus(@Param("id") Long id, @Param("expectedStatus") String expectedStatus, @Param("newStatus") String newStatus);
 
@@ -86,4 +89,12 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
      * @return 待迁移的动态列表
      */
     List<PetMoment> findByMigrationStatusAndLastAccessTimeBefore(String status, LocalDateTime threshold);
+
+    /**
+     * 查询指定状态的所有动态（用于恢复迁移失败遗留的数据）
+     *
+     * @param status 迁移状态
+     * @return 动态列表
+     */
+    List<PetMoment> findByMigrationStatus(String status);
 }

@@ -10,6 +10,7 @@ import petcare.example.community_backend.repository.PetMomentRepository;
 import petcare.example.community_backend.mapper.MomentMapper;
 import petcare.example.community_backend.model.TargetType;
 import petcare.example.community_backend.client.MediaServiceFacade;
+import petcare.example.community_backend.dto.HBaseArchiveRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -116,33 +117,60 @@ public class MomentService {
      * 获取所有用户的动态，支持分页。
      * 核心：负责从多个服务（用户、媒体、点赞、评论）聚合数据，支持分页加载。
      * 
-     * 注意：分页场景下只查询 MySQL（热数据），HBase 冷数据通过单独接口访问
+     * 冷热分离策略：
+     * - MySQL 存储所有可见数据（热数据 + 已恢复的冷数据）
+     * - HBase 存储待恢复的冷数据，通过 MQ 异步恢复
+     * - 前端只从 MySQL 获取数据，保证一致性
+     * 
+     * 注意：异步恢复完成后，数据会自动出现在 MySQL 中，
+     *       前端下次访问即可看到，无需额外处理
      */
     public List<MomentResponseDTO> getAllMomentsWithPagination(Pageable pageable) {
         // 1. 查询数据库获取分页的动态实体
         Page<PetMoment> momentPage = momentRepository.findAllByOrderByCreatedAtDesc(pageable);
         List<PetMoment> moments = momentPage.getContent();
 
+        // 2. 如果 MySQL 有数据，更新最后访问时间并返回
+        if (!moments.isEmpty()) {
+            // 更新最后访问时间（触发冷数据恢复）
+            for (PetMoment moment : moments) {
+                updateLastAccessTime(moment);
+            }
+            return buildMomentDTOList(moments);
+        }
+
+        // 3. MySQL 无数据，说明：
+        //    - 可能没有动态
+        //    - 或者冷数据还在恢复中
+        //    - 前端会显示空列表，用户刷新后可能看到已恢复的数据
+        log.info("【冷热分离】MySQL暂无数据，可能冷数据正在恢复中，请稍后刷新");
+        return Collections.emptyList();
+    }
+
+    /**
+     * 构建 MomentResponseDTO 列表（通用方法）
+     */
+    private List<MomentResponseDTO> buildMomentDTOList(List<PetMoment> moments) {
         if (moments.isEmpty()) {
             return Collections.emptyList();
         }
 
-        // 2. 更新最后访问时间
+        // 更新最后访问时间
         for (PetMoment moment : moments) {
             updateLastAccessTime(moment);
         }
 
-        // 3. 收集所需 ID
+        // 收集所需 ID
         Set<Long> momentIds = moments.stream().map(PetMoment::getId).collect(Collectors.toSet());
         Set<Long> userIds = moments.stream().map(PetMoment::getUserId).collect(Collectors.toSet());
 
-        // 4. 批量聚合数据
+        // 批量聚合数据
         Map<Long, List<MediaResponse>> mediaMap = mediaServiceFacade.batchGetMediaMap("MOMENT", momentIds);
         Map<Long, Long> likeCounts = likeService.countLikesByTargetIds(TargetType.MOMENT, momentIds);
         Map<Long, Long> commentCounts = commentService.countCommentsByMomentIds(momentIds);
         Map<Long, UserResponseDTO> userMap = userServiceFacade.batchGetUsers(userIds);
 
-        // 5. 组装 DTO 列表
+        // 组装 DTO 列表
         return moments.stream().map(moment -> {
             MomentResponseDTO dto = momentMapper.toResponseDTO(moment);
             Long currentMomentId = moment.getId();
@@ -247,17 +275,17 @@ public class MomentService {
     }
 
     /**
-     * 根据ID获取单个动态（推荐版本）
+     * 根据ID获取单个动态
      *
      * @param momentId 动态ID
-     * @param userId   用户ID（可选，推荐传入）
-     *                 传入 userId 时可直接拼装 HBase RowKey 快速定位冷数据
+     * @param userId   用户ID（可选，推荐传入，用于定位冷数据）
      *
      * 冷热分离：
      * 1. 先查询 MySQL
-     * 2. 如果 MySQL 存在且状态为 MIGRATING，说明正在迁移中，触发恢复
-     * 3. 如果 MySQL 不存在，根据 userId 查询 HBase
-     * 4. 如果 HBase 存在，说明是冷数据，触发恢复并写回 MySQL
+     * 2. 如果 MySQL 不存在，说明数据可能被迁移到 HBase，发送 MQ 恢复事件
+     * 3. 返回空，前端会提示用户稍后刷新
+     * 
+     * 注意：前端不会直接看到冷数据，必须等 MQ 恢复完成并写入 MySQL 后才能看到
      */
     public Optional<MomentResponseDTO> getMomentById(Long momentId, Long userId) {
         // 1. 查询 MySQL
@@ -268,7 +296,7 @@ public class MomentService {
 
             // 检查迁移状态
             if ("MIGRATING".equals(moment.getMigrationStatus())) {
-                // 正在迁移中，等待完成后再返回
+                // 正在迁移中，发送恢复请求
                 log.info("动态正在迁移中，发送恢复请求: momentId={}", momentId);
                 eventPublisher.publishRestoreFromColdEvent(momentId, moment.getUserId());
                 return Optional.empty();
@@ -281,23 +309,15 @@ public class MomentService {
             return Optional.of(buildMomentDTO(moment));
         }
 
-        // 2. MySQL 不存在，从 HBase 查询
-        log.info("MySQL中无记录，尝试从HBase查询: momentId={}, userId={}", momentId, userId);
-
-        Optional<MomentResponseDTO> coldMomentOpt = queryColdMomentById(momentId, userId);
-
-        if (coldMomentOpt.isPresent()) {
-            MomentResponseDTO coldMoment = coldMomentOpt.get();
-
-            // 发送恢复事件
-            log.info("HBase中存在冷数据，发送恢复请求: momentId={}", momentId);
+        // 2. MySQL 不存在，发送 MQ 恢复事件
+        if (userId != null) {
+            log.info("MySQL中无记录，发送冷数据恢复请求: momentId={}, userId={}", momentId, userId);
             eventPublisher.publishRestoreFromColdEvent(momentId, userId);
-
-            return Optional.of(coldMoment);
+        } else {
+            log.warn("MySQL中无记录，且未提供userId，无法发送恢复请求: momentId={}", momentId);
         }
 
-        // 3. 都不存在
-        log.warn("动态不存在: momentId={}", momentId);
+        // 返回空，前端提示用户稍后刷新
         return Optional.empty();
     }
 

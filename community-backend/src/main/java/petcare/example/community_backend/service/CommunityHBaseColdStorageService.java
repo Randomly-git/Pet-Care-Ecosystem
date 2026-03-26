@@ -14,7 +14,8 @@ import petcare.example.community_backend.util.GzipUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 社区模块 HBase 冷数据存储服务（扁平化单表设计）
@@ -241,6 +242,57 @@ public class CommunityHBaseColdStorageService {
         }
     }
 
+    // ==================== 扫描归档记录 ====================
+
+    /**
+     * 获取所有归档记录（按创建时间倒序，支持分页）
+     * 
+     * 注意：由于 HBase RowKey 设计为 userId_momentId，需要扫描全表获取所有记录
+     * 这是一个较重的操作，建议配合缓存使用
+     *
+     * @param page 页码（0-based）
+     * @param limit 每页数量
+     * @return 归档记录列表（包含基本信息）
+     */
+    public List<HBaseArchiveRecord> getAllArchivedRecords(int page, int limit) {
+        List<HBaseArchiveRecord> allRecords = new ArrayList<>();
+
+        try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
+            Scan scan = new Scan();
+            scan.addFamily(CF_D);
+            scan.setCaching(1000);
+            scan.setCacheBlocks(false);
+
+            try (ResultScanner scanner = table.getScanner(scan)) {
+                for (Result result : scanner) {
+                    String rowKey = Bytes.toString(result.getRow());
+                    HBaseArchiveRecord record = parseArchiveRecord(result, rowKey);
+                    if (record != null) {
+                        allRecords.add(record);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.error("【HBase】扫描归档记录失败: {}", e.getMessage(), e);
+            throw new RuntimeException("扫描归档记录失败", e);
+        }
+
+        // 按创建时间倒序
+        allRecords.sort((a, b) -> {
+            if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+
+        // 分页
+        int start = page * limit;
+        if (start >= allRecords.size()) {
+            return Collections.emptyList();
+        }
+
+        int end = Math.min(start + limit, allRecords.size());
+        return allRecords.subList(start, end);
+    }
+
     // ==================== 删除归档记录 ====================
 
     /**
@@ -269,5 +321,12 @@ public class CommunityHBaseColdStorageService {
 
     private String getFullTableName() {
         return hBaseProperties.getNamespace() + ":" + TABLE_ARCHIVE;
+    }
+
+    /**
+     * 检查 HBase 连接状态
+     */
+    public boolean isConnected() {
+        return hbaseConnection != null && !hbaseConnection.isClosed();
     }
 }
