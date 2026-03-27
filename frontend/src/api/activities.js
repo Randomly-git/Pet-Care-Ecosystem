@@ -453,6 +453,35 @@ export const getActivityStats = async (params = {}) => {
 }
 
 /**
+ * 查询活动记录（支持冷热分离，自动路由热/冷数据）
+ * @param {number} petId - 宠物ID
+ * @param {string} startDate - 开始日期 yyyy-MM-dd'T'HH:mm:ss
+ * @param {string} endDate - 结束日期 yyyy-MM-dd'T'HH:mm:ss
+ * @returns {Promise} 合并后的活动记录列表（热数据+冷数据）
+ */
+export const queryActivityRecords = async (petId, startDate, endDate) => {
+  try {
+    if (!petId) {
+      throw new Error('宠物ID不能为空')
+    }
+
+    const response = await request({
+      url: '/activities/cold-storage/query',
+      method: 'GET',
+      params: {
+        petId,
+        startDate,
+        endDate
+      }
+    })
+    return response
+  } catch (error) {
+    console.error('查询活动记录（冷热分离）失败:', error)
+    throw error
+  }
+}
+
+/**
  * 活动数据验证器
  */
 export const activityValidator = {
@@ -546,5 +575,6 @@ export default {
   getActivitiesByUserId,
   getActivityRecordsByPetIds,
   getActivityStats,
+  queryActivityRecords,
   activityValidator
 }

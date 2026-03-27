@@ -10,6 +10,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -19,6 +20,22 @@ import java.util.Optional;
 /**
  * HBase 冷数据存储服务
  * 负责 ActivityRecord 冷数据的读写操作
+ *
+ * 表结构（单列族精简设计）：
+ * - 表名: <namespace>:activity_record
+ * - 列族: d
+ * - RowKey: {padding_pet_id}_{yyyyMMdd}_{padding_record_id}
+ *
+ * 列名 (Qualifier) - 仅存储静态业务数据：
+ * - d:record_id     <- activity_record_id (主键)
+ * - d:activity_id   <- activity_id (活动类型外键)
+ * - d:pet_id        <- pet_id (宠物外键)
+ * - d:desc          <- activity_description (活动描述)
+ * - d:date          <- activity_date (活动日期)
+ *
+ * 注意：以下字段不存入 HBase，留在 MySQL 或通过关联查询获取：
+ * - user_id, activity_name, activity_kind_id, activity_kind_name, pet_name
+ * - thaw_expire_time, migration_status (动态状态锁)
  */
 @Service
 @Slf4j
@@ -30,28 +47,17 @@ public class HBaseColdStorageService {
 
     // 表名
     private static final String TABLE_NAME = "activity_record";
-    // 列族
-    private static final String CF_INFO = "info";
-    private static final String CF_METADATA = "metadata";
-    // RowKey 格式: {pet_id}_{date}_{activity_record_id}
+    // 列族（单列族设计）
+    private static final String CF_D = "d";
+    // RowKey 格式: {pet_id}_{date}_{record_id}
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    // 列名 - info
-    private static final byte[] COL_ACTIVITY_RECORD_ID = Bytes.toBytes("activity_record_id");
+    // 列名常量 - 精简后的核心字段
+    private static final byte[] COL_RECORD_ID = Bytes.toBytes("record_id");
     private static final byte[] COL_ACTIVITY_ID = Bytes.toBytes("activity_id");
-    private static final byte[] COL_ACTIVITY_NAME = Bytes.toBytes("activity_name");
-    private static final byte[] COL_ACTIVITY_DESCRIPTION = Bytes.toBytes("activity_description");
-    private static final byte[] COL_ACTIVITY_DATE = Bytes.toBytes("activity_date");
     private static final byte[] COL_PET_ID = Bytes.toBytes("pet_id");
-    private static final byte[] COL_USER_ID = Bytes.toBytes("user_id");
-    private static final byte[] COL_ACTIVITY_KIND_ID = Bytes.toBytes("activity_kind_id");
-    private static final byte[] COL_ACTIVITY_KIND_NAME = Bytes.toBytes("activity_kind_name");
-    private static final byte[] COL_PET_NAME = Bytes.toBytes("pet_name");
-
-    // 列名 - metadata
-    private static final byte[] COL_CREATED_AT = Bytes.toBytes("created_at");
-    private static final byte[] COL_LAST_ACCESS_TIME = Bytes.toBytes("last_access_time");
-    private static final byte[] COL_MIGRATED_AT = Bytes.toBytes("migrated_at");
+    private static final byte[] COL_DESC = Bytes.toBytes("desc");
+    private static final byte[] COL_DATE = Bytes.toBytes("date");
 
     /**
      * 生成 HBase RowKey
@@ -64,65 +70,47 @@ public class HBaseColdStorageService {
 
     /**
      * 保存活动记录到冷库
-     * 
+     *
      * @param dto 活动记录DTO
      * @return 生成的RowKey
      */
     public String saveToColdStorage(ActivityRecordDTO dto) {
         String rowKey = generateRowKey(dto.getPetId(), dto.getActivityDate(), dto.getActivityRecordId());
-        
+
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
             // 先检查是否已存在
             Get get = new Get(Bytes.toBytes(rowKey));
-            get.addFamily(Bytes.toBytes(CF_INFO));
+            get.addFamily(Bytes.toBytes(CF_D));
             Result existingResult = table.get(get);
-            
+
             if (existingResult != null && !existingResult.isEmpty()) {
-                log.info("冷库数据已存在，跳过写入: rowKey={}, activityRecordId={}", 
+                log.info("冷库数据已存在，跳过写入: rowKey={}, recordId={}",
                         rowKey, dto.getActivityRecordId());
                 return rowKey;
             }
 
-            // 构建 Put
+            // 构建 Put - 只存储核心业务字段
             Put put = new Put(Bytes.toBytes(rowKey));
-
-            // info 列族
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_RECORD_ID, 
+            put.addColumn(Bytes.toBytes(CF_D), COL_RECORD_ID,
                     Bytes.toBytes(String.valueOf(dto.getActivityRecordId())));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_ID, 
-                    Bytes.toBytes(String.valueOf(dto.getActivityId())));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_NAME, 
-                    Bytes.toBytes(dto.getActivityName() != null ? dto.getActivityName() : ""));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DESCRIPTION, 
-                    Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DATE, 
-                    Bytes.toBytes(dto.getActivityDate().toString()));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_PET_ID, 
+            put.addColumn(Bytes.toBytes(CF_D), COL_ACTIVITY_ID,
+                    Bytes.toBytes(String.valueOf(dto.getActivityId() != null ? dto.getActivityId() : 0)));
+            put.addColumn(Bytes.toBytes(CF_D), COL_PET_ID,
                     Bytes.toBytes(String.valueOf(dto.getPetId())));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_USER_ID, 
-                    Bytes.toBytes(String.valueOf(dto.getUserId() != null ? dto.getUserId() : 0)));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_ID, 
-                    Bytes.toBytes(String.valueOf(dto.getActivityKindId() != null ? dto.getActivityKindId() : 0)));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_NAME, 
-                    Bytes.toBytes(dto.getActivityKindName() != null ? dto.getActivityKindName() : ""));
-            put.addColumn(Bytes.toBytes(CF_INFO), COL_PET_NAME, 
-                    Bytes.toBytes(dto.getPetName() != null ? dto.getPetName() : ""));
-
-            // metadata 列族
-            put.addColumn(Bytes.toBytes(CF_METADATA), COL_CREATED_AT, 
-                    Bytes.toBytes(LocalDateTime.now().toString()));
-            put.addColumn(Bytes.toBytes(CF_METADATA), COL_LAST_ACCESS_TIME, 
-                    Bytes.toBytes(LocalDateTime.now().toString()));
+            put.addColumn(Bytes.toBytes(CF_D), COL_DESC,
+                    Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
+            put.addColumn(Bytes.toBytes(CF_D), COL_DATE,
+                    Bytes.toBytes(dto.getActivityDate().format(DATE_FORMATTER)));
 
             // 写入
             table.put(put);
-            log.info("冷库写入成功: rowKey={}, activityRecordId={}", rowKey, dto.getActivityRecordId());
-            
+            log.info("冷库写入成功: rowKey={}, recordId={}", rowKey, dto.getActivityRecordId());
+
         } catch (IOException e) {
-            log.error("冷库写入失败: activityRecordId={}, error={}", dto.getActivityRecordId(), e.getMessage(), e);
+            log.error("冷库写入失败: recordId={}, error={}", dto.getActivityRecordId(), e.getMessage(), e);
             throw new RuntimeException("冷库写入失败: " + e.getMessage(), e);
         }
-        
+
         return rowKey;
     }
 
@@ -131,7 +119,7 @@ public class HBaseColdStorageService {
      */
     public List<String> batchSaveToColdStorage(List<ActivityRecordDTO> dtos) {
         List<String> rowKeys = new ArrayList<>();
-        
+
         if (dtos == null || dtos.isEmpty()) {
             return rowKeys;
         }
@@ -143,36 +131,18 @@ public class HBaseColdStorageService {
                 String rowKey = generateRowKey(dto.getPetId(), dto.getActivityDate(), dto.getActivityRecordId());
                 rowKeys.add(rowKey);
 
-                // 构建 Put
+                // 构建 Put - 只存储核心业务字段
                 Put put = new Put(Bytes.toBytes(rowKey));
-
-                // info 列族
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_RECORD_ID, 
+                put.addColumn(Bytes.toBytes(CF_D), COL_RECORD_ID,
                         Bytes.toBytes(String.valueOf(dto.getActivityRecordId())));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_ID, 
-                        Bytes.toBytes(String.valueOf(dto.getActivityId())));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_NAME, 
-                        Bytes.toBytes(dto.getActivityName() != null ? dto.getActivityName() : ""));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DESCRIPTION, 
-                        Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DATE, 
-                        Bytes.toBytes(dto.getActivityDate().toString()));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_PET_ID, 
+                put.addColumn(Bytes.toBytes(CF_D), COL_ACTIVITY_ID,
+                        Bytes.toBytes(String.valueOf(dto.getActivityId() != null ? dto.getActivityId() : 0)));
+                put.addColumn(Bytes.toBytes(CF_D), COL_PET_ID,
                         Bytes.toBytes(String.valueOf(dto.getPetId())));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_USER_ID, 
-                        Bytes.toBytes(String.valueOf(dto.getUserId() != null ? dto.getUserId() : 0)));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_ID, 
-                        Bytes.toBytes(String.valueOf(dto.getActivityKindId() != null ? dto.getActivityKindId() : 0)));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_NAME, 
-                        Bytes.toBytes(dto.getActivityKindName() != null ? dto.getActivityKindName() : ""));
-                put.addColumn(Bytes.toBytes(CF_INFO), COL_PET_NAME, 
-                        Bytes.toBytes(dto.getPetName() != null ? dto.getPetName() : ""));
-
-                // metadata 列族
-                put.addColumn(Bytes.toBytes(CF_METADATA), COL_CREATED_AT, 
-                        Bytes.toBytes(LocalDateTime.now().toString()));
-                put.addColumn(Bytes.toBytes(CF_METADATA), COL_LAST_ACCESS_TIME, 
-                        Bytes.toBytes(LocalDateTime.now().toString()));
+                put.addColumn(Bytes.toBytes(CF_D), COL_DESC,
+                        Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
+                put.addColumn(Bytes.toBytes(CF_D), COL_DATE,
+                        Bytes.toBytes(dto.getActivityDate().format(DATE_FORMATTER)));
 
                 puts.add(put);
             }
@@ -194,8 +164,7 @@ public class HBaseColdStorageService {
     public Optional<ActivityRecordDTO> getFromColdStorage(String rowKey) {
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
             Get get = new Get(Bytes.toBytes(rowKey));
-            get.addFamily(Bytes.toBytes(CF_INFO));
-            get.addFamily(Bytes.toBytes(CF_METADATA));
+            get.addFamily(Bytes.toBytes(CF_D));
 
             Result result = table.get(get);
             if (result == null || result.isEmpty()) {
@@ -211,26 +180,44 @@ public class HBaseColdStorageService {
 
     /**
      * 按宠物ID和时间范围查询冷数据
-     * 
+     *
      * 注意：由于 RowKey 格式为 {pet_id}_{date}_{activity_record_id}，
      * 我们需要使用正确的范围查询。startRow 包含，stopRow 不包含。
+     *
+     * @param petId    宠物ID
+     * @param startDate 起始日期（可选，为null时从最早开始）
+     * @param endDate   结束日期（可选，为null时到当前日期）
      */
     public List<ActivityRecordDTO> queryByPetIdAndDateRange(Long petId, LocalDateTime startDate, LocalDateTime endDate) {
         List<ActivityRecordDTO> results = new ArrayList<>();
-        
+
+        // 处理 null 日期，设置默认值
+        LocalDateTime effectiveStartDate = startDate;
+        LocalDateTime effectiveEndDate = endDate;
+
+        if (effectiveStartDate == null) {
+            // 默认从一年前开始
+            effectiveStartDate = LocalDateTime.now().minusYears(1).withDayOfYear(1).withHour(0).withMinute(0).withSecond(0);
+        }
+        if (effectiveEndDate == null) {
+            // 默认到当前时间
+            effectiveEndDate = LocalDateTime.now();
+        }
+
         // startRow: 从起始日期的第一条记录开始
-        String startRow = generateRowKey(petId, startDate, 0L);
-        
+        String startRow = generateRowKey(petId, effectiveStartDate, 0L);
+
         // endRow: 使用结束日期的下一天，确保包含结束日期的所有记录
-        LocalDateTime nextDay = endDate.plusDays(1);
+        LocalDateTime nextDay = effectiveEndDate.plusDays(1);
         String endRow = generateRowKey(petId, nextDay, 0L);
+
+        log.debug("【HBase查询】petId={}, startRow={}, endRow={}", petId, startRow, endRow);
 
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
             Scan scan = new Scan();
             scan.withStartRow(Bytes.toBytes(startRow), true);
             scan.withStopRow(Bytes.toBytes(endRow), true);
-            scan.addFamily(Bytes.toBytes(CF_INFO));
-            scan.addFamily(Bytes.toBytes(CF_METADATA));
+            scan.addFamily(Bytes.toBytes(CF_D));
 
             try (ResultScanner scanner = table.getScanner(scan)) {
                 for (Result result : scanner) {
@@ -245,6 +232,7 @@ public class HBaseColdStorageService {
             throw new RuntimeException("查询冷库数据失败: " + e.getMessage(), e);
         }
 
+        log.debug("【HBase查询】完成: petId={}, 找到 {} 条记录", petId, results.size());
         return results;
     }
 
@@ -254,26 +242,11 @@ public class HBaseColdStorageService {
     public boolean existsInColdStorage(String rowKey) {
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
             Get get = new Get(Bytes.toBytes(rowKey));
-            get.addFamily(Bytes.toBytes(CF_INFO));
+            get.addFamily(Bytes.toBytes(CF_D));
             return table.exists(get);
         } catch (IOException e) {
             log.error("检查冷库数据失败: rowKey={}, error={}", rowKey, e.getMessage(), e);
             return false;
-        }
-    }
-
-    /**
-     * 更新冷库中的最后访问时间
-     */
-    public void updateLastAccessTime(String rowKey) {
-        try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
-            Put put = new Put(Bytes.toBytes(rowKey));
-            put.addColumn(Bytes.toBytes(CF_METADATA), COL_LAST_ACCESS_TIME, 
-                    Bytes.toBytes(LocalDateTime.now().toString()));
-            table.put(put);
-            log.debug("更新冷库最后访问时间: rowKey={}", rowKey);
-        } catch (IOException e) {
-            log.error("更新冷库最后访问时间失败: rowKey={}, error={}", rowKey, e.getMessage(), e);
         }
     }
 
@@ -292,7 +265,8 @@ public class HBaseColdStorageService {
     }
 
     /**
-     * 解析 HBase Result 为 DTO
+     * 解析 HBase Result 为 DTO（精简版）
+     * 注意：只解析 HBase 中存储的核心字段，其他字段需要从 MySQL 关联获取
      */
     private ActivityRecordDTO parseResult(Result result) {
         if (result == null || result.isEmpty()) {
@@ -301,59 +275,35 @@ public class HBaseColdStorageService {
 
         try {
             ActivityRecordDTO dto = new ActivityRecordDTO();
-            
-            // info 列族
-            byte[] activityRecordId = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_RECORD_ID);
-            if (activityRecordId != null) {
-                dto.setActivityRecordId(Long.parseLong(Bytes.toString(activityRecordId)));
+
+            // 解析核心字段
+            byte[] recordId = result.getValue(Bytes.toBytes(CF_D), COL_RECORD_ID);
+            if (recordId != null) {
+                dto.setActivityRecordId(Long.parseLong(Bytes.toString(recordId)));
             }
 
-            byte[] activityId = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_ID);
+            byte[] activityId = result.getValue(Bytes.toBytes(CF_D), COL_ACTIVITY_ID);
             if (activityId != null) {
                 dto.setActivityId(Long.parseLong(Bytes.toString(activityId)));
             }
 
-            byte[] activityName = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_NAME);
-            if (activityName != null) {
-                dto.setActivityName(Bytes.toString(activityName));
-            }
-
-            byte[] activityDescription = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DESCRIPTION);
-            if (activityDescription != null) {
-                dto.setActivityDescription(Bytes.toString(activityDescription));
-            }
-
-            byte[] activityDate = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_DATE);
-            if (activityDate != null) {
-                dto.setActivityDate(LocalDateTime.parse(Bytes.toString(activityDate)));
-            }
-
-            byte[] petId = result.getValue(Bytes.toBytes(CF_INFO), COL_PET_ID);
+            byte[] petId = result.getValue(Bytes.toBytes(CF_D), COL_PET_ID);
             if (petId != null) {
                 dto.setPetId(Long.parseLong(Bytes.toString(petId)));
             }
 
-            byte[] userId = result.getValue(Bytes.toBytes(CF_INFO), COL_USER_ID);
-            if (userId != null) {
-                dto.setUserId(Long.parseLong(Bytes.toString(userId)));
+            byte[] desc = result.getValue(Bytes.toBytes(CF_D), COL_DESC);
+            if (desc != null) {
+                dto.setActivityDescription(Bytes.toString(desc));
             }
 
-            byte[] activityKindId = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_ID);
-            if (activityKindId != null) {
-                dto.setActivityKindId(Long.parseLong(Bytes.toString(activityKindId)));
+            byte[] date = result.getValue(Bytes.toBytes(CF_D), COL_DATE);
+            if (date != null) {
+                String dateStr = Bytes.toString(date);
+                // HBase 存储的是 yyyyMMdd 格式的日期，需要先解析为 LocalDate 再转换为 LocalDateTime
+                LocalDate localDate = LocalDate.parse(dateStr, DATE_FORMATTER);
+                dto.setActivityDate(localDate.atStartOfDay());
             }
-
-            byte[] activityKindName = result.getValue(Bytes.toBytes(CF_INFO), COL_ACTIVITY_KIND_NAME);
-            if (activityKindName != null) {
-                dto.setActivityKindName(Bytes.toString(activityKindName));
-            }
-
-            byte[] petName = result.getValue(Bytes.toBytes(CF_INFO), COL_PET_NAME);
-            if (petName != null) {
-                dto.setPetName(Bytes.toString(petName));
-            }
-
-            // metadata 列族 - 注意：简化设计后不再需要 lastAccessTime
 
             return dto;
         } catch (Exception e) {

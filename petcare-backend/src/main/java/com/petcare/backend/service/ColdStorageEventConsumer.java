@@ -34,9 +34,6 @@ public class ColdStorageEventConsumer {
     private final ActivityRecordRepository activityRecordRepository;
     private final HBaseColdStorageService hBaseColdStorageService;
 
-    // 解冻临时访问窗口（分钟）
-    private static final int THAW_ACCESS_MINUTES = 10;
-
     /**
      * 处理冷存储事件
      */
@@ -128,56 +125,18 @@ public class ColdStorageEventConsumer {
     }
 
     /**
-     * 处理从冷库解冻
-     * 
-     * 解冻策略：
-     * 1. 如果仍在10分钟有效期内，直接更新时间戳并返回
-     * 2. 如果已过期，发送解冻请求（将存储类型改回STANDARD）
-     * 3. 设置新的10分钟临时访问过期时间
-     * 
-     * 注意：由于简化后 MySQL 记录迁移后会被删除，
-     * 解冻逻辑需要特殊处理：查询 HBase 中的数据并返回
+     * 处理从冷库解冻（已废弃）
+     *
+     * 当前设计不再需要解冻逻辑：
+     * - 每次访问冷数据时，直接从 HBase 读取 + 补全关联信息
+     * - 不再需要创建临时 MySQL 记录
+     *
+     * 保留此方法是为了兼容旧代码，实际不会调用
      */
+    @Deprecated
     private void handleThawFromCold(ColdStorageEvent event) {
-        log.info("【MQ消费】处理解冻请求: eventId={}, activityRecordId={}",
+        log.info("【MQ消费】解冻请求（已废弃，不再处理）: eventId={}, activityRecordId={}",
                 event.getEventId(), event.getActivityRecordId());
-
-        // 1. 从 MySQL 查询记录
-        ActivityRecord record = activityRecordRepository.findById(event.getActivityRecordId()).orElse(null);
-        if (record == null) {
-            log.warn("【MQ消费】活动记录不存在，无法解冻: activityRecordId={}", event.getActivityRecordId());
-            return;
-        }
-
-        // 2. 检查解冻是否过期（10分钟临时访问）
-        LocalDateTime now = LocalDateTime.now();
-        if (record.getThawExpireTime() != null && now.isBefore(record.getThawExpireTime())) {
-            // 仍在有效期内，更新过期时间并返回
-            log.info("【MQ消费】解冻仍在有效期内，刷新过期时间: activityRecordId={}", event.getActivityRecordId());
-            record.setThawExpireTime(now.plusMinutes(THAW_ACCESS_MINUTES));
-            activityRecordRepository.save(record);
-            return;
-        }
-
-        // 3. 生成 RowKey 并检查 HBase 是否存在
-        String rowKey = hBaseColdStorageService.generateRowKey(
-                record.getPet() != null ? record.getPet().getPetId() : 0L,
-                record.getActivityDate(),
-                record.getActivityRecordId()
-        );
-
-        if (!hBaseColdStorageService.existsInColdStorage(rowKey)) {
-            log.warn("【MQ消费】HBase中数据不存在: activityRecordId={}, rowKey={}", 
-                    event.getActivityRecordId(), rowKey);
-            return;
-        }
-
-        // 4. 设置新的10分钟过期时间
-        record.setThawExpireTime(now.plusMinutes(THAW_ACCESS_MINUTES));
-        activityRecordRepository.save(record);
-
-        log.info("【MQ消费】解冻处理完成，临时访问有效期至: activityRecordId={}, expireTime={}", 
-                event.getActivityRecordId(), record.getThawExpireTime());
     }
 
     /**

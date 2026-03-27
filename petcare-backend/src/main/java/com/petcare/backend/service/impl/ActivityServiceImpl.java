@@ -21,8 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
@@ -176,9 +179,107 @@ public class ActivityServiceImpl implements ActivityService {
                                                          LocalDateTime endDate,
                                                          Long activityKindId,
                                                          Pageable pageable) {
-        // 直接返回 Page 对象
-        return activityRecordRepository.findActivityRecordsWithDetails(
+
+        log.info("【冷热分离分页查询】petId={}, startDate={}, endDate={}, page={}, size={}",
+                petId, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
+
+        // 1. 先查 MySQL 热数据
+        Page<ActivityRecordDTO> mysqlPage = activityRecordRepository.findActivityRecordsWithDetails(
                 petId, startDate, endDate, activityKindId, pageable);
+
+        log.debug("【冷热分离】MySQL查询结果: totalElements={}, contentSize={}",
+                mysqlPage.getTotalElements(), mysqlPage.getContent().size());
+
+        // 2. 检查是否需要补充冷数据
+        //    条件：MySQL返回数量 < pageSize，说明可能还有冷数据
+        int pageSize = pageable.getPageSize();
+        List<ActivityRecordDTO> hotRecords = mysqlPage.getContent();
+
+        if (hotRecords.size() < pageSize) {
+            log.info("【冷热分离】热数据不足({}/{}), 尝试补充冷数据", hotRecords.size(), pageSize);
+
+            // 计算需要从 HBase 补充的数量
+            int needCount = pageSize - hotRecords.size();
+
+            try {
+                // 查询 HBase 冷数据
+                List<ActivityRecordDTO> coldRecords = hBaseColdStorageService
+                        .queryByPetIdAndDateRange(petId, startDate, endDate);
+
+                // 如果有活动种类过滤，需要过滤
+                if (activityKindId != null) {
+                    coldRecords = coldRecords.stream()
+                            .filter(r -> {
+                                // 需要通过 activityId 关联查询 activityKindId
+                                // 这里先不过滤，后面补全时会处理
+                                return true;
+                            })
+                            .collect(Collectors.toList());
+                }
+
+                // 补全冷数据的关联信息
+                List<ActivityRecordDTO> enrichedColdRecords = new ArrayList<>();
+                for (ActivityRecordDTO coldRecord : coldRecords) {
+                    try {
+                        ActivityRecordDTO enriched = enrichColdRecord(coldRecord);
+                        // 如果有种类过滤，只添加匹配的
+                        if (activityKindId == null || enriched.getActivityKindId() == null
+                                || enriched.getActivityKindId().equals(activityKindId)) {
+                            enrichedColdRecords.add(enriched);
+                        }
+                    } catch (Exception e) {
+                        log.warn("【冷热分离】补全冷记录失败: recordId={}, error={}",
+                                coldRecord.getActivityRecordId(), e.getMessage());
+                    }
+                }
+
+                log.debug("【冷热分离】HBase查询结果: totalColdRecords={}", enrichedColdRecords.size());
+
+                // 合并热数据和冷数据
+                if (!enrichedColdRecords.isEmpty()) {
+                    List<ActivityRecordDTO> mergedRecords = new ArrayList<>(hotRecords);
+                    mergedRecords.addAll(enrichedColdRecords);
+
+                    // 按日期降序排序
+                    mergedRecords.sort((a, b) -> {
+                        if (a.getActivityDate() == null || b.getActivityDate() == null) return 0;
+                        return b.getActivityDate().compareTo(a.getActivityDate());
+                    });
+
+                    // 重新计算总数（MySQL总数 + HBase总数，注意去重）
+                    Set<Long> existingIds = hotRecords.stream()
+                            .map(ActivityRecordDTO::getActivityRecordId)
+                            .collect(Collectors.toSet());
+
+                    long coldCount = enrichedColdRecords.stream()
+                            .filter(r -> !existingIds.contains(r.getActivityRecordId()))
+                            .count();
+
+                    long totalElements = mysqlPage.getTotalElements() + coldCount;
+
+                    // 计算分页
+                    int fromIndex = pageable.getPageNumber() * pageable.getPageSize();
+                    int toIndex = Math.min(fromIndex + pageable.getPageSize(), mergedRecords.size());
+
+                    List<ActivityRecordDTO> pagedRecords = fromIndex < mergedRecords.size()
+                            ? mergedRecords.subList(fromIndex, toIndex)
+                            : List.of();
+
+                    log.info("【冷热分离】合并完成: 热数据={}, 冷数据={}, 总数={}, 本页={}",
+                            hotRecords.size(), enrichedColdRecords.size(), totalElements, pagedRecords.size());
+
+                    return new org.springframework.data.domain.PageImpl<>(
+                            pagedRecords, pageable, totalElements);
+                }
+
+            } catch (Exception e) {
+                log.error("【冷热分离】查询HBase冷数据失败: petId={}, error={}", petId, e.getMessage(), e);
+                // 冷数据查询失败，返回热数据
+            }
+        }
+
+        // 没有冷数据补充或补充失败，直接返回 MySQL 结果
+        return mysqlPage;
     }
 
     @Override
@@ -386,28 +487,26 @@ public class ActivityServiceImpl implements ActivityService {
                 .collect(Collectors.toList());
     }
 
-    // ==================== 冷热分离相关方法（简化版） ====================
+    // ==================== 冷热分离相关方法 ====================
 
     /**
      * 查询活动记录（自动路由热/冷数据）
-     * 
-     * 简化后的查询逻辑：
-     * 1. 先查询 MySQL（热数据）
-     * 2. 如果 MySQL 查不到，说明可能已迁移到 HBase，再查 HBase
-     * 3. 合并返回结果
-     * 
-     * 注意：由于迁移后 MySQL 记录会被删除，所以只需要：
-     * - 先查 MySQL
-     * - 再查 HBase
+     *
+     * 流程：
+     * 1. 先查 MySQL 热数据
+     * 2. 如果日期范围内有冷数据（MySQL 查不到），再查 HBase
+     * 3. 从 HBase 读取后，关联查询 Activity、Pet 等补全信息
+     * 4. 合并返回（按日期排序）
      */
     @Override
     @Transactional(readOnly = true)
     public List<ActivityRecordDTO> queryActivityRecords(Long petId, LocalDateTime startDate, LocalDateTime endDate) {
-        log.info("查询活动记录（自动路由）: petId={}, startDate={}, endDate={}", petId, startDate, endDate);
+        log.info("查询活动记录（自动路由热/冷数据）: petId={}, startDate={}, endDate={}",
+                petId, startDate, endDate);
 
         List<ActivityRecordDTO> result = new java.util.ArrayList<>();
 
-        // 1. 查询 MySQL（热数据 + 可能还未迁移的数据）
+        // 1. 先查 MySQL（热数据 + 可能还未迁移的数据）
         List<ActivityRecord> mysqlRecords = activityRecordRepository
                 .findByPetPetIdAndActivityDateBetween(petId, startDate, endDate);
 
@@ -417,22 +516,24 @@ public class ActivityServiceImpl implements ActivityService {
         log.debug("查询MySQL完成: count={}", mysqlRecords.size());
 
         // 2. 查询 HBase（冷数据）
-        // 如果 MySQL 返回数量少，可能部分数据已迁移到 HBase
+        //    如果 MySQL 返回数量少，可能部分数据已迁移到 HBase
         try {
             List<ActivityRecordDTO> hbaseRecords = hBaseColdStorageService
                     .queryByPetIdAndDateRange(petId, startDate, endDate);
 
-            // 合并 HBase 结果（注意去重：HBase 可能返回已在 MySQL 中的数据）
+            // 合并 HBase 结果（注意去重）
             for (ActivityRecordDTO hbaseRecord : hbaseRecords) {
                 boolean existsInMysql = mysqlRecords.stream()
                         .anyMatch(r -> r.getActivityRecordId().equals(hbaseRecord.getActivityRecordId()));
                 if (!existsInMysql) {
-                    result.add(hbaseRecord);
+                    // 从 HBase 读取的数据缺少关联信息，需要补全
+                    ActivityRecordDTO enrichedRecord = enrichColdRecord(hbaseRecord);
+                    result.add(enrichedRecord);
                 }
             }
             log.debug("查询HBase完成: count={}", hbaseRecords.size());
         } catch (Exception e) {
-            log.error("查询HBase冷数据失败: petId={}, error={}", petId, e.getMessage());
+            log.error("查询HBase冷数据失败: petId={}, error={}", petId, e.getMessage(), e);
             // 冷数据查询失败不影响热数据返回
         }
 
@@ -447,50 +548,59 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     /**
-     * 访问冷数据记录（触发解冻）
-     * 
-     * 简化后的逻辑：
-     * 由于迁移后 MySQL 记录会被删除，此方法主要处理：
-     * 1. 检查 MySQL 中是否存在记录
-     * 2. 如果存在（正在迁移中或迁移失败），检查解冻状态
-     * 3. 如果不存在，说明已迁移，查询 HBase 并设置解冻过期时间
+     * 补全冷数据的关联信息
+     *
+     * HBase 只存储核心字段（record_id, activity_id, pet_id, desc, date）
+     * 其他关联信息需要从 MySQL 补全
+     */
+    private ActivityRecordDTO enrichColdRecord(ActivityRecordDTO coldRecord) {
+        log.debug("补全冷数据关联信息: recordId={}", coldRecord.getActivityRecordId());
+
+        // 补全 activityName, activityKindId, activityKindName
+        if (coldRecord.getActivityId() != null) {
+            activityRepository.findById(coldRecord.getActivityId())
+                    .ifPresent(activity -> {
+                        coldRecord.setActivityName(activity.getActivityName());
+                        if (activity.getActivityKind() != null) {
+                            coldRecord.setActivityKindId(activity.getActivityKind().getActivityKindId());
+                            coldRecord.setActivityKindName(activity.getActivityKind().getActivityKindName());
+                        }
+                    });
+        }
+
+        // 补全 petName
+        if (coldRecord.getPetId() != null) {
+            petRepository.findById(coldRecord.getPetId())
+                    .ifPresent(pet -> {
+                        coldRecord.setPetName(pet.getName());
+                    });
+        }
+
+        return coldRecord;
+    }
+
+    /**
+     * 访问冷数据记录（从 HBase 读取并补全关联信息）
+     *
+     * 由于迁移后 MySQL 记录被删除，此方法用于：
+     * 1. 从 HBase 读取冷数据
+     * 2. 补全关联信息后返回
+     *
+     * 注意：不需要创建临时 MySQL 记录，每次访问都从 HBase 读取 + 补全
      */
     @Override
-    @Transactional
-    public void accessColdRecord(Long activityRecordId) {
-        log.info("访问活动记录: activityRecordId={}", activityRecordId);
+    @Transactional(readOnly = true)
+    public ActivityRecordDTO accessColdRecord(Long activityRecordId, Long petId, LocalDateTime activityDate) {
+        log.info("访问冷数据记录: activityRecordId={}, petId={}, activityDate={}",
+                activityRecordId, petId, activityDate);
 
-        ActivityRecord record = activityRecordRepository.findById(activityRecordId).orElse(null);
-        
-        if (record == null) {
-            // MySQL 中不存在，可能是已迁移到 HBase 的数据
-            log.info("MySQL中无记录，可能是冷数据，生成RowKey检查HBase: activityRecordId={}", activityRecordId);
-            
-            // 这里需要通过其他方式获取 petId 和 activityDate 来生成 RowKey
-            // 由于简化设计，我们无法从 MySQL 获取这些信息
-            // 因此需要外部传入或在消息中携带这些信息
-            // 这里暂时只记录日志，实际解冻逻辑由 MQ 消费者处理
-            return;
-        }
+        // 1. 生成 RowKey
+        String rowKey = hBaseColdStorageService.generateRowKey(petId, activityDate, activityRecordId);
 
-        // 检查解冻过期时间
-        LocalDateTime now = LocalDateTime.now();
-        if (record.getThawExpireTime() != null && now.isBefore(record.getThawExpireTime())) {
-            // 仍在解冻有效期内，只更新时间戳
-            log.info("访问仍在解冻有效期内，刷新过期时间: activityRecordId={}", activityRecordId);
-            record.setThawExpireTime(now.plusMinutes(10));
-            activityRecordRepository.save(record);
-            return;
-        }
-
-        // 不在有效期内，需要重新解冻
-        log.info("需要解冻: activityRecordId={}", activityRecordId);
-        coldStorageEventPublisher.publishThawFromColdEvent(
-                record.getActivityRecordId(),
-                record.getPet() != null ? record.getPet().getPetId() : null,
-                record.getActivity() != null ? record.getActivity().getActivityId() : null,
-                record.getActivityDate()
-        );
+        // 2. 从 HBase 读取并补全关联信息
+        return hBaseColdStorageService.getFromColdStorage(rowKey)
+                .map(this::enrichColdRecord)
+                .orElseThrow(() -> new RuntimeException("冷数据不存在: activityRecordId=" + activityRecordId));
     }
 
     /**

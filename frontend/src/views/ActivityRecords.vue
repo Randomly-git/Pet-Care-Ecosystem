@@ -599,12 +599,21 @@ const loadActivityRecords = async () => {
     loading.value = true
     const records = []
 
-    // 为每个选中的宠物加载活动记录
+    // 为每个选中的宠物加载活动记录（使用支持冷热分离的 API）
     for (const petId of selectedPetIds.value) {
       try {
-        // TODO: 需要实现活动记录API调用
-        // 暂时返回空数组，等待后端API实现
-        const petRecords = []
+        // 使用支持冷热分离的查询接口
+        // 查询所有日期范围（从一年前到现在）
+        const oneYearAgo = new Date()
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+        const startDate = oneYearAgo.toISOString().replace('T', ' ').substring(0, 19)
+        const endDate = new Date().toISOString().replace('T', ' ').substring(0, 19)
+
+        const petRecords = await apiService.activities.queryActivityRecords(
+          petId,
+          startDate,
+          endDate
+        )
         records.push(...(Array.isArray(petRecords) ? petRecords : []))
       } catch (petError) {
         console.error(`加载宠物 ${petId} 的活动记录失败:`, petError)

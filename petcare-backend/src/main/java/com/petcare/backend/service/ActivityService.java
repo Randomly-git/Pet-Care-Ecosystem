@@ -75,10 +75,14 @@ public interface ActivityService {
     List<ActivityRecordDTO> queryActivityRecords(Long petId, LocalDateTime startDate, LocalDateTime endDate);
 
     /**
-     * 访问冷数据记录（触发解冻）
-     * 访问冷数据时，更新最后访问时间
+     * 访问冷数据记录（从 HBase 读取并补全关联信息）
+     *
+     * @param activityRecordId 活动记录ID
+     * @param petId 宠物ID（用于生成 RowKey）
+     * @param activityDate 活动日期（用于生成 RowKey）
+     * @return 补全关联信息后的活动记录DTO
      */
-    void accessColdRecord(Long activityRecordId);
+    ActivityRecordDTO accessColdRecord(Long activityRecordId, Long petId, LocalDateTime activityDate);
 
     /**
      * 获取迁移统计信息

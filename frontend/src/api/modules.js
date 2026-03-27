@@ -124,6 +124,10 @@ const apiService = {
     getStats: async (params) => {
       const { getActivityStats } = await import('./activities')
       return getActivityStats(params)
+    },
+    queryActivityRecords: async (petId, startDate, endDate) => {
+      const { queryActivityRecords } = await import('./activities')
+      return queryActivityRecords(petId, startDate, endDate)
     }
   },
 

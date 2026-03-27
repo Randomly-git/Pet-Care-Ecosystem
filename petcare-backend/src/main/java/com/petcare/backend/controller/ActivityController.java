@@ -285,4 +285,41 @@ public class ActivityController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    // ==================== 冷热分离相关接口 ====================
+
+    @Operation(summary = "查询活动记录（支持冷热分离）",
+               description = "按宠物ID和时间范围查询，自动合并热数据(MySQL)和冷数据(HBase)。" +
+                             "迁移超过30天的活动记录会自动存储到HBase，此接口可同时返回两部分数据。")
+    @GetMapping("/cold-storage/query")
+    public ResponseEntity<?> queryActivityRecordsWithColdStorage(
+            @Parameter(description = "宠物ID") @RequestParam Long petId,
+            @Parameter(description = "开始日期") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @Parameter(description = "结束日期") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
+
+        log.info("【冷热分离查询】petId={}, startDate={}, endDate={}", petId, startDate, endDate);
+
+        try {
+            List<ActivityRecordDTO> records = activityService.queryActivityRecords(petId, startDate, endDate);
+
+            // 补全媒体文件
+            for (ActivityRecordDTO record : records) {
+                try {
+                    List<MediaResponse> mediaFiles = mediaServiceClient.getRelatedFiles("ACTIVITY", record.getActivityRecordId());
+                    record.setMediaFiles(mediaFiles);
+                } catch (Exception e) {
+                    log.warn("获取媒体文件失败: {}", record.getActivityRecordId());
+                    record.setMediaFiles(List.of());
+                }
+            }
+
+            return ResponseEntity.ok(records);
+        } catch (Exception e) {
+            log.error("【冷热分离查询】失败: petId={}, error={}", petId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(java.util.Map.of(
+                    "error", "查询失败",
+                    "message", e.getMessage()
+            ));
+        }
+    }
 }
