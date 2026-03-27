@@ -14,8 +14,11 @@ import petcare.example.community_backend.util.GzipUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * 社区模块 HBase 冷数据存储服务（扁平化单表设计）
@@ -246,7 +249,7 @@ public class CommunityHBaseColdStorageService {
 
     /**
      * 获取所有归档记录（按创建时间倒序，支持分页）
-     * 
+     *
      * 注意：由于 HBase RowKey 设计为 userId_momentId，需要扫描全表获取所有记录
      * 这是一个较重的操作，建议配合缓存使用
      *
@@ -291,6 +294,62 @@ public class CommunityHBaseColdStorageService {
 
         int end = Math.min(start + limit, allRecords.size());
         return allRecords.subList(start, end);
+    }
+
+    /**
+     * 扫描比指定时间更早的归档记录（用于补齐分页）
+     *
+     * 场景：当 MySQL 返回的动态数量不足 page_size 时，从 HBase 扫描更早的冷数据来补齐
+     *
+     * @param beforeTime 时间阈值，返回比此时间更早的记录
+     * @param excludeMomentIds 需要排除的动态ID（已经在 MySQL 中的）
+     * @param limit 最大返回数量
+     * @return 归档记录列表（按创建时间倒序）
+     */
+    public List<HBaseArchiveRecord> scanArchivesOlderThan(LocalDateTime beforeTime, Set<Long> excludeMomentIds, int limit) {
+        List<HBaseArchiveRecord> results = new ArrayList<>();
+
+        try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
+            Scan scan = new Scan();
+            scan.addFamily(CF_D);
+            scan.setCaching(100);
+            scan.setCacheBlocks(false);
+
+            try (ResultScanner scanner = table.getScanner(scan)) {
+                for (Result result : scanner) {
+                    if (results.size() >= limit) {
+                        break;  // 已达到数量限制
+                    }
+
+                    String rowKey = Bytes.toString(result.getRow());
+                    HBaseArchiveRecord record = parseArchiveRecord(result, rowKey);
+                    if (record == null) {
+                        continue;
+                    }
+
+                    // 检查时间条件：比指定时间更早
+                    if (record.getCreatedAt() != null && record.getCreatedAt().isBefore(beforeTime)) {
+                        // 排除已在 MySQL 中的动态
+                        if (!excludeMomentIds.contains(record.getMomentId())) {
+                            results.add(record);
+                        }
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.error("【HBase】扫描归档记录失败: {}", e.getMessage(), e);
+            throw new RuntimeException("扫描归档记录失败", e);
+        }
+
+        // 按创建时间倒序
+        results.sort((a, b) -> {
+            if (a.getCreatedAt() == null || b.getCreatedAt() == null) return 0;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+
+        log.info("【HBase】扫描冷数据完成: beforeTime={}, excludeCount={}, foundCount={}",
+                beforeTime, excludeMomentIds.size(), results.size());
+        return results;
     }
 
     // ==================== 删除归档记录 ====================

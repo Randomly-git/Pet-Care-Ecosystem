@@ -1,6 +1,5 @@
 package com.petcare.backend.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import jakarta.persistence.*;
 
@@ -22,6 +21,4 @@ public class FixedActivity {
 
     @Column(name = "pet_id", nullable = false)
     private Long petId;
-
-    // 移除所有关联关系
 }

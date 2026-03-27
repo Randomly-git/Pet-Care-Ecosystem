@@ -3,8 +3,6 @@ package com.petcare.backend.entity;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "user")

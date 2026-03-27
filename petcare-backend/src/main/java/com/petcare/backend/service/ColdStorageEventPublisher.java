@@ -25,7 +25,7 @@ public class ColdStorageEventPublisher {
      * 发布迁移到冷库事件
      */
     public void publishMigrateToColdEvent(Long activityRecordId, Long petId, Long activityId, 
-                                          LocalDateTime activityDate) {
+                                         LocalDateTime activityDate) {
         ColdStorageEvent event = ColdStorageEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .operationType(ColdStorageEvent.ColdStorageOperationType.MIGRATE_TO_COLD)

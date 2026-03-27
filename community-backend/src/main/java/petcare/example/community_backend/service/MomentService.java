@@ -116,34 +116,73 @@ public class MomentService {
     /**
      * 获取所有用户的动态，支持分页。
      * 核心：负责从多个服务（用户、媒体、点赞、评论）聚合数据，支持分页加载。
-     * 
+     *
      * 冷热分离策略：
      * - MySQL 存储所有可见数据（热数据 + 已恢复的冷数据）
      * - HBase 存储待恢复的冷数据，通过 MQ 异步恢复
-     * - 前端只从 MySQL 获取数据，保证一致性
-     * 
-     * 注意：异步恢复完成后，数据会自动出现在 MySQL 中，
-     *       前端下次访问即可看到，无需额外处理
+     * - 当 MySQL 返回数不足 page_size 时，自动从 HBase 补齐
+     *
+     * 补齐流程：
+     * 1. 查询 MySQL 获取分页动态
+     * 2. 如果 MySQL 数量 < page_size，计算需要补齐的数量
+     * 3. 扫描 HBase 获取更早的冷数据
+     * 4. 发送 MQ 事件异步恢复冷数据到 MySQL
+     * 5. 返回当前已有的数据（冷数据会在下次请求时出现）
      */
     public List<MomentResponseDTO> getAllMomentsWithPagination(Pageable pageable) {
         // 1. 查询数据库获取分页的动态实体
         Page<PetMoment> momentPage = momentRepository.findAllByOrderByCreatedAtDesc(pageable);
         List<PetMoment> moments = momentPage.getContent();
 
-        // 2. 如果 MySQL 有数据，更新最后访问时间并返回
         if (!moments.isEmpty()) {
             // 更新最后访问时间（触发冷数据恢复）
             for (PetMoment moment : moments) {
                 updateLastAccessTime(moment);
             }
+        }
+
+        // 2. 如果 MySQL 数量 < page_size，尝试从 HBase 补齐
+        int pageSize = pageable.getPageSize();
+        if (moments.size() < pageSize) {
+            int missing = pageSize - moments.size();
+            log.info("【冷热分离】MySQL 动态数量不足，需要补齐: current={}, required={}, missing={}",
+                    moments.size(), pageSize, missing);
+
+            // 收集已返回的动态 ID，避免重复
+            Set<Long> existingMomentIds = moments.stream().map(PetMoment::getId).collect(Collectors.toSet());
+
+            // 计算时间阈值：基于最后一条动态的时间
+            LocalDateTime timeThreshold = null;
+            if (!moments.isEmpty()) {
+                PetMoment lastMoment = moments.get(moments.size() - 1);
+                timeThreshold = lastMoment.getCreatedAt();
+            }
+
+            // 从 HBase 扫描更早的冷数据
+            List<HBaseArchiveRecord> coldArchives = hBaseService.scanArchivesOlderThan(
+                    timeThreshold, existingMomentIds, missing);
+
+            if (!coldArchives.isEmpty()) {
+                log.info("【冷热分离】找到 {} 条冷数据需要恢复", coldArchives.size());
+
+                // 发送 MQ 事件异步恢复冷数据
+                for (HBaseArchiveRecord archive : coldArchives) {
+                    eventPublisher.publishRestoreFromColdEvent(archive.getMomentId(), archive.getUserId());
+                }
+
+                log.info("【冷热分离】已发送 {} 条冷数据恢复事件", coldArchives.size());
+            } else {
+                log.info("【冷热分离】HBase 中无更多冷数据可补齐");
+            }
+        }
+
+        // 3. 返回已聚合的动态列表（可能不足 page_size）
+        if (!moments.isEmpty()) {
             return buildMomentDTOList(moments);
         }
 
-        // 3. MySQL 无数据，说明：
-        //    - 可能没有动态
-        //    - 或者冷数据还在恢复中
-        //    - 前端会显示空列表，用户刷新后可能看到已恢复的数据
-        log.info("【冷热分离】MySQL暂无数据，可能冷数据正在恢复中，请稍后刷新");
+        // 4. MySQL 完全无数据，返回空列表
+        log.info("【冷热分离】MySQL 暂无数据，冷数据恢复中，请稍后刷新");
         return Collections.emptyList();
     }
 

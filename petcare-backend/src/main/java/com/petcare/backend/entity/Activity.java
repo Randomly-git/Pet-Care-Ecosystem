@@ -21,9 +21,9 @@ public class Activity {
     private ActivityKind activityKind;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "user_id") // 修改为 user_id
+    @JoinColumn(name = "user_id", referencedColumnName = "user_id")
     @JsonIgnore
-    private User user; // 修改为 User 实体
+    private User user;
 
     @Column(name = "state")
     private Integer state = 1; // 1表示有效，0表示已删除
