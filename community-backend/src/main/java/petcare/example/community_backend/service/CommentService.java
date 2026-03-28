@@ -42,6 +42,9 @@ public class CommentService {
         // 1. 业务校验（检查 parentId 是否存在且属于同一 moment）
         Long targetUserId = null; // 被通知的用户ID
 
+        // 【冷迁移保护】检查目标动态是否正在迁移中
+        checkMomentNotMigrating(requestDTO.getMomentId());
+
         if (requestDTO.getParentId() != null) {
             Comment parentComment = commentRepository.findById(requestDTO.getParentId())
                     .orElseThrow(() -> new IllegalArgumentException("回复的评论 (parentId) 不存在."));
@@ -129,6 +132,19 @@ public class CommentService {
      */
     private Long getMomentAuthorId(Long momentId) {
         return petMomentRepository.findUserIdById(momentId).orElse(null);
+    }
+
+    /**
+     * 【冷迁移保护】检查目标动态是否正在迁移中
+     * 如果正在迁移中，抛出异常阻止操作
+     */
+    private void checkMomentNotMigrating(Long momentId) {
+        petMomentRepository.findById(momentId).ifPresent(moment -> {
+            if ("MIGRATING".equals(moment.getMigrationStatus())) {
+                log.warn("【冷迁移保护】目标动态正在迁移中，拒绝评论: momentId={}", momentId);
+                throw new IllegalStateException("该动态正在迁移中，请稍后重试");
+            }
+        });
     }
 
 

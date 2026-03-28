@@ -270,6 +270,84 @@ Boolean success = newTransactionTemplate.execute(status -> {
 - 一个动态迁移失败不影响其他动态
 - 失败的动态状态保持 MIGRATING，下次任务继续处理
 
+### 3.5 迁移过程中禁止操作
+
+**为保证数据一致性，迁移过程中禁止用户对目标进行操作**：
+
+| 操作 | 限制条件 |
+|------|----------|
+| 发布新动态 | 无限制（新动态不在迁移状态） |
+| 评论动态 | 目标动态状态为 MIGRATING 时拒绝 |
+| 点赞动态/评论 | 目标状态为 MIGRATING 时拒绝 |
+
+**实现方式**：
+
+```java
+// CommentService.java - 评论前检查
+private void checkMomentNotMigrating(Long momentId) {
+    petMomentRepository.findById(momentId).ifPresent(moment -> {
+        if ("MIGRATING".equals(moment.getMigrationStatus())) {
+            throw new IllegalStateException("该动态正在迁移中，请稍后重试");
+        }
+    });
+}
+
+// LikeService.java - 点赞前检查
+private void checkTargetNotMigrating(TargetType targetType, Long targetId) {
+    String migrationStatus = null;
+    if (targetType == TargetType.MOMENT) {
+        migrationStatus = petMomentRepository.findById(targetId)
+                .map(pm -> pm.getMigrationStatus()).orElse(null);
+    } else if (targetType == TargetType.COMMENT) {
+        migrationStatus = commentRepository.findById(targetId)
+                .map(c -> c.getMigrationStatus()).orElse(null);
+    }
+    if ("MIGRATING".equals(migrationStatus)) {
+        throw new IllegalStateException("该内容正在迁移中，请稍后重试");
+    }
+}
+```
+
+**好处**：
+- 确保用户操作的评论/点赞与动态一起被归档
+- 避免用户操作丢失（评论/点赞在 MySQL，但动态在 HBase）
+- 迁移过程不会被用户操作打断
+
+### 3.6 迁移过程中用户访问的处理
+
+**问题**：用户在迁移过程中访问动态，是否应该更新 `lastAccessTime`？
+
+**方案**：如果动态处于 MIGRATING 状态，不更新 `lastAccessTime`
+
+**原因**：
+- 状态为 MIGRATING 表示数据即将被迁移
+- 此时更新 `lastAccessTime` 是无效操作（记录马上会被删除）
+- 避免浪费数据库写入
+
+**实现方式**：
+
+```java
+// MomentService.java - updateLastAccessTime()
+private void updateLastAccessTime(PetMoment moment) {
+    // 【冷迁移保护】如果正在迁移中，不更新访问时间
+    if ("MIGRATING".equals(moment.getMigrationStatus())) {
+        log.debug("【冷迁移保护】动态正在迁移中，跳过更新访问时间: momentId={}", moment.getId());
+        return;
+    }
+    LocalDateTime now = LocalDateTime.now();
+    moment.setLastAccessTime(now);
+    momentRepository.save(moment);
+}
+```
+
+**流程对比**：
+
+| 场景 | 处理方式 |
+|------|----------|
+| 用户访问正常动态 | 正常更新 `lastAccessTime` |
+| 用户访问 MIGRATING 动态 | 跳过更新，记录被迁移后通过恢复流程返回 |
+| 用户编辑/点赞/评论 MIGRATING 动态 | 拒绝操作，提示"正在迁移中" |
+
 ---
 
 ## 4. 幂等性保证
@@ -476,11 +554,12 @@ GET /api/moments/cold-storage/{momentId}?userId={userId}
 | GZIP 压缩 | 无 | 有（full_data 列） |
 | 迁移触发 | 定时任务 | 定时任务 |
 | 迁移使用 MQ | 否 | 否 |
+| **乐观锁** | 是（`UPDATE ... WHERE status='NONE' → 'MIGRATING'`） | 是（`UPDATE ... WHERE status='NONE' → 'MIGRATING'`） |
 | 恢复方式 | 同步查询 HBase | MQ 异步恢复 |
 | 恢复耗时 | 毫秒级 | 秒级（MQ + 批量写入） |
 | 前端透明性 | **完全透明** | **需要用户操作激活** |
-| 数据一致性 | 先写后删 | 先写后删 |
-| 幂等性 | exists() 检查 | exists() + ON DUPLICATE KEY |
+| 数据一致性 | 乐观锁 + 先写后删 | 乐观锁 + 先写后删 |
+| 幂等性 | 乐观锁 + exists() 检查 | 乐观锁 + exists() + ON DUPLICATE KEY |
 
 ### 8.1 设计差异原因
 

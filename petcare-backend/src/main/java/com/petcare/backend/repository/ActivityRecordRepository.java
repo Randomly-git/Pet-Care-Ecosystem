@@ -7,6 +7,7 @@ import com.petcare.backend.entity.Pet;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -118,4 +119,19 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
      */
     @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.migrationStatus = 'MIGRATING'")
     long countMigratingRecords();
+
+    /**
+     * 乐观锁：原子性更新迁移状态
+     * 只有当记录的当前状态等于 expectedStatus 时，才更新为 newStatus
+     *
+     * @param recordId      记录ID
+     * @param expectedStatus 期望的当前状态
+     * @param newStatus     新状态
+     * @return 更新成功的记录数（0表示状态不匹配，1表示更新成功）
+     */
+    @Modifying
+    @Query("UPDATE ActivityRecord ar SET ar.migrationStatus = :newStatus WHERE ar.activityRecordId = :recordId AND ar.migrationStatus = :expectedStatus")
+    int updateMigrationStatus(@Param("recordId") Long recordId,
+                              @Param("expectedStatus") String expectedStatus,
+                              @Param("newStatus") String newStatus);
 }

@@ -49,8 +49,10 @@ public class HBaseColdStorageService {
     private static final String TABLE_NAME = "activity_record";
     // 列族（单列族设计）
     private static final String CF_D = "d";
-    // RowKey 格式: {pet_id}_{date}_{record_id}
+    // RowKey 格式: {pet_id}_{date}_{record_id} (date只用于分区，不含时间)
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    // 日期时间格式：存储完整的时间信息，用于读取时还原
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
     // 列名常量 - 精简后的核心字段
     private static final byte[] COL_RECORD_ID = Bytes.toBytes("record_id");
@@ -99,8 +101,9 @@ public class HBaseColdStorageService {
                     Bytes.toBytes(String.valueOf(dto.getPetId())));
             put.addColumn(Bytes.toBytes(CF_D), COL_DESC,
                     Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
+            // 使用完整时间格式存储日期时间，保留小时和分钟信息
             put.addColumn(Bytes.toBytes(CF_D), COL_DATE,
-                    Bytes.toBytes(dto.getActivityDate().format(DATE_FORMATTER)));
+                    Bytes.toBytes(dto.getActivityDate().format(DATETIME_FORMATTER)));
 
             // 写入
             table.put(put);
@@ -141,8 +144,9 @@ public class HBaseColdStorageService {
                         Bytes.toBytes(String.valueOf(dto.getPetId())));
                 put.addColumn(Bytes.toBytes(CF_D), COL_DESC,
                         Bytes.toBytes(dto.getActivityDescription() != null ? dto.getActivityDescription() : ""));
+                // 使用完整时间格式存储日期时间，保留小时和分钟信息
                 put.addColumn(Bytes.toBytes(CF_D), COL_DATE,
-                        Bytes.toBytes(dto.getActivityDate().format(DATE_FORMATTER)));
+                        Bytes.toBytes(dto.getActivityDate().format(DATETIME_FORMATTER)));
 
                 puts.add(put);
             }
@@ -299,10 +303,18 @@ public class HBaseColdStorageService {
 
             byte[] date = result.getValue(Bytes.toBytes(CF_D), COL_DATE);
             if (date != null) {
-                String dateStr = Bytes.toString(date);
-                // HBase 存储的是 yyyyMMdd 格式的日期，需要先解析为 LocalDate 再转换为 LocalDateTime
-                LocalDate localDate = LocalDate.parse(dateStr, DATE_FORMATTER);
-                dto.setActivityDate(localDate.atStartOfDay());
+                String dateTimeStr = Bytes.toString(date);
+                // 尝试使用完整时间格式解析（yyyyMMddHHmm），如果失败则使用日期格式（yyyyMMdd）兼容旧数据
+                try {
+                    LocalDateTime activityDateTime = LocalDateTime.parse(dateTimeStr, DATETIME_FORMATTER);
+                    dto.setActivityDate(activityDateTime);
+                } catch (Exception e) {
+                    // 兼容旧数据：使用日期格式解析
+                    LocalDate localDate = LocalDate.parse(dateTimeStr, DATE_FORMATTER);
+                    dto.setActivityDate(localDate.atStartOfDay());
+                    log.debug("【兼容旧数据】使用日期格式解析: rowKey={}",
+                            Bytes.toString(result.getRow()));
+                }
             }
 
             return dto;

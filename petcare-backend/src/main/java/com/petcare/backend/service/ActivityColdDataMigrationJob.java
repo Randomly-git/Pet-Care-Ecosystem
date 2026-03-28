@@ -4,6 +4,7 @@ import com.petcare.backend.dto.ColdStorageEvent;
 import com.petcare.backend.dto.response.ActivityRecordDTO;
 import com.petcare.backend.entity.ActivityRecord;
 import com.petcare.backend.repository.ActivityRecordRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,12 +46,23 @@ public class ActivityColdDataMigrationJob {
     private final ActivityRecordRepository activityRecordRepository;
     private final ColdStorageEventPublisher coldStorageEventPublisher;
     private final HBaseColdStorageService hBaseColdStorageService;
+    private final TransactionTemplate transactionTemplate;
 
     @Value("${hbase.cold-data.activity-record.days-threshold:30}")
     private int daysThreshold;
 
     @Value("${hbase.cold-data.activity-record.batch-size:1000}")
     private int batchSize;
+
+    @Value("${hbase.cold-data.activity-record.migration-cron:0 0 2 * * ?}")
+    private String migrationCron;
+
+    @PostConstruct
+    public void init() {
+        log.info("【定时任务初始化】ActivityRecord冷数据迁移任务已注册");
+        log.info("【定时任务初始化】cron表达式: {}", migrationCron);
+        log.info("【定时任务初始化】days-threshold: {}, batch-size: {}", daysThreshold, batchSize);
+    }
 
     /**
      * 每天北京时间 2:00 执行冷数据迁移任务
@@ -77,6 +90,11 @@ public class ActivityColdDataMigrationJob {
 
     /**
      * 扫描并发布迁移任务（状态为 NONE 的记录）
+     *
+     * 采用乐观锁机制：
+     * 1. 先尝试原子性更新状态为 MIGRATING
+     * 2. 更新成功才发布 MQ 消息
+     * 3. 如果 MQ 发布失败，需要回滚状态
      */
     private int scanAndPublishMigrationTasks(LocalDateTime threshold) {
         log.info("【新迁移】开始扫描待迁移记录，超过 {} 天", daysThreshold);
@@ -94,23 +112,37 @@ public class ActivityColdDataMigrationJob {
             }
 
             for (ActivityRecord record : page.getContent()) {
+                Long recordId = record.getActivityRecordId();
+
+                // 1. 尝试原子性获取锁（乐观锁）
+                int updated = activityRecordRepository.updateMigrationStatus(recordId, "NONE", "MIGRATING");
+                if (updated == 0) {
+                    // 状态不是 NONE，可能被其他线程或上次任务处理，跳过
+                    log.debug("【新迁移】记录状态不是 NONE，跳过: activityRecordId={}", recordId);
+                    continue;
+                }
+
                 try {
-                    // 发布迁移消息到 MQ
+                    // 2. 发布迁移消息到 MQ
                     coldStorageEventPublisher.publishMigrateToColdEvent(
-                            record.getActivityRecordId(),
+                            recordId,
                             record.getPet() != null ? record.getPet().getPetId() : null,
                             record.getActivity() != null ? record.getActivity().getActivityId() : null,
                             record.getActivityDate()
                     );
-
-                    // 更新状态为迁移中
-                    record.setMigrationStatus("MIGRATING");
-                    activityRecordRepository.save(record);
                     publishedCount++;
+                    log.debug("【新迁移】已发布迁移任务: activityRecordId={}", recordId);
 
                 } catch (Exception e) {
-                    log.error("【新迁移】发送迁移任务失败: activityRecordId={}, error={}",
-                            record.getActivityRecordId(), e.getMessage());
+                    log.error("【新迁移】发送迁移任务失败，回滚状态: activityRecordId={}, error={}",
+                            recordId, e.getMessage());
+                    // 回滚状态
+                    try {
+                        activityRecordRepository.updateMigrationStatus(recordId, "MIGRATING", "NONE");
+                    } catch (Exception rollbackEx) {
+                        log.error("【新迁移】回滚状态失败: activityRecordId={}, error={}",
+                                recordId, rollbackEx.getMessage());
+                    }
                 }
             }
 
@@ -221,7 +253,9 @@ public class ActivityColdDataMigrationJob {
      */
     public void manualMigrate() {
         log.info("手动触发冷数据迁移任务");
-        migrateToColdStorage();
+        transactionTemplate.executeWithoutResult(status -> {
+            migrateToColdStorage();
+        });
     }
 
     /**

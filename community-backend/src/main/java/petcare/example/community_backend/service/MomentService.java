@@ -429,8 +429,14 @@ public class MomentService {
 
     /**
      * 更新动态的最后访问时间
+     * 如果状态为 MIGRATING，不更新（数据正在被迁移，访问时间无意义）
      */
     private void updateLastAccessTime(PetMoment moment) {
+        // 【冷迁移保护】如果正在迁移中，不更新访问时间
+        if ("MIGRATING".equals(moment.getMigrationStatus())) {
+            log.debug("【冷迁移保护】动态正在迁移中，跳过更新访问时间: momentId={}", moment.getId());
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         moment.setLastAccessTime(now);
         momentRepository.save(moment);

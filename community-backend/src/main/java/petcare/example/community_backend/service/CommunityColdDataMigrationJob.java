@@ -101,7 +101,7 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
      * 定时任务：每天凌晨 2:00 执行
      * 使用 cron 表达式可根据实际情况调整
      */
-    @Scheduled(cron = "0 0 2 * * ?")
+    @Scheduled(cron = "${hbase.cold-data.community.migration-cron:0 0 2 * * ?}", zone = "Asia/Shanghai")
     public void scheduledMigration() {
         if (!migrationEnabled.get()) {
             log.info("【冷迁移】迁移任务已禁用，跳过执行");
@@ -109,13 +109,23 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         }
 
         log.info("【冷迁移】定时任务开始执行");
-        executeMigration();
+
+        // 使用统一的 executeMigrationWithTransaction 方法
+        // 手动触发和定时任务走相同的代码路径，确保行为一致
+        MigrationStats stats = executeMigrationWithTransaction();
+
+        if (stats != null) {
+            log.info("【冷迁移】定时任务执行完成: 成功={}, 跳过={}, 失败={}",
+                    stats.getSuccess(), stats.getSkipped(), stats.getFailed());
+        } else {
+            log.error("【冷迁移】定时任务执行失败");
+        }
     }
 
     /**
-     * 执行迁移主流程
+     * 执行迁移主流程（在独立事务中）
+     * 注意：此方法由 TransactionTemplate 调用，事务由调用方管理
      */
-    @Transactional
     public MigrationStats executeMigration() {
         long startTime = System.currentTimeMillis();
         MigrationStats stats = new MigrationStats();
@@ -174,6 +184,22 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
                 stats.getSuccess(), stats.getSkipped(), stats.getFailed(), elapsed);
 
         return stats;
+    }
+
+    /**
+     * 执行迁移主流程（带事务封装，供手动触发和定时任务统一使用）
+     * 这个方法包装了 executeMigration()，确保事务一致性
+     */
+    public MigrationStats executeMigrationWithTransaction() {
+        return newTransactionTemplate.execute(status -> {
+            try {
+                return executeMigration();
+            } catch (Exception e) {
+                log.error("【冷迁移】迁移任务执行失败: {}", e.getMessage(), e);
+                status.setRollbackOnly();
+                return null;
+            }
+        });
     }
 
     /**

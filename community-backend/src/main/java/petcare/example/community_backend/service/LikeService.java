@@ -36,6 +36,9 @@ public class LikeService {
         TargetType targetType = requestDTO.getTargetType();
         Long targetId = requestDTO.getTargetId();
 
+        // 【冷迁移保护】检查目标是否正在迁移中
+        checkTargetNotMigrating(targetType, targetId);
+
         Optional<Like> existingLike = likeRepository.findByUserIdAndTargetTypeAndTargetId(userId, targetType, targetId);
 
         if (existingLike.isPresent()) {
@@ -110,6 +113,31 @@ public class LikeService {
         return commentRepository.findById(commentId)
                 .map(Comment::getUserId)
                 .orElse(null);
+    }
+
+    /**
+     * 【冷迁移保护】检查目标是否正在迁移中
+     * 支持 MOMENT 和 COMMENT 两种类型的检查
+     */
+    private void checkTargetNotMigrating(TargetType targetType, Long targetId) {
+        String migrationStatus = null;
+
+        if (targetType == TargetType.MOMENT) {
+            // 检查动态是否正在迁移
+            migrationStatus = petMomentRepository.findById(targetId)
+                    .map(pm -> pm.getMigrationStatus())
+                    .orElse(null);
+        } else if (targetType == TargetType.COMMENT) {
+            // 检查评论是否正在迁移
+            migrationStatus = commentRepository.findById(targetId)
+                    .map(c -> c.getMigrationStatus())
+                    .orElse(null);
+        }
+
+        if ("MIGRATING".equals(migrationStatus)) {
+            log.warn("【冷迁移保护】目标正在迁移中，拒绝点赞: targetType={}, targetId={}", targetType, targetId);
+            throw new IllegalStateException("该内容正在迁移中，请稍后重试");
+        }
     }
 
     /**

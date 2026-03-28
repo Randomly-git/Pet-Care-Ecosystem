@@ -41,7 +41,8 @@ public class MigrationAdminController {
         log.info("【管理接口】手动触发冷数据迁移任务");
 
         try {
-            CommunityColdDataMigrationJob.MigrationStats stats = migrationJob.executeMigration();
+            // 使用和定时任务相同的 TransactionTemplate 确保事务一致性
+            CommunityColdDataMigrationJob.MigrationStats stats = migrationJob.executeMigrationWithTransaction();
             long elapsed = System.currentTimeMillis() - startTime;
 
             Map<String, Object> result = new HashMap<>();

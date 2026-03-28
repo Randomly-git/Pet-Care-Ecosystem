@@ -96,9 +96,9 @@ public class HBaseProperties {
             private int batchSize = 1000;
 
             /**
-             * 迁移任务 Cron 表达式
+             * 迁移任务 Cron 表达式（以 program-config.yml / application.yml 为准，此处不设默认值）
              */
-            private String migrationCron = "0 0 3 * * ?";
+            private String migrationCron;
         }
     }
 }

@@ -289,6 +289,11 @@ public class ActivityServiceImpl implements ActivityService {
             ActivityRecord record = activityRecordRepository.findById(recordId)
                     .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
 
+            // 检查是否正在迁移中，不允许删除
+            if ("MIGRATING".equals(record.getMigrationStatus())) {
+                throw new RuntimeException("该记录正在迁移中，请稍后重试");
+            }
+
             // 先删除关联的媒体文件（通过MQ异步删除COS）
             try {
                 mediaServiceClient.deleteRelatedFiles("ACTIVITY", recordId);
@@ -402,6 +407,11 @@ public class ActivityServiceImpl implements ActivityService {
 
         ActivityRecord record = activityRecordRepository.findById(recordId)
                 .orElseThrow(() -> new RuntimeException("活动记录不存在 ID=" + recordId));
+
+        // 检查是否正在迁移中，不允许编辑
+        if ("MIGRATING".equals(record.getMigrationStatus())) {
+            throw new RuntimeException("该记录正在迁移中，请稍后重试");
+        }
 
         if (newActivityId != null) {
             Activity activity = activityRepository.findById(newActivityId)
