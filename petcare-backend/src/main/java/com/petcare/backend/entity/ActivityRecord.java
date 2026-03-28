@@ -8,10 +8,10 @@ import java.time.LocalDateTime;
 /**
  * 活动记录实体
  * 支持冷热数据分离存储
- * 
+ *
  * 简化设计：
  * - 迁移状态只有 NONE/MIGRATING（迁移后直接删除记录）
- * - thaw_expire_time 用于10分钟临时访问窗口
+ * - 冷数据直接从 HBase 读取，不需要解冻机制
  * - 所有冗余字段已移除（storage_status, storage_location, hbase_row_key 等）
  */
 @Entity
@@ -47,11 +47,4 @@ public class ActivityRecord {
      */
     @Column(name = "migration_status", length = 20)
     private String migrationStatus = "NONE";
-
-    /**
-     * 解冻过期时间（用于临时访问，10分钟后过期）
-     * 当用户访问冷数据时设置此时间
-     */
-    @Column(name = "thaw_expire_time")
-    private LocalDateTime thawExpireTime;
 }

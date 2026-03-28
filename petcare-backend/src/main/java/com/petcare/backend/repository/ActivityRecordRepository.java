@@ -118,11 +118,4 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
      */
     @Query("SELECT COUNT(ar) FROM ActivityRecord ar WHERE ar.migrationStatus = 'MIGRATING'")
     long countMigratingRecords();
-
-    /**
-     * 查找解冻过期的冷数据（用于清理）
-     */
-    @Query("SELECT ar FROM ActivityRecord ar WHERE ar.migrationStatus = 'NONE' " +
-           "AND ar.thawExpireTime IS NOT NULL AND ar.thawExpireTime < :now")
-    List<ActivityRecord> findExpiredThawRecords(@Param("now") LocalDateTime now);
 }
