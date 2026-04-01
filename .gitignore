@@ -14,3 +14,6 @@ coverage/
 .vite/
 .env.local
 program-config.yml
+logs/
+pet_bert_model/
+results/
