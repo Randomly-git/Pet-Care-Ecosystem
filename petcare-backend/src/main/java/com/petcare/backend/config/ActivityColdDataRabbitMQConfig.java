@@ -25,6 +25,29 @@ public class ActivityColdDataRabbitMQConfig {
     public static final String COLD_MIGRATION_ROUTING_KEY = "activity.cold.migration";
     public static final String COLD_MIGRATION_DL_ROUTING_KEY = "activity.cold.migration.dl";
 
+
+    // ==================== 2. BERT AI 分析配置 (新增) ====================
+    // 发送给 Python BERT 服务的任务队列
+    public static final String BERT_TASK_QUEUE = "pet_health_analysis_queue";
+    // 从 Python 返回结果的队列
+    public static final String BERT_RESULT_QUEUE = "pet_analysis_result_queue";
+
+    /**
+     * 声明 BERT 任务队列
+     */
+    @Bean
+    public Queue bertTaskQueue() {
+        return new Queue(BERT_TASK_QUEUE, true);
+    }
+
+    /**
+     * 声明 BERT 结果队列
+     */
+    @Bean
+    public Queue bertResultQueue() {
+        return new Queue(BERT_RESULT_QUEUE, true);
+    }
+
     /**
      * 声明冷数据迁移交换机
      */

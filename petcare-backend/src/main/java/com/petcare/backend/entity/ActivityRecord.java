@@ -39,6 +39,20 @@ public class ActivityRecord {
     @Column(name = "activity_date")
     private LocalDateTime activityDate;
 
+    /**
+     * BERT AI 分析结果
+     * 映射关系：
+     * -1: 忽略
+     * 0: 正常 (Normal)
+     * 1: 消化问题 (Digestive Issues)
+     * 2: 寄生虫 (Parasites)
+     * 3: 皮肤问题 (Skin Irritations)
+     * 4: 行动不便 (Mobility Problems)
+     * 5: 耳部感染 (Ear Infections)
+     */
+    @Column(name = "bert_result")
+    private Integer bertResult;
+
     // ==================== 冷热分离字段（简化后） ====================
     
     /**

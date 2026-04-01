@@ -24,7 +24,7 @@ public class ActivityApiTest {
     public static void main(String[] args) throws Exception {
         // 测试数据
         Long testUserId = 1L;
-        Long testPetId = 393L;
+        Long testPetId = 10L;
         Long testActivityId = 1L;
         Long testRecordId = 1L;
         Long testActivityKindId = 1L;
@@ -38,13 +38,13 @@ public class ActivityApiTest {
         // testGetActivitiesByUserId(testUserId);
 
         // 3. 测试获取用户活动列表（带种类筛选）
-        testGetActivitiesByUserIdWithKind(testUserId, testActivityKindId);
+        //testGetActivitiesByUserIdWithKind(testUserId, testActivityKindId);
 
         // 4. 测试获取活动详情
         // testGetActivityById(testActivityId);
 
         // 5. 测试创建新活动
-        // testCreateActivity(testUserId, testActivityKindId);
+        //testCreateActivity(testUserId, testActivityKindId);
 
         // 6. 测试更新活动
         // testUpdateActivity();
@@ -59,7 +59,7 @@ public class ActivityApiTest {
         // testSearchActivityRecordsWithKind(testPetId, testActivityKindId);
 
         // 10. 测试创建活动记录
-        // testCreateActivityRecord(testPetId, testActivityId);
+        testCreateActivityRecord(testPetId, testActivityId);
 
         // 11. 测试更新活动记录
         // testUpdateActivityRecord(testRecordId, testActivityId);

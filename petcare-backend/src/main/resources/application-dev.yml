@@ -1,5 +1,8 @@
 # 开发环境配置文件
 # 基础配置
+server:
+  port: 0
+
 spring:
   application:
     name: petcare-backend
@@ -25,7 +28,7 @@ spring:
   jpa:
     show-sql: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     properties:
       hibernate:
         format_sql: true

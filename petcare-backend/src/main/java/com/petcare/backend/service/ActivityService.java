@@ -88,4 +88,14 @@ public interface ActivityService {
      * 获取迁移统计信息
      */
     Object getMigrationStats();
+
+    /**
+     * 更新活动记录的 AI 分析结果
+     */
+    void updateBertResult(Long activityRecordId, Integer bertResult);
+
+    /**
+     * 获取指定宠物的所有异常健康记录 (bertResult 为 1-5)
+     */
+    List<ActivityRecordDTO> getAbnormalRecordsByPetId(Long petId);
 }

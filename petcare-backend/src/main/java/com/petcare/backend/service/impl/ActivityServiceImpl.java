@@ -497,6 +497,27 @@ public class ActivityServiceImpl implements ActivityService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public void updateBertResult(Long activityRecordId, Integer bertResult) {
+        activityRecordRepository.findById(activityRecordId).ifPresent(record -> {
+            record.setBertResult(bertResult);
+            activityRecordRepository.save(record);
+            log.info("✅ 已更新活动记录 {} 的 BERT 结果为: {}", activityRecordId, bertResult);
+        });
+    }
+
+    @Override
+    public List<ActivityRecordDTO> getAbnormalRecordsByPetId(Long petId) {
+        // 找出 bert_result 在 1 到 5 之间的所有记录
+        List<ActivityRecord> records = activityRecordRepository
+                .findByPet_PetIdAndBertResultBetween(petId, 1, 5);
+
+        return records.stream()
+                .map(this::convertToRecordDTO) // 使用你已有的转换方法
+                .collect(Collectors.toList());
+    }
+
     // ==================== 冷热分离相关方法 ====================
 
     /**
@@ -637,6 +658,8 @@ public class ActivityServiceImpl implements ActivityService {
         dto.setPetName(record.getPet() != null ? record.getPet().getName() : null);
         dto.setActivityDescription(record.getActivityDescription());
         dto.setActivityDate(record.getActivityDate());
+        // 设置 BERT 结果（DTO 内部会自动处理中文转换）
+        dto.setBertResult(record.getBertResult());
         return dto;
     }
 }

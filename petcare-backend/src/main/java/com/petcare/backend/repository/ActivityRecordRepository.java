@@ -134,4 +134,6 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
     int updateMigrationStatus(@Param("recordId") Long recordId,
                               @Param("expectedStatus") String expectedStatus,
                               @Param("newStatus") String newStatus);
+
+    List<ActivityRecord> findByPet_PetIdAndBertResultBetween(Long petId, int i, int i1);
 }

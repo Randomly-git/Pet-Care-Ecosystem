@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -23,7 +25,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -145,6 +149,28 @@ public class ActivityController {
         return ResponseEntity.ok(recordPage);
     }
 
+    @Operation(summary = "获取宠物异常健康记录", description = "获取指定宠物所有经BERT分析为异常（1-5）的记录")
+    @GetMapping("/records/pet/{petId}/abnormal")
+    public ResponseEntity<List<ActivityRecordDTO>> getAbnormalRecords(
+            @Parameter(description = "宠物ID") @PathVariable Long petId) {
+
+        log.info("查询宠物异常记录，宠物ID: {}", petId);
+        List<ActivityRecordDTO> abnormalRecords = activityService.getAbnormalRecordsByPetId(petId);
+        return ResponseEntity.ok(abnormalRecords);
+    }
+
+    @Operation(summary = "忽略异常记录", description = "将指定记录的分析结果标记为已忽略（-1）")
+    @PutMapping("/records/{recordId}/ignore")
+    public ResponseEntity<Void> ignoreAbnormalRecord(
+            @Parameter(description = "记录ID") @PathVariable Long recordId) {
+
+        log.info("忽略活动记录异常提示，记录ID: {}", recordId);
+        activityService.updateBertResult(recordId, -1);
+        return ResponseEntity.ok().build();
+    }
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate; // 注入 RabbitMQ 模板
     @Operation(summary = "创建活动记录", description = "为宠物添加一次活动记录（如：今天喂食了），支持上传照片")
     @PostMapping("/records/pet/{petId}")
     public ResponseEntity<ActivityRecord> createActivityRecord(
@@ -178,6 +204,17 @@ public class ActivityController {
             } catch (Exception e) {
                 log.error("活动记录 {} 的文件上传失败", record.getActivityRecordId(), e);
             }
+        }
+
+        // 新增：发送异步分析任务到 RabbitMQ
+        if (description != null && !description.isEmpty()) {
+            Map<String, Object> msg = new HashMap<>();
+            msg.put("activityRecordId", record.getActivityRecordId());
+            msg.put("text", description);
+
+            // 发送到名为 "pet_health_analysis_queue" 的队列
+            rabbitTemplate.convertAndSend("pet_health_analysis_queue", msg);
+            log.info("【消息队列】已发送活动记录 {} 的 AI 分析任务", record.getActivityRecordId());
         }
 
         long endTime = System.currentTimeMillis();
