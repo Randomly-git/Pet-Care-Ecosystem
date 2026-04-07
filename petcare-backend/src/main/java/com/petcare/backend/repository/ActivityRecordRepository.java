@@ -52,7 +52,7 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
     @Query(value = "SELECT new com.petcare.backend.dto.response.ActivityRecordDTO(" +
             "ar.activityRecordId, a.activityId, a.activityName, " +
             "ak.activityKindId, ak.activityKindName, p.petId, " +
-            "ar.activityDescription, ar.activityDate) " +
+            "ar.activityDescription, ar.activityDate, ar.bertResult) " + // ← 这里补上 ar.bertResult
             "FROM ActivityRecord ar " +
             "JOIN ar.activity a " +
             "JOIN a.activityKind ak " +
@@ -68,10 +68,10 @@ public interface ActivityRecordRepository extends JpaRepository<ActivityRecord, 
                     "AND (:endDate IS NULL OR ar.activityDate <= :endDate) " +
                     "AND (:activityKindId IS NULL OR ak.activityKindId = :activityKindId)")
     Page<ActivityRecordDTO> findActivityRecordsWithDetails(@Param("petId") Long petId,
-                                                          @Param("startDate") LocalDateTime startDate,
-                                                          @Param("endDate") LocalDateTime endDate,
-                                                          @Param("activityKindId") Long activityKindId,
-                                                          Pageable pageable);
+                                                           @Param("startDate") LocalDateTime startDate,
+                                                           @Param("endDate") LocalDateTime endDate,
+                                                           @Param("activityKindId") Long activityKindId,
+                                                           Pageable pageable);
 
     // 根据宠物ID列表批量查找活动记录
     List<ActivityRecord> findByPetPetIdIn(List<Long> petIds);
