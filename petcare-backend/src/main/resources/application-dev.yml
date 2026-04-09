@@ -71,6 +71,18 @@ hbase:
       batch-size: ${hbase.cold-data.activity-record.batch-size:1000}
       migration-cron: ${hbase.cold-data.activity-record.migration-cron:0 0 2 * * ?}
 
+# Canal 配置
+canal:
+  host: ${canal.host:localhost}
+  port: ${canal.port:11111}
+  destination: ${canal.destination:example}
+  batch-size: ${canal.batch-size:100}
+  filter: ${canal.filter:pet_system.status}
+
+# Test 配置
+test:
+  simulate-failure: ${test.simulate-failure:false}
+
 logging:
   level:
     com.petcare.backend: INFO
