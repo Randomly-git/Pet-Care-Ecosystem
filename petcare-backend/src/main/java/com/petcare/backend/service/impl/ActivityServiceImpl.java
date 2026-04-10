@@ -364,7 +364,7 @@ public class ActivityServiceImpl implements ActivityService {
 
                 if (!reminders.isEmpty()) {
                     // 通常每个活动在每个宠物上应该只有一个type=1的提醒记录
-                    ActivityReminder reminder = reminders.getFirst();
+                    ActivityReminder reminder = reminders.get(0);
 
                     // 只有当新日期大于原提醒日期时才更新
                     if (newReminderDate.isAfter(reminder.getReminderDate())) {

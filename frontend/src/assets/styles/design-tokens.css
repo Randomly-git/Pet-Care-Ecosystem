@@ -1,36 +1,36 @@
 :root {
-  /* ===== 主色调 - Rome2Rio风格 ===== */
-  --color-primary: #FF8C00;        /* 温暖橙色 - 主色 */
-  --color-primary-light: #FFA500;   /* 亮橙色 */
-  --color-primary-dark: #FF6347;    /* 深橙色 */
+  /* ===== 主色调 - Apple 极简风格 ===== */
+  --color-primary: #0071e3;        /* Apple 蓝 - 主操作色 */
+  --color-primary-light: #47a9ff;   /* 亮蓝 */
+  --color-primary-dark: #0058b0;    /* 暗蓝 */
 
   /* ===== 辅助色 ===== */
-  --color-secondary: #4A90E2;      /* 专业蓝色 */
-  --color-accent: #52C41A;         /* 成功绿色 */
-  --color-warning: #FAAD14;        /* 警告黄色 */
-  --color-danger: #FF4D4F;         /* 危险红色 */
-  --color-info: #1890FF;           /* 信息蓝色 */
+  --color-secondary: #86868b;      /* 质感灰 */
+  --color-accent: #34c759;         /* 成功绿 (iOS) */
+  --color-warning: #ff9f0a;        /* 警告黄 (iOS) */
+  --color-danger: #ff3b30;         /* 危险红 (iOS) */
+  --color-info: #0071e3;           /* 信息蓝 (同主色) */
 
-  /* ===== 中性色 ===== */
-  --color-white: #FFFFFF;
-  --color-black: #2C3E50;
-  --color-gray-50: #FAFBFC;
-  --color-gray-100: #F5F7FA;
-  --color-gray-200: #E4E7EB;
-  --color-gray-300: #D1D5DB;
-  --color-gray-400: #9CA3AF;
-  --color-gray-500: #6B7280;
-  --color-gray-600: #4B5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1F2937;
-  --color-gray-900: #111827;
-  
-  /* ===== 渐变色 ===== */
-  --gradient-primary: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);
-  --gradient-warm: linear-gradient(135deg, #FF8C00 0%, #FF6347 100%);
-  --gradient-cool: linear-gradient(135deg, #4A90E2 0%, #1890FF 100%);
-  --gradient-success: linear-gradient(135deg, #52C41A 0%, #73D13D 100%);
-  --gradient-hero: linear-gradient(135deg, #FFF7ED 0%, #FED7AA 100%);
+  /* ===== 中性色 (Apple 常用黑白灰阶) ===== */
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-gray-50: #fbfbfd;
+  --color-gray-100: #f5f5f7;
+  --color-gray-200: #e5e5ea;
+  --color-gray-300: #d1d1d6;
+  --color-gray-400: #c7c7cc;
+  --color-gray-500: #aeaeb2;
+  --color-gray-600: #8e8e93;
+  --color-gray-700: #86868b;
+  --color-gray-800: #333336;
+  --color-gray-900: #1d1d1f;
+
+  /* ===== 渐变色 (极简风尽量不使用渐变) ===== */
+  --gradient-primary: none;
+  --gradient-warm: none;
+  --gradient-cool: none;
+  --gradient-success: none;
+  --gradient-hero: none;
   
   /* ===== 字体家族 ===== */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -76,17 +76,13 @@
   --radius-2xl: 2rem;      /* 32px - 大卡片 */
   --radius-full: 9999px;
   
-  /* ===== 半扁平化阴影系统 - Rome2Rio风格 ===== */
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.06),
-               0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-base: 0 4px 6px -1px rgba(0, 0, 0, 0.08),
-                 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 8px 12px -4px rgba(0, 0, 0, 0.1),
-               0 4px 8px -2px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 12px 16px -8px rgba(0, 0, 0, 0.12),
-               0 6px 10px -6px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 20px 25px -12px rgba(0, 0, 0, 0.15);
+  /* ===== 半扁平化阴影系统 - Apple 风格 ===== */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  --shadow-sm: 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+  --shadow-base: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 24px 50px rgba(0, 0, 0, 0.16);
   
   /* ===== 动画时长 ===== */
   --duration-fast: 150ms;

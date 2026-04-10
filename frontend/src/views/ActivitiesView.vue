@@ -3,40 +3,49 @@
     <!-- 使用统一的布局头部 -->
     <AppHeader />
 
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-container">
-        <div class="hero-content">
-          <div class="hero-emoji">🐾</div>
-          <h2 class="hero-title">宠物活动中心</h2>
-          <p class="hero-subtitle">记录和管理爱宠的每一个精彩瞬间</p>
-        </div>
+    <!-- Apple 风格 Hero Banner -->
+    <section class="banner-section hero-section">
+      <div class="banner-bg hero-bg"></div>
+      <div class="banner-content hero-content">
+        <h2 class="banner-title">宠物活动中心</h2>
+        <p class="banner-subtitle">随时掌握它们的生活节奏。记录打卡、多宠对比、时光轴回溯。</p>
       </div>
     </section>
 
     <!-- 主要内容区域 -->
-    <div class="content-layout">
-    <!-- 左侧宠物边栏 -->
-    <div class="pets-sidebar">
+    <div class="content-layout" :class="{ 'layout-collapsed': isSidebarCollapsed }">
+      <!-- 左侧宠物边栏 (支持折叠与多选) -->
+      <div class="pets-sidebar" 
+           :class="{ 'collapsed': isSidebarCollapsed }">
         <div class="sidebar-header">
           <div class="sidebar-title">
-            <span class="title-icon">🐾</span>
-            <span class="title-text">我的宠物</span>
-            <span class="pets-count-badge">{{ userPets.length }}</span>
+            <span class="title-icon" @click.stop="isSidebarCollapsed = !isSidebarCollapsed"
+              style="cursor: pointer;">🐾</span>
+            <span class="title-text" v-show="!isSidebarCollapsed">我的宠物</span>
+            <span class="pets-count-badge" v-show="!isSidebarCollapsed">{{ userPets.length }}</span>
+          </div>
+          <!-- 折叠切换按钮 -->
+          <div class="collapse-toggle" @click="isSidebarCollapsed = !isSidebarCollapsed">
+            <el-icon>
+              <Fold v-if="!isSidebarCollapsed" />
+              <Expand v-else />
+            </el-icon>
           </div>
         </div>
 
-        <div class="sidebar-content">
+        <div class="sidebar-content" v-show="!isSidebarCollapsed">
           <div class="pets-list">
             <!-- 宠物卡片 -->
-            <div
-              v-for="pet in userPets"
-              :key="pet.id || pet.petId"
-              class="pet-card"
-              :class="{ active: selectedPetId === (pet.id || pet.petId) }"
-              @click="selectPet(pet.id || pet.petId)"
-            >
+            <div v-for="pet in userPets" :key="pet.id || pet.petId" class="pet-card"
+              :class="{ active: selectedPetId === (pet.id || pet.petId) }" @click="selectPet(pet.id || pet.petId)">
               <div class="pet-main">
+                <!-- 纯净风多选Checkbox -->
+                <div class="pet-checkbox" @click.stop>
+                  <el-checkbox :model-value="selectedPetIds.includes(pet.id || pet.petId)"
+                    @change="togglePetSelection(pet.id || pet.petId)">
+                  </el-checkbox>
+                </div>
+
                 <div class="pet-avatar">
                   <el-avatar :size="36" :src="pet.avatar_url">
                     {{ pet.name.charAt(0) }}
@@ -46,37 +55,35 @@
                 <div class="pet-content">
                   <div class="pet-info-row">
                     <div class="pet-name">{{ pet.name }}</div>
-                    <div class="pet-details">{{ pet.species || pet.type }} · {{ pet.breed }}</div>
                   </div>
-                  <div class="pet-activities">
-                    <div class="activity-count">{{ getPetActivityCount(pet.id || pet.petId) }}</div>
-                    <div class="activity-label">活动</div>
+                  <div class="pet-details">
+                    <span>{{ pet.species || pet.type }}</span>
+                    <span v-if="pet.breed"> · {{ pet.breed }}</span>
+                    <span v-if="pet.gender === 'male'"> · ♂ 雄性</span>
+                    <span v-if="pet.gender === 'female'"> · ♀ 雌性</span>
                   </div>
                 </div>
-                <div class="pet-actions">
-                  <!-- AI状态总结按钮 -->
-                  <div class="pet-ai-action" @click.stop>
-                  <el-button
-                    type="primary"
-                    size="small"
-                    @click="getAIStatusSummary(pet.id || pet.petId, pet.name)"
-                    :loading="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId)"
-                    :icon="aiSummaryLoading && currentAnalyzingPetId === (pet.id || pet.petId) ? 'Loading' : 'MagicStick'"
-                  >
-                    AI总结
-                  </el-button>
-                  </div>
-                  <!-- 活动统计按钮 -->
-                  <div class="pet-stats-action" @click.stop>
-                  <el-button
-                    type="info"
-                    size="small"
-                    @click="getPetStats(pet.id || pet.petId, pet.name)"
-                    :loading="statsLoading && currentStatsPetId === (pet.id || pet.petId)"
-                  >
-                    统计
-                  </el-button>
-                  </div>
+                <div class="pet-actions" @click.stop>
+                  <!-- 弱化 AI与统计按钮 为 ... 下拉菜单 -->
+                  <el-dropdown trigger="click">
+                    <div class="more-options-btn">
+                      <el-icon>
+                        <MoreFilled />
+                      </el-icon>
+                    </div>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item @click="getAIStatusSummary(pet.id || pet.petId, pet.name)">
+                          <el-icon>
+                            <MagicStick />
+                          </el-icon>AI 总结
+                        </el-dropdown-item>
+                        <el-dropdown-item @click="getPetStats(pet.id || pet.petId, pet.name)">
+                          分析统计
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
                 </div>
               </div>
             </div>
@@ -84,7 +91,9 @@
             <!-- 添加宠物卡片 -->
             <div class="pet-card add-pet-card" @click="showAddPetDialog = true">
               <div class="add-pet-icon">
-                <el-icon size="20"><Plus /></el-icon>
+                <el-icon size="20">
+                  <Plus />
+                </el-icon>
               </div>
               <div class="add-pet-text">添加宠物</div>
             </div>
@@ -99,151 +108,128 @@
         <div v-if="currentRecordType === 'activity'" class="activity-content">
           <div class="content-container">
 
-        <!-- 操作栏 -->
-        <div class="action-bar">
-          <div class="action-left">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD"
-              @change="handleDateRangeChange"
-              size="default"
-              style="width: 240px; margin-left: 12px"
-            />
-          </div>
-
-          <div class="action-right">
-            <el-button type="success" @click="openAddDialog">
-              <el-icon><Plus /></el-icon>
-              添加记录
-            </el-button>
-            <el-button @click="refreshData">
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 活动类型筛选 -->
-        <div class="activity-filters">
-          <div class="filter-header">
-            <span class="filter-title">活动类型筛选：</span>
-          </div>
-          <div class="filter-options">
-            <el-checkbox-group v-model="selectedActivityTypes" @change="handleActivityTypeFilter">
-              <el-checkbox
-                v-for="type in activityTypes"
-                :key="type.value"
-                :label="type.label"
-                :value="type.value"
-              >
-                <span class="filter-label" :class="`filter-${getActivityTypeClass(type.value)}`">
-                  {{ type.label }}
-                </span>
-              </el-checkbox>
-            </el-checkbox-group>
-            <el-button
-              size="small"
-              @click="clearActivityTypeFilter"
-              style="margin-left: 16px;"
-            >
-              清除筛选
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 活动记录时间线 -->
-        <div class="timeline-section">
-          <div v-if="loading" class="loading-container">
-            <el-skeleton :rows="5" animated />
-          </div>
-
-          <div v-else-if="filteredRecords.length === 0" class="empty-state">
-            <el-empty description="暂无活动记录">
-              <el-button type="primary" @click="openAddDialog">
-                创建第一条记录
-              </el-button>
-            </el-empty>
-          </div>
-
-          <div v-else class="activity-timeline">
-            <div
-              v-for="(group, date) in groupedRecords"
-              :key="date"
-              class="timeline-group"
-            >
-              <div class="timeline-date">
-                <div class="date-badge">{{ formatDate(date) }}</div>
+            <!-- Apple Health 风格横向日历时间轴 (Timeline Scrubber) -->
+            <div class="timeline-scrubber-section">
+              <div class="scrubber-header">
+                <div class="scrubber-title">
+                  <span style="font-size: 18px; font-weight: 600; color: #1d1d1f;">活动跨度视图</span>
+                </div>
+                <div class="action-right">
+                  <el-date-picker v-model="dateRange" type="daterange" range-separator="-" start-placeholder="开始"
+                    end-placeholder="结束" format="YYYY-MM-DD" value-format="YYYY-MM-DD" @change="handleDateRangeChange"
+                    size="small" style="width: 220px; margin-right: 12px;" />
+                  <el-button type="primary" color="#0071e3" round @click="openAddDialog">
+                    <el-icon>
+                      <Plus />
+                    </el-icon> 记录活动
+                  </el-button>
+                </div>
               </div>
 
-              <div class="timeline-items">
-                <div
-                  v-for="record in group"
-                  :key="record.activityRecordId"
-                  class="timeline-item"
-                  @click="editRecord(record)"
-                >
-                  <div class="timeline-marker">
-                    <div class="marker-dot" :class="getActivityTypeClass(record.activityId)"></div>
-                    <div class="marker-line"></div>
+              <!-- 滑动时间带 -->
+              <div class="scrubber-track" @wheel.prevent="handleScrubberWheel">
+                <div v-for="day in recentDays" :key="day.dateStr" class="scrubber-day"
+                  :class="{ 'active': isDateInRange(day.dateStr) }" @click="selectScrubberDate(day.dateStr)">
+                  <div class="day-name">{{ day.monthAndDayName }}</div>
+                  <div class="day-num">{{ day.dayNum }}</div>
+                  <div class="activity-indicator" :class="{ 'has-activity': groupedRecords[day.dateStr] }"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Apple 风格类别筛选器 (打勾面板组件) -->
+            <div class="activity-filters-section">
+              <div class="filter-card">
+                <div class="filter-header">
+                  <span class="filter-title">活动筛选</span>
+                  <el-button link type="primary" size="small" @click="selectedActivityTypes = activityTypes.map(t => t.value); loadActivityRecords()">全选</el-button>
+                  <el-button link size="small" @click="selectedActivityTypes = []; loadActivityRecords()">清空</el-button>
+                </div>
+                <div class="filter-content">
+                  <el-checkbox-group v-model="selectedActivityTypes" @change="loadActivityRecords" class="custom-checkbox-group">
+                    <el-checkbox v-for="type in activityTypes" :key="type.value" :label="type.value" :value="type.value" border>
+                      {{ type.label }}
+                    </el-checkbox>
+                  </el-checkbox-group>
+                </div>
+              </div>
+            </div>
+
+            <!-- 活动记录时间线 -->
+            <div class="timeline-section">
+              <div v-if="loading" class="loading-container">
+                <el-skeleton :rows="5" animated />
+              </div>
+
+              <div v-else-if="filteredRecords.length === 0" class="empty-state">
+                <el-empty description="暂无活动记录">
+                  <el-button type="primary" @click="openAddDialog">
+                    创建第一条记录
+                  </el-button>
+                </el-empty>
+              </div>
+
+              <div v-else class="activity-timeline">
+                <div v-for="(group, date) in groupedRecords" :key="date" class="timeline-group">
+                  <div class="timeline-date">
+                    <div class="date-badge">{{ formatDate(date) }}</div>
                   </div>
 
-                  <div class="timeline-content">
-                    <div class="record-card">
-                      <div class="record-header">
-                        <div class="pet-info">
-                          <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
-                            {{ getPetInfo(record.petId).name.charAt(0) }}
-                          </el-avatar>
-                          <div class="pet-details">
-                            <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
-                            <div class="activity-type">{{ getActivityTypeName(record.activityId) }}</div>
-                          </div>
-                        </div>
-                        <div class="record-time">
-                          {{ formatTime(record.activityDate) }}
-                        </div>
+                  <div class="timeline-items">
+                    <div v-for="record in group" :key="record.activityRecordId" class="timeline-item"
+                      @click="editRecord(record)">
+                      <div class="timeline-marker">
+                        <div class="marker-dot" :class="getActivityTypeClass(record.activityId)"></div>
+                        <div class="marker-line"></div>
                       </div>
 
-                      <div class="record-description">
-                        {{ record.activityDescription }}
-                      </div>
-
-                      <!-- 活动记录媒体文件显示 -->
-                      <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
-                        <div class="media-preview">
-                          <div
-                            v-for="media in record.mediaFiles.slice(0, 4)"
-                            :key="media.mediaId"
-                            class="media-item"
-                            @click.stop="previewMedia(media)"
-                          >
-                            <img
-                              v-if="media.fileType.startsWith('image/')"
-                              :src="media.fileUrl"
-                              :alt="media.fileName"
-                            />
-                            <div v-else class="file-icon">
-                              <i class="fas fa-file"></i>
+                      <div class="timeline-content">
+                        <div class="record-card">
+                          <div class="record-header">
+                            <div class="pet-info">
+                              <el-avatar :size="32" :src="getPetInfo(record.petId).avatar_url">
+                                {{ getPetInfo(record.petId).name.charAt(0) }}
+                              </el-avatar>
+                              <div class="pet-details">
+                                <div class="pet-name">{{ getPetInfo(record.petId).name }}</div>
+                                <div class="activity-type">{{ getActivityTypeName(record.activityId) }}</div>
+                              </div>
+                            </div>
+                            <div class="record-time">
+                              {{ formatTime(record.activityDate) }}
                             </div>
                           </div>
-                          <div v-if="record.mediaFiles.length > 4" class="more-media">
-                            +{{ record.mediaFiles.length - 4 }}
+
+                          <div class="record-description">
+                            {{ record.activityDescription }}
+                          </div>
+
+                          <!-- 活动记录媒体文件显示 -->
+                          <div class="record-media" v-if="record.mediaFiles && record.mediaFiles.length > 0">
+                            <div class="media-preview">
+                              <div v-for="media in record.mediaFiles.slice(0, 4)" :key="media.mediaId"
+                                class="media-item" @click.stop="previewMedia(media)">
+                                <img v-if="media.fileType.startsWith('image/')" :src="media.fileUrl"
+                                  :alt="media.fileName" />
+                                <div v-else class="file-icon">
+                                  <i class="fas fa-file"></i>
+                                </div>
+                              </div>
+                              <div v-if="record.mediaFiles.length > 4" class="more-media">
+                                +{{ record.mediaFiles.length - 4 }}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="record-actions">
+                            <el-button size="small" @click.stop="editRecord(record)">
+                              编辑
+                            </el-button>
+                            <el-button size="small" type="danger" @click.stop="deleteRecord(record)">
+                              删除
+                            </el-button>
                           </div>
                         </div>
-                      </div>
-
-                      <div class="record-actions">
-                        <el-button size="small" @click.stop="editRecord(record)">
-                          编辑
-                        </el-button>
-                        <el-button size="small" type="danger" @click.stop="deleteRecord(record)">
-                          删除
-                        </el-button>
                       </div>
                     </div>
                   </div>
@@ -253,363 +239,220 @@
           </div>
         </div>
       </div>
-      </div>
-    </div>
 
-    <!-- 添加活动记录对话框 -->
-    <el-dialog
-      v-model="showAddDialog"
-      title="添加活动记录"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="addFormRef"
-        :model="addForm"
-        :rules="addFormRules"
-        label-width="100px"
-      >
-        <!-- 当前选中的宠物信息（只读） -->
-        <el-form-item label="当前宠物">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <el-avatar :size="32" :src="currentSelectedPet?.avatar_url">
-              {{ currentSelectedPet?.name?.charAt(0) }}
-            </el-avatar>
-            <span>{{ currentSelectedPet?.name || '未选择宠物' }}</span>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="活动类别" prop="activityKindId">
-          <el-select
-            v-model="addForm.activityKindId"
-            placeholder="选择活动类别"
-            style="width: 100%"
-            @change="handleActivityKindChange"
-          >
-            <el-option
-              v-for="type in activityTypes"
-              :key="type.value"
-              :label="type.label"
-              :value="type.value"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item
-          v-if="addForm.activityKindId"
-          label="具体活动"
-          prop="activityId"
-        >
-          <div style="display: flex; gap: 8px;">
-            <el-select
-              v-model="addForm.activityId"
-              placeholder="选择具体活动"
-              style="flex: 1"
-              filterable
-              no-data-text="该类别下暂无活动，请新建活动"
-            >
-              <el-option
-                v-for="activity in getActivitiesByKind(addForm.activityKindId)"
-                :key="activity.activityId"
-                :label="activity.activityName"
-                :value="activity.activityId"
-              />
-            </el-select>
-            <el-button
-              type="primary"
-              plain
-              @click="showCreateActivityDialog = true"
-              :disabled="!addForm.activityKindId"
-            >
-              新建活动
-            </el-button>
-          </div>
-          <div v-if="addForm.activityKindId"
-               style="margin-top: 8px; padding: 8px; background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 4px; font-size: 12px; color: #1e40af;">
-            <div v-if="getActivitiesByKind(addForm.activityKindId).length === 0">
-              该类别下还没有具体的活动。您可以选择：
-              <ul style="margin: 4px 0; padding-left: 16px;">
-                <li><strong>直接提交</strong>：系统将使用活动类别直接创建记录</li>
-                <li><strong>新建活动</strong>：点击右侧"新建活动"按钮创建具体活动</li>
-              </ul>
-              例如，{{ getActivityKindName(addForm.activityKindId) }}类别可以包括：
-              <span v-if="addForm.activityKindId === 1">吃零食、吃饭、喝水等</span>
-              <span v-else-if="addForm.activityKindId === 2">玩耍、拥抱、训练等</span>
-              <span v-else-if="addForm.activityKindId === 3">洗澡、刷牙、剪指甲等</span>
-              <span v-else-if="addForm.activityKindId === 4">散步、公园游玩、旅行等</span>
-              <span v-else-if="addForm.activityKindId === 5">跑步、爬楼梯、玩玩具等</span>
-              <span v-else-if="addForm.activityKindId === 6">体检、打疫苗、吃药等</span>
-              <span v-else-if="addForm.activityKindId === 7">发情、怀孕、生产等</span>
-              <span v-else-if="addForm.activityKindId === 8">呕吐、腹泻、跛行等</span>
-              <span v-else>其他具体活动</span>
+      <!-- 添加活动记录对话框 -->
+      <el-dialog v-model="showAddDialog" title="添加活动记录" width="600px" :close-on-click-modal="false">
+        <el-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-width="100px">
+          <!-- 当前选中的宠物信息（只读） -->
+          <el-form-item label="当前宠物">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <el-avatar :size="32" :src="currentSelectedPet?.avatar_url">
+                {{ currentSelectedPet?.name?.charAt(0) }}
+              </el-avatar>
+              <span>{{ currentSelectedPet?.name || '未选择宠物' }}</span>
             </div>
-          </div>
-        </el-form-item>
+          </el-form-item>
 
-        <el-form-item label="活动时间" prop="activityDate">
-          <el-date-picker
-            v-model="addForm.activityDate"
-            type="datetime"
-            placeholder="选择活动时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DDTHH:mm:ss"
-            style="width: 100%"
-          />
-        </el-form-item>
+          <el-form-item label="活动类别" prop="activityKindId">
+            <el-select v-model="addForm.activityKindId" placeholder="选择活动类别" style="width: 100%"
+              @change="handleActivityKindChange">
+              <el-option v-for="type in activityTypes" :key="type.value" :label="type.label" :value="type.value" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="活动描述" prop="description">
-          <el-input
-            v-model="addForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入活动描述..."
-          />
-        </el-form-item>
-
-        <el-form-item label="上传媒体文件">
-          <el-upload
-            ref="activityUploadRef"
-            :auto-upload="false"
-            :on-change="handleActivityFileChange"
-            :limit="5"
-            :file-list="activityFileList"
-            action="#"
-            :accept="'image/*,video/*,.pdf,.doc,.docx'"
-            multiple
-          >
-            <el-button>选择文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                支持图片、视频、PDF、Word文档，最多5个文件，每个文件不超过10MB
+          <el-form-item v-if="addForm.activityKindId" label="具体活动" prop="activityId">
+            <div style="display: flex; gap: 8px;">
+              <el-select v-model="addForm.activityId" placeholder="选择具体活动" style="flex: 1" filterable
+                no-data-text="该类别下暂无活动，请新建活动">
+                <el-option v-for="activity in getActivitiesByKind(addForm.activityKindId)" :key="activity.activityId"
+                  :label="activity.activityName" :value="activity.activityId" />
+              </el-select>
+              <el-button type="primary" plain @click="showCreateActivityDialog = true"
+                :disabled="!addForm.activityKindId">
+                新建活动
+              </el-button>
+            </div>
+            <div v-if="addForm.activityKindId"
+              style="margin-top: 8px; padding: 8px; background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 4px; font-size: 12px; color: #1e40af;">
+              <div v-if="getActivitiesByKind(addForm.activityKindId).length === 0">
+                该类别下还没有具体的活动。您可以选择：
+                <ul style="margin: 4px 0; padding-left: 16px;">
+                  <li><strong>直接提交</strong>：系统将使用活动类别直接创建记录</li>
+                  <li><strong>新建活动</strong>：点击右侧"新建活动"按钮创建具体活动</li>
+                </ul>
+                例如，{{ getActivityKindName(addForm.activityKindId) }}类别可以包括：
+                <span v-if="addForm.activityKindId === 1">吃零食、吃饭、喝水等</span>
+                <span v-else-if="addForm.activityKindId === 2">玩耍、拥抱、训练等</span>
+                <span v-else-if="addForm.activityKindId === 3">洗澡、刷牙、剪指甲等</span>
+                <span v-else-if="addForm.activityKindId === 4">散步、公园游玩、旅行等</span>
+                <span v-else-if="addForm.activityKindId === 5">跑步、爬楼梯、玩玩具等</span>
+                <span v-else-if="addForm.activityKindId === 6">体检、打疫苗、吃药等</span>
+                <span v-else-if="addForm.activityKindId === 7">发情、怀孕、生产等</span>
+                <span v-else-if="addForm.activityKindId === 8">呕吐、腹泻、跛行等</span>
+                <span v-else>其他具体活动</span>
               </div>
-            </template>
-          </el-upload>
-        </el-form-item>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="活动时间" prop="activityDate">
+            <el-date-picker v-model="addForm.activityDate" type="datetime" placeholder="选择活动时间"
+              format="YYYY-MM-DD HH:mm:ss" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+          </el-form-item>
+
+          <el-form-item label="活动描述" prop="description">
+            <el-input v-model="addForm.description" type="textarea" :rows="4" placeholder="请输入活动描述..." />
+          </el-form-item>
+
+          <el-form-item label="上传媒体文件">
+            <el-upload ref="activityUploadRef" :auto-upload="false" :on-change="handleActivityFileChange" :limit="5"
+              :file-list="activityFileList" action="#" :accept="'image/*,video/*,.pdf,.doc,.docx'" multiple>
+              <el-button>选择文件</el-button>
+              <template #tip>
+                <div class="el-upload__tip">
+                  支持图片、视频、PDF、Word文档，最多5个文件，每个文件不超过10MB
+                </div>
+              </template>
+            </el-upload>
+          </el-form-item>
 
         </el-form>
 
-      <template #footer>
-        <el-button @click="showAddDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitAddForm" :loading="submitting">
-          确定
-        </el-button>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="showAddDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitAddForm" :loading="submitting">
+            确定
+          </el-button>
+        </template>
+      </el-dialog>
 
-    <!-- 编辑活动记录对话框 -->
-    <el-dialog
-      v-model="showEditDialog"
-      title="编辑活动记录"
-      width="600px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="editFormRef"
-        :model="editForm"
-        :rules="editFormRules"
-        label-width="100px"
-      >
-        <el-form-item label="宠物名称" prop="petId">
-          <el-input v-model="editForm.petName" disabled placeholder="宠物名称" />
-        </el-form-item>
+      <!-- 编辑活动记录对话框 -->
+      <el-dialog v-model="showEditDialog" title="编辑活动记录" width="600px" :close-on-click-modal="false">
+        <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="100px">
+          <el-form-item label="宠物名称" prop="petId">
+            <el-input v-model="editForm.petName" disabled placeholder="宠物名称" />
+          </el-form-item>
 
-        <el-form-item label="活动类型" prop="activityId">
-          <el-select v-model="editForm.activityId" placeholder="选择活动类型" style="width: 100%">
-            <el-option
-              v-for="type in activityTypes"
-              :key="type.value"
-              :label="type.label"
-              :value="type.value"
-            />
-          </el-select>
-        </el-form-item>
+          <el-form-item label="活动类型" prop="activityId">
+            <el-select v-model="editForm.activityId" placeholder="选择活动类型" style="width: 100%">
+              <el-option v-for="type in activityTypes" :key="type.value" :label="type.label" :value="type.value" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="活动时间" prop="activityDate">
-          <el-date-picker
-            v-model="editForm.activityDate"
-            type="datetime"
-            placeholder="选择活动时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DDTHH:mm:ss"
-            style="width: 100%"
-          />
-        </el-form-item>
+          <el-form-item label="活动时间" prop="activityDate">
+            <el-date-picker v-model="editForm.activityDate" type="datetime" placeholder="选择活动时间"
+              format="YYYY-MM-DD HH:mm:ss" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+          </el-form-item>
 
-        <el-form-item label="活动描述" prop="description">
-          <el-input
-            v-model="editForm.description"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入活动描述..."
-          />
-        </el-form-item>
+          <el-form-item label="活动描述" prop="description">
+            <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="请输入活动描述..." />
+          </el-form-item>
 
-        <el-form-item label="上传媒体文件">
-          <el-upload
-            ref="editActivityUploadRef"
-            :auto-upload="false"
-            :on-change="handleEditActivityFileChange"
-            :limit="5"
-            :file-list="editActivityFileList"
-            action="#"
-            :accept="'image/*,video/*,.pdf,.doc,.docx'"
-            multiple
-          >
-            <el-button>选择文件</el-button>
-            <template #tip>
-              <div class="el-upload__tip">
-                上传新文件将替换现有文件，支持图片、视频、PDF、Word文档
+          <el-form-item label="上传媒体文件">
+            <el-upload ref="editActivityUploadRef" :auto-upload="false" :on-change="handleEditActivityFileChange"
+              :limit="5" :file-list="editActivityFileList" action="#" :accept="'image/*,video/*,.pdf,.doc,.docx'"
+              multiple>
+              <el-button>选择文件</el-button>
+              <template #tip>
+                <div class="el-upload__tip">
+                  上传新文件将替换现有文件，支持图片、视频、PDF、Word文档
+                </div>
+              </template>
+            </el-upload>
+          </el-form-item>
+
+          <!-- 已关联的媒体文件显示 -->
+          <el-form-item v-if="editForm.mediaFiles && editForm.mediaFiles.length > 0" label="已上传文件">
+            <div class="existing-media">
+              <div v-for="media in editForm.mediaFiles" :key="media.mediaId" class="media-item-small">
+                <img v-if="media.fileType.startsWith('image/')" :src="media.fileUrl" :alt="media.fileName"
+                  @click="previewMedia(media)" />
+                <div v-else class="file-icon-small" @click="previewMedia(media)">
+                  <i class="fas fa-file"></i>
+                </div>
+                <el-button size="small" type="danger" @click="removeMediaFromEdit(media)">
+                  删除
+                </el-button>
               </div>
-            </template>
-          </el-upload>
-        </el-form-item>
-
-        <!-- 已关联的媒体文件显示 -->
-        <el-form-item v-if="editForm.mediaFiles && editForm.mediaFiles.length > 0" label="已上传文件">
-          <div class="existing-media">
-            <div
-              v-for="media in editForm.mediaFiles"
-              :key="media.mediaId"
-              class="media-item-small"
-            >
-              <img
-                v-if="media.fileType.startsWith('image/')"
-                :src="media.fileUrl"
-                :alt="media.fileName"
-                @click="previewMedia(media)"
-              />
-              <div v-else class="file-icon-small" @click="previewMedia(media)">
-                <i class="fas fa-file"></i>
-              </div>
-              <el-button
-                size="small"
-                type="danger"
-                @click="removeMediaFromEdit(media)"
-              >
-                删除
-              </el-button>
             </div>
-          </div>
-        </el-form-item>
-      </el-form>
+          </el-form-item>
+        </el-form>
 
-      <template #footer>
-        <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitEditForm" :loading="submitting">
-          更新
-        </el-button>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="showEditDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitEditForm" :loading="submitting">
+            更新
+          </el-button>
+        </template>
+      </el-dialog>
 
-    <!-- 添加宠物对话框 -->
-    <el-dialog
-      v-model="showAddPetDialog"
-      title="添加宠物"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="petFormRef"
-        :model="petForm"
-        :rules="petFormRules"
-        label-width="100px"
-      >
-        <el-form-item label="宠物名称" prop="name">
-          <el-input v-model="petForm.name" placeholder="请输入宠物名称" />
-        </el-form-item>
+      <!-- 添加宠物对话框 -->
+      <el-dialog v-model="showAddPetDialog" title="添加宠物" width="500px" :close-on-click-modal="false">
+        <el-form ref="petFormRef" :model="petForm" :rules="petFormRules" label-width="100px">
+          <el-form-item label="宠物名称" prop="name">
+            <el-input v-model="petForm.name" placeholder="请输入宠物名称" />
+          </el-form-item>
 
-        <el-form-item label="宠物类型" prop="type">
-          <el-select v-model="petForm.type" placeholder="选择宠物类型" style="width: 100%">
-            <el-option label="狗" value="dog" />
-            <el-option label="猫" value="cat" />
-            <el-option label="鸟" value="bird" />
-            <el-option label="鱼" value="fish" />
-            <el-option label="其他" value="other" />
-          </el-select>
-        </el-form-item>
+          <el-form-item label="宠物类型" prop="type">
+            <el-select v-model="petForm.type" placeholder="选择宠物类型" style="width: 100%">
+              <el-option label="狗" value="dog" />
+              <el-option label="猫" value="cat" />
+              <el-option label="鸟" value="bird" />
+              <el-option label="鱼" value="fish" />
+              <el-option label="其他" value="other" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="品种" prop="breed">
-          <el-input v-model="petForm.breed" placeholder="请输入宠物品种" />
-        </el-form-item>
+          <el-form-item label="品种" prop="breed">
+            <el-input v-model="petForm.breed" placeholder="请输入宠物品种" />
+          </el-form-item>
 
-        <el-form-item label="性别" prop="gender">
-          <el-select v-model="petForm.gender" placeholder="选择性别" style="width: 100%">
-            <el-option label="雄性" value="male" />
-            <el-option label="雌性" value="female" />
-            <el-option label="未知" value="unknown" />
-          </el-select>
-        </el-form-item>
+          <el-form-item label="性别" prop="gender">
+            <el-select v-model="petForm.gender" placeholder="选择性别" style="width: 100%">
+              <el-option label="雄性" value="male" />
+              <el-option label="雌性" value="female" />
+              <el-option label="未知" value="unknown" />
+            </el-select>
+          </el-form-item>
 
-        <el-form-item label="生日" prop="birthday">
-          <el-date-picker
-            v-model="petForm.birthday"
-            type="date"
-            placeholder="选择宠物生日"
-            format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
+          <el-form-item label="生日" prop="birthday">
+            <el-date-picker v-model="petForm.birthday" type="date" placeholder="选择宠物生日" format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD" style="width: 100%" />
+          </el-form-item>
+        </el-form>
 
-      <template #footer>
-        <el-button @click="showAddPetDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitPetForm" :loading="submittingPet">
-          确定
-        </el-button>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="showAddPetDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitPetForm" :loading="submittingPet">
+            确定
+          </el-button>
+        </template>
+      </el-dialog>
 
-    <!-- 创建新活动对话框 -->
-    <el-dialog
-      v-model="showCreateActivityDialog"
-      title="创建新活动"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="newActivityFormRef"
-        :model="newActivityForm"
-        :rules="newActivityFormRules"
-        label-width="100px"
-      >
-        <el-form-item label="活动名称" prop="activityName">
-          <el-input
-            v-model="newActivityForm.activityName"
-            placeholder="请输入活动名称，如：吃零食、散步、洗澡等"
-            maxlength="100"
-            show-word-limit
-          />
-        </el-form-item>
+      <!-- 创建新活动对话框 -->
+      <el-dialog v-model="showCreateActivityDialog" title="创建新活动" width="500px" :close-on-click-modal="false">
+        <el-form ref="newActivityFormRef" :model="newActivityForm" :rules="newActivityFormRules" label-width="100px">
+          <el-form-item label="活动名称" prop="activityName">
+            <el-input v-model="newActivityForm.activityName" placeholder="请输入活动名称，如：吃零食、散步、洗澡等" maxlength="100"
+              show-word-limit />
+          </el-form-item>
 
-        <el-form-item label="活动类别">
-          <el-input
-            :value="getActivityKindName(addForm.activityKindId)"
-            disabled
-          />
-        </el-form-item>
-      </el-form>
+          <el-form-item label="活动类别">
+            <el-input :value="getActivityKindName(addForm.activityKindId)" disabled />
+          </el-form-item>
+        </el-form>
 
-      <template #footer>
-        <el-button @click="showCreateActivityDialog = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="submitCreateActivity"
-          :loading="submittingNewActivity"
-        >
-          创建活动
-        </el-button>
-      </template>
-    </el-dialog>
+        <template #footer>
+          <el-button @click="showCreateActivityDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitCreateActivity" :loading="submittingNewActivity">
+            创建活动
+          </el-button>
+        </template>
+      </el-dialog>
 
-    <!-- 活动统计对话框 -->
-    <el-dialog
-      v-model="showStatsDialog"
-      :title="`📊 ${currentStatsPetName}的活动统计`"
-      width="700px"
-      :close-on-click-modal="false"
-    >
-      <div v-loading="statsLoading" element-loading-text="加载统计数据中...">
+      <!-- 活动统计对话框 -->
+      <el-dialog v-model="showStatsDialog" :title="`📊 ${currentStatsPetName}的活动统计`" width="700px"
+        :close-on-click-modal="false">
+        <div v-loading="statsLoading" element-loading-text="加载统计数据中...">
           <div class="stats-period-selector">
             <el-radio-group v-model="statsPeriod" @change="handleStatsPeriodChange">
               <el-radio-button label="MONTHLY">月度统计</el-radio-button>
@@ -650,8 +493,10 @@
           <!-- 月度/周度详细统计 -->
           <div class="stats-detail">
             <h4>{{ statsPeriod === 'MONTHLY' ? '月度详情' : '周度详情' }}</h4>
-            <div v-if="statsPeriod === 'MONTHLY' && statsData.monthlyStats && statsData.monthlyStats.length > 0" class="stats-list">
-              <div v-for="(month, index) in statsData.monthlyStats.slice().reverse()" :key="index" class="stat-month-item">
+            <div v-if="statsPeriod === 'MONTHLY' && statsData.monthlyStats && statsData.monthlyStats.length > 0"
+              class="stats-list">
+              <div v-for="(month, index) in statsData.monthlyStats.slice().reverse()" :key="index"
+                class="stat-month-item">
                 <div class="month-header">
                   <span class="month-name">{{ month.yearMonth }}</span>
                   <span class="month-total">{{ month.totalActivities }}次活动</span>
@@ -663,7 +508,8 @@
                 </div>
               </div>
             </div>
-            <div v-else-if="statsPeriod === 'WEEKLY' && statsData.weeklyStats && statsData.weeklyStats.length > 0" class="stats-list">
+            <div v-else-if="statsPeriod === 'WEEKLY' && statsData.weeklyStats && statsData.weeklyStats.length > 0"
+              class="stats-list">
               <div v-for="(week, index) in statsData.weeklyStats.slice().reverse()" :key="index" class="stat-week-item">
                 <div class="week-header">
                   <span class="week-name">{{ week.weekRange }}</span>
@@ -681,19 +527,27 @@
           <div v-if="!statsLoading && !statsData" class="stats-empty">
             <el-empty description="暂无统计数据" />
           </div>
-      </div>
-      <template #footer>
-        <el-button @click="showStatsDialog = false">关闭</el-button>
-      </template>
-    </el-dialog>
+        </div>
+        <template #footer>
+          <el-button @click="showStatsDialog = false">关闭</el-button>
+        </template>
+      </el-dialog>
 
-    <!-- 右侧边栏 - 宠物状态卡片 -->
-    <div v-if="selectedPetId" class="right-sidebar">
-      <PetStatusCard
-        :pet-id="selectedPetId"
-        :pet-info="getPetInfo(selectedPetId)"
-      />
-    </div>
+      <!-- 右侧边栏 - 宠物状态卡片 (3D悬浮) -->
+      <div v-if="selectedPetId" class="right-sidebar"
+           :class="{ 'collapsed': isStatusSidebarCollapsed }">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <span class="title-text" v-show="!isStatusSidebarCollapsed">宠物状态看板</span>
+          </div>
+          <div class="collapse-toggle" @click.stop="isStatusSidebarCollapsed = !isStatusSidebarCollapsed">
+            <el-icon><Fold v-if="!isStatusSidebarCollapsed" /><Expand v-else /></el-icon>
+          </div>
+        </div>
+        <div class="sidebar-content" v-show="!isStatusSidebarCollapsed">
+          <PetStatusCard :pet-id="selectedPetId" :pet-info="getPetInfo(selectedPetId)" />
+        </div>
+      </div>
     </div>
     <!-- 使用统一的布局底部（整页宽度，与首页一致） -->
     <AppFooter />
@@ -712,7 +566,10 @@ import {
   Plus,
   Refresh,
   MagicStick,
-  EditPen
+  EditPen,
+  Fold,
+  Expand,
+  MoreFilled
 } from '@element-plus/icons-vue'
 import * as statusApi from '@/api/status'
 import { getPetStatusSummary } from '@/api/llm'
@@ -756,7 +613,10 @@ const userPets = ref([])
 const activityRecords = ref([])
 const userActivities = ref([])
 const allActivities = ref([])
-const selectedPetId = ref(null) // 当前选中的宠物ID（单选）
+const selectedPetId = ref(null) // 当前选中的主操作宠物ID
+const selectedPetIds = ref([]) // 用于多选查看时间轴的宠物集合
+const isSidebarCollapsed = ref(false) // macOS风格侧边栏折叠状态
+const isStatusSidebarCollapsed = ref(false) // 宠物状态侧边栏折叠状态
 const selectedActivityTypes = ref([1, 2, 3, 4, 5, 6, 7, 8, 9]) // 默认选择所有活动类型
 const dateRange = ref([])
 
@@ -855,7 +715,7 @@ const addFormRules = {
   petId: [{ required: true, message: '请选择宠物', trigger: 'change' }],
   activityKindId: [{ required: true, message: '请选择活动类别', trigger: 'change' }],
   activityDate: [
-    { 
+    {
       validator: (rule, value, callback) => {
         // 现在日期是可选字段，如果不提供则使用当前时间
         if (!value) {
@@ -1104,6 +964,83 @@ const formatTime = (dateTimeStr) => {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
 }
 
+// Apple Health 日历时间带
+const recentDays = computed(() => {
+  const days = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) { // 扩展为30天滑动跨度
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+
+    // 手动格式化避免时区问题
+    const year = d.getFullYear();
+    const monthNum = d.getMonth() + 1;
+    const month = String(monthNum).padStart(2, '0');
+    const dayNameStr = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${dayNameStr}`;
+    const weekName = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+
+    days.push({
+      dateStr,
+      monthAndDayName: `${monthNum}月 · ${weekName}`, // 清晰展示年月
+      dayNum: d.getDate()
+    });
+  }
+  return days;
+});
+
+const handleScrubberWheel = (e) => {
+  if (e.currentTarget) {
+    e.currentTarget.scrollLeft += (e.deltaY * 0.8);
+  }
+};
+
+const isDateInRange = (dateStr) => {
+  if (!dateRange.value || dateRange.value.length < 2) return false;
+  return dateStr >= dateRange.value[0] && dateStr <= dateRange.value[1];
+};
+
+const selectScrubberDate = (dateStr) => {
+  if (!dateRange.value || dateRange.value.length === 0) {
+    // 第一次点击，默认选中单天
+    dateRange.value = [dateStr, dateStr];
+  } else {
+    // 之前已经有选择范围了
+    const currentStart = dateRange.value[0];
+    const currentEnd = dateRange.value[1];
+
+    if (currentStart === currentEnd) {
+      if (dateStr === currentStart) {
+        // 点击已经被选取的同一天，取消选取，展示所有
+        dateRange.value = [];
+      } else {
+        // 点击不同天，形成范围跨度
+        const d1 = new Date(currentStart);
+        const d2 = new Date(dateStr);
+        if (d1 > d2) {
+          dateRange.value = [dateStr, currentStart];
+        } else {
+          dateRange.value = [currentStart, dateStr];
+        }
+      }
+    } else {
+      // 当前是跨度模式，若是重新点击则视为重置单天
+      dateRange.value = [dateStr, dateStr];
+    }
+  }
+  loadActivityRecords();
+};
+
+const toggleActivityType = (typeValue) => {
+  const index = selectedActivityTypes.value.indexOf(typeValue);
+  if (index > -1) {
+    selectedActivityTypes.value.splice(index, 1);
+  } else {
+    selectedActivityTypes.value.push(typeValue);
+  }
+  loadActivityRecords();
+};
+
 const getPetInfo = (petId) => {
   const pet = userPets.value.find(p => (p.id || p.petId) === petId)
   return pet || { name: '未知宠物', avatar_url: '' }
@@ -1237,6 +1174,7 @@ const loadUserPets = async () => {
       const firstPetId = userPets.value[0].petId || userPets.value[0].id
       console.log('loadUserPets: 设置默认选中的宠物ID:', firstPetId)
       selectedPetId.value = firstPetId
+      selectedPetIds.value = [firstPetId] // 同步初始化多选列表
       console.log('loadUserPets: 设置后的selectedPetId.value:', selectedPetId.value)
     }
   } catch (error) {
@@ -1278,8 +1216,10 @@ const loadActivityRecords = async () => {
     console.log('loadActivityRecords: 选择的宠物ID:', selectedPetId.value)
     console.log('loadActivityRecords: 日期范围:', dateRange.value)
 
-    // 获取选中宠物的活动记录
-    if (!selectedPetId.value) {
+    // 获取选中宠物的活动记录 (支持多选)
+    const queryIds = selectedPetIds.value.length > 0 ? selectedPetIds.value : (selectedPetId.value ? [selectedPetId.value] : [])
+
+    if (queryIds.length === 0) {
       console.log('loadActivityRecords: 没有选择宠物，清空活动记录')
       activityRecords.value = []
       return
@@ -1290,6 +1230,7 @@ const loadActivityRecords = async () => {
 
     // 批量获取活动记录
     console.log('loadActivityRecords: 开始调用API获取活动记录')
+<<<<<<< Updated upstream
     
     // 构建查询参数
     const params = {
@@ -1308,6 +1249,12 @@ const loadActivityRecords = async () => {
     }
     
     const recordsResponse = await getActivityRecordsByPetIds([selectedPetId.value], params)
+=======
+    const recordsResponse = await getActivityRecordsByPetIds(queryIds, {
+      startDate: dateRange.value[0] ? new Date(dateRange.value[0]).toISOString() : null,
+      endDate: dateRange.value[1] ? new Date(dateRange.value[1]).toISOString() : null
+    })
+>>>>>>> Stashed changes
 
     console.log('loadActivityRecords: API原始响应:', recordsResponse)
     console.log('loadActivityRecords: 请求参数:', params)
@@ -1656,8 +1603,22 @@ const deleteRecord = async (record) => {
 
 // 宠物相关方法
 const selectPet = (petId) => {
-  // 切换选中宠物
+  // 单机卡片：切换主宠物，且重置多选视界仅为该宠物
   selectedPetId.value = petId
+  selectedPetIds.value = [petId]
+  loadActivityRecords()
+}
+
+const togglePetSelection = (petId) => {
+  // 多选 Checkbox 点击逻辑
+  const index = selectedPetIds.value.indexOf(petId)
+  if (index === -1) {
+    selectedPetIds.value.push(petId)
+  } else {
+    selectedPetIds.value.splice(index, 1)
+  }
+
+  // 移除了保底机制，允许完全不选择宠物
   loadActivityRecords()
 }
 
@@ -2387,63 +2348,85 @@ watch([currentUserId], () => {
 <style scoped>
 .activities-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  /* 现代动态炫彩毛玻璃渐变背景 */
+  background: linear-gradient(-45deg, #e0f2fe, #f0fdf4, #fdf4ff, #eff6ff);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
 }
 
-/* ===== Hero Section ===== */
-.hero-section {
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(250, 204, 21, 0.1) 100%),
-              url('https://images.unsplash.com/photo-1450778869188-b1d976e7e5fa?q=80&w=1332&auto=format&fit=crop') center/cover no-repeat;
-  padding: 2rem 0;
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ===== 全局区块通用设定 (等效高度与Apple巨幅海报风格) ===== */
+.banner-section {
   position: relative;
+  min-height: 48vh;
+  /* 高级感超大顶图 */
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: #000;
+  text-align: center;
+  padding: 40px 20px;
 }
 
-.hero-section::before {
-  content: '';
+.banner-bg {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(251, 146, 60, 0.2) 0%, rgba(250, 204, 21, 0.2) 100%);
-  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0.85;
+  z-index: 0;
 }
 
-.hero-container {
+/* 底部暗灰渐变遮罩保护文本 */
+.banner-bg::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
   width: 100%;
-  margin: 0;
-  padding: 0 2rem;
-  text-align: center;
+  height: 60%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.banner-content {
   position: relative;
   z-index: 2;
-}
-
-.hero-content {
-  max-width: 800px;
+  max-width: 980px;
+  width: 100%;
   margin: 0 auto;
 }
 
-.hero-emoji {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  line-height: 1;
+.banner-title {
+  font-size: 56px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #f5f5f7;
+  margin-bottom: 12px;
 }
 
-.hero-title {
-  font-size: 2.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.75rem;
-  line-height: 1.2;
+.banner-subtitle {
+  font-size: 24px;
+  font-weight: 400;
+  color: #d1d1d6;
+  margin-bottom: 32px;
 }
 
-.hero-subtitle {
-  font-size: 1.125rem;
-  color: #64748b;
-  margin-bottom: 0;
-  line-height: 1.6;
+/* 活动页定制 Hero */
+.hero-bg {
+  background: url('https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=2669&auto=format&fit=crop') center 30%/cover no-repeat;
+}
+
+.hero-content {
+  margin-bottom: -10vh;
+  /* 苹果主页风格文字偏下方排版 */
 }
 
 .page-header {
@@ -2493,55 +2476,99 @@ watch([currentUserId], () => {
   padding: 0;
 }
 
-/* 主内容布局 */
+/* 主内容布局 (3列流) */
 .content-layout {
   display: flex;
   align-items: flex-start;
-  width: 100%;
-  margin: 0;
-  padding: 0;
+  justify-content: center;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  perspective: 1000px; /* 为子元素 3D 效果提供透视 */
 }
 
-/* 左侧宠物边栏 */
+/* 左侧宠物边栏 (macOS 极简毛玻璃风格) */
 .pets-sidebar {
-  position: fixed;
-  top: 120px;
-  left: calc(2rem + 40px);
-  width: 280px;
-  max-height: calc(100vh - 140px);
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  flex: 0 0 280px;
+  position: sticky;
+  top: 100px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  /* 增加突出的彩色边框，配合要求 */
+  border: 1px solid rgba(0, 113, 227, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 113, 227, 0.05);
   padding: 0.5rem;
-  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
   z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3D 悬浮投影反馈效果 */
+.pets-sidebar:hover {
+  transform: translateY(-6px) translateZ(20px) rotateX(1deg) rotateY(1deg);
+  box-shadow: 0 16px 48px rgba(0, 113, 227, 0.15), 0 0 0 1px rgba(0, 113, 227, 0.3) inset;
+  border-color: rgba(0, 113, 227, 0.4);
+}
+
+.pets-sidebar.collapsed {
+  width: 60px;
+  /* 折叠后极窄界面 */
+  padding: 0.5rem 0;
 }
 
 .sidebar-header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: transparent;
+}
+
+.collapse-toggle {
+  cursor: pointer;
+  color: #86868b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.collapse-toggle:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
 }
 
 .sidebar-title {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .title-icon {
   font-size: 1.25rem;
+  transition: transform 0.2s;
+}
+
+.title-icon:hover {
+  transform: scale(1.1);
 }
 
 .title-text {
-  font-size: 1rem;
+  font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: #1d1d1f;
 }
 
 .pets-count-badge {
-  background: #3b82f6;
+  background: #0071e3;
   color: white;
   font-size: 0.75rem;
   padding: 0.125rem 0.5rem;
@@ -2551,7 +2578,7 @@ watch([currentUserId], () => {
 
 .sidebar-content {
   padding: 0.75rem;
-  max-height: calc(100vh - 200px);
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -2561,37 +2588,42 @@ watch([currentUserId], () => {
   gap: 0.5rem;
 }
 
-/* 主内容区域 */
+/* 主内容区域动态响应折叠 */
 .main-content-area {
   flex: 1;
   min-width: 0;
-  position: relative;
-  margin: 0 auto;
-  margin-left: calc(2rem + 310px);
-  margin-right: calc(2rem + 350px);
-  max-width: 1300px;
+  max-width: 800px;
   width: 100%;
 }
 
 /* 右侧边栏 - 宠物状态卡片 */
 .right-sidebar {
-  position: fixed;
-  top: 120px;
-  right: 2rem;
-  width: 320px;
-  max-height: calc(100vh - 140px);
-  z-index: 1000;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  flex: 0 0 320px;
+  position: sticky;
+  top: 100px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 149, 0, 0.2); /* 偏橙色边框提示健康/状态 */
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(255, 149, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.right-sidebar::-webkit-scrollbar {
-  width: 4px;
+.right-sidebar:hover {
+  transform: translateY(-6px) translateZ(20px) rotateX(-1deg) rotateY(-1deg);
+  box-shadow: 0 16px 48px rgba(255, 149, 0, 0.15), 0 0 0 1px rgba(255, 149, 0, 0.3) inset;
+  border-color: rgba(255, 149, 0, 0.4);
 }
 
-.right-sidebar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
+.right-sidebar.collapsed {
+  flex: 0 0 60px;
+  padding: 0.5rem 0;
+}
+.right-sidebar.collapsed .sidebar-content {
+  display: none;
 }
 
 /* 在小屏幕上调整布局 */
@@ -2618,27 +2650,31 @@ watch([currentUserId], () => {
 
 
 .pet-card {
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 12px;
   padding: 0.375rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   position: relative;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
 }
 
 .pet-card:hover {
-  border-color: #cbd5e1;
-  background: #f1f5f9;
-  transform: translateY(-1px);
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateX(4px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.12);
 }
 
 .pet-card.active {
-  border-color: #3b82f6;
-  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.9) 0%, rgba(219, 234, 254, 0.9) 100%);
 }
 
 /* 宠物卡片主体布局 */
@@ -2695,42 +2731,38 @@ watch([currentUserId], () => {
   flex: 1;
 }
 
-.pet-activities {
-  text-align: center;
-}
-
-.pet-activities {
+/* 纯净风多选框 */
+.pet-checkbox {
+  margin-right: 4px;
   display: flex;
   align-items: center;
-  gap: 0.25rem;
 }
 
-.activity-count {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #3b82f6;
-}
-
-.activity-label {
-  font-size: 0.75rem;
-  color: #64748b;
-}
-
-/* 宠物操作按钮区域 */
+/* 高级感操作菜单省略号区块 */
 .pet-actions {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: center;
   margin-left: auto;
   flex-shrink: 0;
 }
 
-.pet-ai-action .el-button,
-.pet-stats-action .el-button {
-  height: 24px;
-  font-size: 0.75rem;
-  padding: 0 6px;
-  min-width: 60px;
+.more-options-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  color: #86868b;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.more-options-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
 }
 
 .add-pet-card {
@@ -2759,98 +2791,162 @@ watch([currentUserId], () => {
   text-align: center;
 }
 
-/* 操作栏 */
-.action-bar {
+/* ===== 时间轴滑动选择器 (Apple Health Scrubber) ===== */
+.timeline-scrubber-section {
   background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.scrubber-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  margin-bottom: 16px;
 }
 
-.action-left {
+.scrubber-track {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scroll-behavior: smooth;
+  /* 隐藏滚动条但保留功能 */
+  scrollbar-width: none;
 }
 
-.action-right {
-  display: flex;
-  gap: 0.5rem;
+.scrubber-track::-webkit-scrollbar {
+  display: none;
 }
 
-/* 活动类型筛选 */
-.activity-filters {
-  background: white;
+.scrubber-day {
+  flex: 0 0 64px;
+  height: 86px;
+  background: #f5f5f7;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 16px 20px;
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 2px solid transparent;
+}
+
+.scrubber-day:hover {
+  background: #ebebf0;
+  transform: translateY(-2px);
+}
+
+.scrubber-day.active {
+  background: #1d1d1f;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.scrubber-day.active .day-name,
+.scrubber-day.active .day-num {
+  color: white;
+}
+
+.day-name {
+  font-size: 12px;
+  color: #86868b;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.day-num {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.02em;
+}
+
+.activity-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  margin-top: 6px;
+}
+
+.activity-indicator.has-activity {
+  background: #0071e3;
+}
+
+.scrubber-day.active .activity-indicator.has-activity {
+  background: #34c759;
+  /* 在黑底上使用绿色更醒目 */
+}
+
+/* ===== 活动类型筛选 (打勾面板组件) ===== */
+.activity-filters-section {
+  margin-bottom: 32px;
+}
+
+.filter-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  padding: 20px;
 }
 
 .filter-header {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .filter-title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
-  color: #374151;
+  color: #1d1d1f;
+  margin-right: auto;
 }
 
-.filter-options {
+.custom-checkbox-group {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.filter-label {
-  font-size: 13px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
+.custom-checkbox-group .el-checkbox {
+  margin-right: 0;
 }
 
-/* 活动类型筛选标签样式 */
-.filter-1 { background-color: #fef3c7; color: #92400e; } /* 喂养 */
-.filter-2 { background-color: #dbeafe; color: #1e40af; } /* 互动 */
-.filter-3 { background-color: #ede9fe; color: #5b21b6; } /* 清洁 */
-.filter-4 { background-color: #fef3c7; color: #b45309; } /* 外出 */
-.filter-5 { background-color: #fee2e2; color: #dc2626; } /* 运动 */
-.filter-6 { background-color: #e0e7ff; color: #4f46e5; } /* 医疗 */
-.filter-7 { background-color: #fce7f3; color: #a21caf; } /* 生育 */
-.filter-8 { background-color: #fee2e2; color: #dc2626; } /* 异常 */
-.filter-9 { background-color: #f3f4f6; color: #6b7280; } /* 其他 */
-.filter-default { background-color: #f3f4f6; color: #6b7280; } /* 默认 */
-
-/* 时间线 */
+/* ===== 时间轴手账化重构 (Apple Journal Style) ===== */
 .timeline-section {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  padding-bottom: 60px;
 }
 
 .loading-container {
   padding: 2rem;
+  background: white;
+  border-radius: 16px;
 }
 
 .empty-state {
-  padding: 3rem;
+  padding: 4rem;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
 }
 
 .activity-timeline {
-  padding: 2rem;
+  padding: 0;
+  max-width: 800px;
+  margin: 0 auto;
+  /* 居中带来阅读专注感 */
 }
 
 .timeline-group {
-  margin-bottom: 2rem;
+  margin-bottom: 48px;
 }
 
 .timeline-group:last-child {
@@ -2858,137 +2954,98 @@ watch([currentUserId], () => {
 }
 
 .timeline-date {
-  margin-bottom: 1rem;
+  margin-bottom: 20px;
 }
 
 .date-badge {
-  display: inline-block;
-  background: #f1f5f9;
-  color: #475569;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-weight: 600;
-  font-size: 0.875rem;
+  display: block;
+  background: transparent;
+  color: #1d1d1f;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  padding: 0 0 12px 0;
+  border-bottom: 1px solid #e5e5ea;
 }
 
 .timeline-item {
   display: flex;
-  margin-bottom: 1.5rem;
-  position: relative;
+  margin-bottom: 24px;
 }
 
 .timeline-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-right: 1rem;
-}
-
-.marker-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #cbd5e1;
-}
-
-.marker-dot.diet {
-  background: #10b981;
-}
-
-.marker-dot.exercise {
-  background: #3b82f6;
-}
-
-.marker-dot.hygiene {
-  background: #8b5cf6;
-}
-
-.marker-dot.play {
-  background: #f59e0b;
-}
-
-.marker-dot.training {
-  background: #ef4444;
-}
-
-.marker-dot.medical {
-  background: #6366f1;
-}
-
-.marker-dot.breeding {
-  background: #ec4899;
-}
-
-.marker-dot.alert {
-  background: #dc2626;
-}
-
-.marker-dot.other {
-  background: #6b7280;
-}
-
-.marker-line {
-  width: 2px;
-  height: 100%;
-  background: #e2e8f0;
-  margin-top: 0.5rem;
+  display: none;
+  /* 摒弃老旧轴线，改用纯卡片流 */
 }
 
 .timeline-content {
   flex: 1;
+  width: 100%;
 }
 
 .record-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 1rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 5px solid #3b82f6;
+  border-radius: 20px;
+  padding: 24px;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .record-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(59, 130, 246, 0.15);
+  border-left-color: #f97316;
+  background: rgba(255, 255, 255, 1);
 }
 
 .record-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 16px;
 }
 
 .pet-info {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
 }
 
 .pet-name {
+  font-size: 16px;
   font-weight: 600;
   color: #1e293b;
 }
 
 .activity-type {
-  font-size: 0.875rem;
-  color: #64748b;
+  font-size: 14px;
+  color: #0071e3;
+  /* 醒目的分类色 */
+  font-weight: 500;
 }
 
 .record-time {
-  font-size: 0.875rem;
-  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  color: #86868b;
 }
 
 .record-description {
-  color: #475569;
-  margin-bottom: 1rem;
-  line-height: 1.5;
+  color: #1d1d1f;
+  font-size: 17px;
+  margin-bottom: 20px;
+  line-height: 1.6;
 }
 
 .record-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 /* 响应式设计 - 宠物边栏 */
@@ -3021,6 +3078,7 @@ watch([currentUserId], () => {
   .container {
     padding: 0 1rem;
   }
+
   .hero-emoji {
     font-size: 2.5rem;
   }
@@ -3069,7 +3127,8 @@ watch([currentUserId], () => {
 /* ===== 记录类型切换卡片 ===== */
 .record-switch-section {
   padding: 0.25rem 0;
-  min-height: 100px; /* 为固定定位的卡片留出空间 */
+  min-height: 100px;
+  /* 为固定定位的卡片留出空间 */
   width: 100%;
 }
 
@@ -3083,21 +3142,21 @@ watch([currentUserId], () => {
   z-index: 1000;
 }
 
-  .record-type-card {
-    background: white;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    width: 200px;
-  }
+.record-type-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 200px;
+}
 
 .record-type-card:hover {
   border-color: #cbd5e1;
@@ -3120,18 +3179,18 @@ watch([currentUserId], () => {
   background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
 }
 
-  .card-icon {
-    font-size: 1.25rem;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    background: #f8fafc;
-    color: #64748b;
-    flex-shrink: 0;
-  }
+.card-icon {
+  font-size: 1.25rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  flex-shrink: 0;
+}
 
 .record-type-card.active .card-icon {
   background: #3b82f6;
@@ -3142,25 +3201,25 @@ watch([currentUserId], () => {
   flex: 1;
 }
 
-  .card-content h3 {
-    margin: 0 0 0.25rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1e293b;
-  }
+.card-content h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
 
-  .card-content p {
-    margin: 0 0 0.5rem 0;
-    color: #64748b;
-    font-size: 0.75rem;
-    line-height: 1.3;
-  }
+.card-content p {
+  margin: 0 0 0.5rem 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
 
-  .card-count {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: #3b82f6;
-  }
+.card-count {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #3b82f6;
+}
 
 /* ===== 状态记录样式 ===== */
 .status-content {
@@ -3172,6 +3231,7 @@ watch([currentUserId], () => {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -3250,9 +3310,11 @@ watch([currentUserId], () => {
   0% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
   }
+
   70% {
     box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
   }
+
   100% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
   }
@@ -3264,24 +3326,37 @@ watch([currentUserId], () => {
 
 .media-preview {
   display: flex;
-  gap: 0.5rem;
+  gap: 12px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  /* 改为不换行横向滚动 */
+  overflow-x: auto;
+  padding-bottom: 8px;
+  /* 滚动条预留空间 */
+  scroll-snap-type: x mandatory;
+  /* 隐藏滚动条但保留功能 */
+  scrollbar-width: none;
+}
+
+.media-preview::-webkit-scrollbar {
+  display: none;
 }
 
 .media-item {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
+  flex: 0 0 auto;
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  scroll-snap-align: start;
 }
 
 .media-item:hover {
-  border-color: #3b82f6;
   transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .media-item img {
@@ -3296,23 +3371,23 @@ watch([currentUserId], () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 1.2rem;
+  background: #f5f5f7;
+  color: #86868b;
+  font-size: 24px;
 }
 
 .more-media {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  background: #f1f5f9;
+  width: 120px;
+  height: 120px;
+  border-radius: 16px;
+  background: #f5f5f7;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 20px;
   font-weight: 600;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  color: #1d1d1f;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 /* ===== 响应式设计 - 记录类型切换卡片 ===== */
@@ -3553,6 +3628,7 @@ watch([currentUserId], () => {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

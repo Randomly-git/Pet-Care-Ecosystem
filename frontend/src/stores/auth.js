@@ -24,6 +24,11 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value?.name || ''
   })
 
+  // 扩展 avatar 计算属性以支持全局获取
+  const avatar = computed(() => {
+    return user.value?.avatar || ''
+  })
+
   const userId = computed(() => {
     return user.value?.userId || null
   })
@@ -270,6 +275,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 计算属性
     isAuthenticated,
     userName,
+    avatar,
     userId,
     isTokenExpired,
 

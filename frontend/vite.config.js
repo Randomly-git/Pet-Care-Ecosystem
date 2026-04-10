@@ -20,13 +20,17 @@ export default defineConfig(({ mode }) => {
       open: true,
       cors: true,
       proxy: {
-        // 🌐 统一网关配置 - 所有请求都通过网关:9000
-        // 网关会自动路由到对应的微服务
+        // 媒体服务直接代理到 media-backend（跳过Nacos/网关，居南开发时使用）
+        '/api/media': {
+          target: 'http://localhost:8082',
+          changeOrigin: true,
+          secure: false
+        },
+        // 其他请求统一絏网关配置
         '/api': {
-          target: 'http://localhost:9000',  // 统一指向网关端口
+          target: 'http://localhost:9000',
           changeOrigin: true,
           secure: false,
-          // 不需要rewrite，网关会处理路由
         },
         // GraphQL API直接通过网关
         '/graphql': {

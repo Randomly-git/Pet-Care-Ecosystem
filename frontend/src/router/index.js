@@ -30,6 +30,16 @@ const router = createRouter({
         layout: 'auth'
       }
     },
+    // 设置页面
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '账号设置'
+      }
+    },
     // 活动记录页面
     {
       path: '/activities',
@@ -106,6 +116,16 @@ const router = createRouter({
       path: '/shop',
       name: 'shop',
       redirect: '/'
+    },
+    // 探索周边地图页面
+    {
+      path: '/map',
+      name: 'map',
+      component: () => import('../views/MapView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: '周边探索'
+      }
     },
   ],
 })

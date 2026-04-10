@@ -12,11 +12,19 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +35,9 @@ import java.util.stream.Collectors;
 public class MediaController {
 
     private final MediaService mediaService;
+
+    @Value("${app.storage.local.path:/tmp/uploads}")
+    private String storagePath;
 
     /**
      * POST /api/media/upload
@@ -131,6 +142,42 @@ public class MediaController {
             return ResponseEntity.badRequest().body(ApiResponse.error(40001, e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(ApiResponse.error(50000, "系统错误: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * GET /api/media/file/**
+     * 直接提供本地存储的文件下载服务
+     * 例如: /api/media/file/moment/7/21/20250323_123456_uuid.png
+     */
+    @GetMapping("/file/**")
+    public ResponseEntity<Resource> serveFile(HttpServletRequest request) {
+        try {
+            // 提取 /api/media/file/ 之后的相对路径
+            String requestUri = request.getRequestURI();
+            String relativePath = requestUri.substring(requestUri.indexOf("/file/") + 6);
+
+            Path filePath = Paths.get(storagePath).resolve(relativePath).normalize();
+
+            // 安全检查: 路径必须属于初始化的 storagePath 目录
+            if (!filePath.startsWith(Paths.get(storagePath).normalize())) {
+                return ResponseEntity.status(403).build();
+            }
+
+            if (!Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Resource resource = new FileSystemResource(filePath);
+            String contentType = Files.probeContentType(filePath);
+            if (contentType == null) contentType = "application/octet-stream";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, contentType)
+                    .header(HttpHeaders.CACHE_CONTROL, "max-age=604800") // 缓存7天
+                    .body(resource);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

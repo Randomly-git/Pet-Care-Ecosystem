@@ -149,8 +149,13 @@ public class MomentController {
     public List<MomentResponseDTO> getAllMoments(
             @Parameter(description = "页码，从0开始", required = false) @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "每页大小", required = false) @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return momentService.getAllMomentsWithPagination(pageable);
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            return momentService.getAllMomentsWithPagination(pageable);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     /**

@@ -1,5 +1,5 @@
 server:
-  port: 0
+  port: 8082  # 固定端口，居南开发时Vite可直接代理而无需通过Nacos网关
   tomcat:
     threads:
       max: 200           # 最大工作线程数
@@ -84,7 +84,7 @@ tencent:
     secret-key: jInFZgaJrGUZUKyPfibIhQ2TlxCMZedb
     region: ap-shanghai
     bucket-name: pet-care-ecosystem-1386623384
-    static-website-url: https://pet-care-ecosystem-1386623384.cos-website.ap-shanghai.myqcloud.com
+    static-website-url: https://pet-care-ecosystem-1386623384.cos.ap-shanghai.myqcloud.com
     # 归档恢复配置
     restore:
       wait-minutes: 3    # 等待归档文件恢复的时间（分钟）

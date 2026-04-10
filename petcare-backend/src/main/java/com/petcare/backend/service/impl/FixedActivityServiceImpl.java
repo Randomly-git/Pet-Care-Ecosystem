@@ -157,7 +157,7 @@ public class FixedActivityServiceImpl implements FixedActivityService {
                 fixedActivity.getActivityId(), 1, fixedActivity.getPetId());
 
         if (!reminders.isEmpty()) {
-            ActivityReminder reminder = reminders.getFirst();
+            ActivityReminder reminder = reminders.get(0);
 
             // 计算 gapTime 的变化量
             int gapTimeChange = fixedActivity.getGapTime() - oldGapTime;

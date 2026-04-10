@@ -82,6 +82,7 @@ public class PetController extends BaseController {
         } catch (UserNotFoundException e) {
             return error(e.getMessage(), HttpStatus.NOT_FOUND);
         } catch (Exception e) {
+            e.printStackTrace();
             return error("获取用户宠物列表失败: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

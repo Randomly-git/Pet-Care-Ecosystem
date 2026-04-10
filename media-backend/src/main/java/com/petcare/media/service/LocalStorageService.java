@@ -42,8 +42,8 @@ public class LocalStorageService {
         Path targetPath = uploadPath.resolve(fileName);
         Files.copy(file.getInputStream(), targetPath);
 
-        // 返回文件访问路径（实际应用中应该返回URL）
-        String fileUrl = "/uploads/" + filePath + "/" + fileName;
+        // 返回可被浏览器直接访问的文件URL（通过网关路由到媒体服务的 /api/media/file/ 接口）
+        String fileUrl = "/api/media/file/" + filePath + "/" + fileName;
         log.info("文件上传成功到本地: {}", targetPath.toAbsolutePath());
 
         return fileUrl;

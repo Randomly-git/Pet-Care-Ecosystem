@@ -1,112 +1,82 @@
 <template>
   <div class="home-view">
-    <!-- Header 组件 -->
     <AppHeader />
 
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-container">
-        <div class="hero-content">
-          <div class="hero-emoji">🐾</div>
-          <h2 class="hero-title">让宠物生活更美好</h2>
-          <p class="hero-subtitle">一站式宠物健康管理平台</p>
+    <!-- 1. Hero 组件 -->
+    <section class="banner-section hero-section">
+      <div class="banner-bg hero-bg"></div>
+      <div class="banner-content hero-content">
+        <h1 class="banner-super-title">笑猫的窝</h1>
+        <h2 class="banner-title">让宠物生活更美好。</h2>
+        <p class="banner-subtitle">全平台的一站式宠物健康管理与社区服务，专为爱宠人士打造。</p>
+        <button class="cta-button" @click="goToActivities">开始使用</button>
+      </div>
+    </section>
 
-          <!-- 搜索框 -->
-          <div class="search-container">
-            <div class="search-box">
-              <div class="search-icon">🔍</div>
-              <input
-                v-model="searchQuery"
-                type="text"
-                class="search-input"
-                placeholder="搜索宠物名称、健康记录..."
-                @keyup.enter="handleSearch"
-              >
-            </div>
-          </div>
+    <!-- 2. 日记与社区 组件 (Apple 式高级科技感灰卡片) -->
+    <section class="split-section">
+      <!-- 宠物日记 -->
+      <div class="split-card tech-card" @click="goToActivities">
+        <div class="card-content">
+          <h3 class="card-title">宠物日记</h3>
+          <p class="card-description">记录爱宠的每一天，珍藏专属于你们的美好时光。</p>
+          <div class="card-link">进入 <span class="arrow-icon">→</span></div>
+        </div>
+      </div>
 
-          <!-- CTA按钮 -->
-          <button class="cta-button" @click="goToActivities">
-            开始使用
-            <div class="cta-arrow">→</div>
-          </button>
+      <!-- 宠物社区 -->
+      <div class="split-card tech-card" @click="goToCommunity">
+        <div class="card-content">
+          <h3 class="card-title">宠物社区</h3>
+          <p class="card-description">分享宠物日常起居，与世界各地的同好交流经验。</p>
+          <div class="card-link">进入 <span class="arrow-icon">→</span></div>
         </div>
       </div>
     </section>
 
-    <!-- 功能导航卡片 -->
-    <section class="features-section">
-      <div class="features-container">
-        <div class="features-grid">
-          <!-- 宠物日记 -->
-          <div class="feature-card" @click="goToActivities">
-            <div class="card-icon">📖</div>
-            <h3 class="card-title">宠物日记</h3>
-            <p class="card-description">记录爱宠的每一天，珍藏美好时光</p>
-            <div class="card-arrow">
-              <span>进入</span>
-              <div class="arrow-icon">→</div>
-            </div>
-          </div>
-
-          <!-- 宠物社区 -->
-          <div class="feature-card" @click="goToCommunity">
-            <div class="card-icon">💬</div>
-            <h3 class="card-title">宠物社区</h3>
-            <p class="card-description">分享宠物生活和交流经验</p>
-            <div class="card-arrow">
-              <span>进入</span>
-              <div class="arrow-icon">→</div>
-            </div>
-          </div>
-
-          </div>
-      </div>
-    </section>
-
-    <!-- 平台介绍 -->
-    <section class="intro-section">
-      <div class="intro-container">
+    <!-- 3. 为什么选择我们 组件 -->
+    <section class="banner-section intro-section">
+      <div class="banner-bg intro-bg"></div>
+      <div class="banner-content intro-content-wrapper">
         <div class="intro-header">
-          <h2 class="intro-title">为什么选择笑猫の窝？</h2>
-          <p class="intro-subtitle">专业的宠物健康管理解决方案</p>
+          <h2 class="banner-title intro-title">为什么选择我们？</h2>
+          <p class="banner-subtitle intro-subtitle">专业、可靠的宠物生态体验</p>
         </div>
 
         <div class="features-list">
           <div class="feature-item">
-            <div class="feature-icon">✅</div>
-            <div class="feature-content">
-              <h4 class="feature-name">专业健康管理</h4>
-              <p class="feature-desc">完整的健康记录和提醒功能</p>
-            </div>
+            <h4 class="feature-name">专业健康管理</h4>
+            <p class="feature-desc">完整的健康记录和提醒功能，全方位时刻守护您的宠物。</p>
           </div>
-
           <div class="feature-item">
-            <div class="feature-icon">✅</div>
-            <div class="feature-content">
-              <h4 class="feature-name">社区分享</h4>
-              <p class="feature-desc">与其他宠物主人交流经验</p>
-            </div>
+            <h4 class="feature-name">精彩社区分享</h4>
+            <p class="feature-desc">与其他宠物主人交流心得经验，在广场发现更多新乐趣。</p>
           </div>
-
           <div class="feature-item">
-            <div class="feature-icon">✅</div>
-            <div class="feature-content">
-              <h4 class="feature-name">便捷服务</h4>
-              <p class="feature-desc">一站式宠物生活服务平台</p>
-            </div>
+            <h4 class="feature-name">便捷智能服务</h4>
+            <p class="feature-desc">一站式宠物生活服务生态圈，省心省力，无忧养宠。</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Footer 组件 -->
+    <!-- 4. 关于我们 (About Us) -->
+    <section class="about-section">
+      <div class="about-container">
+        <h2 class="about-title">我们相信，<br>每一次陪伴都值得铭记。</h2>
+        <p class="about-desc">
+          笑猫の窝不仅是一个冰冷的记录工具，更是充满温度的宠物生态社区。<br>
+          我们致力于用极简的科技与纯粹的设计，让全世界的爱宠人士紧密连接，共同见证毛孩子们生命中的每一个闪光时刻。
+        </p>
+      </div>
+    </section>
+
     <AppFooter />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -114,416 +84,314 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-
-// 响应式数据
-const searchQuery = ref('')
-
-// 计算属性
 const isLoggedIn = computed(() => authStore.isAuthenticated)
 
-// 方法
-const handleSearch = () => {
-  if (!searchQuery.value.trim()) return
-  // TODO: 实现搜索功能
-  alert(`搜索功能开发中，搜索词：${searchQuery.value}`)
-}
-
-
 const goToActivities = () => {
-  if (isLoggedIn.value) {
-    router.push('/activities')
-  } else {
-    router.push('/login')
-  }
+  if (isLoggedIn.value) router.push('/activities')
+  else router.push('/login')
 }
 
 const goToCommunity = () => {
-  if (isLoggedIn.value) {
-    router.push('/moments')  // 跳转到朋友圈页面
-  } else {
-    router.push('/login')
-  }
-}
-
-const handleLogin = () => {
-  router.push('/login')
-}
-
-const handleRegister = () => {
-  router.push('/register')
-}
-
-const handleLogout = async () => {
-  await authStore.logout()
+  if (isLoggedIn.value) router.push('/moments')
+  else router.push('/login')
 }
 </script>
 
 <style scoped>
-/* ===== Hero Section ===== */
-.hero-section {
-  background: linear-gradient(135deg, rgba(255, 247, 237, 0.3) 0%, rgba(254, 215, 170, 0.3) 100%),
-              url('https://images.unsplash.com/photo-1639732624839-dd52e940b46c?q=80&w=1332&auto=format&fit=crop') center/cover no-repeat;
-  padding: var(--spacing-20) 0;
+/* ===== 全局区块通用设定 (等效高度与Apple巨幅海报风格) ===== */
+.banner-section {
   position: relative;
-  min-height: 600px;
+  min-height: 80vh;
+  /* 与 Hero 保持一样巨大的尺寸 */
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: #000;
+  text-align: center;
+  padding: 40px 20px;
 }
 
-.hero-section::before {
-  content: '';
+.banner-bg {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255, 247, 237, 0.4) 0%, rgba(254, 215, 170, 0.4) 100%);
-  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0.8;
+  z-index: 0;
 }
 
-.hero-container {
-  max-width: var(--container-lg);
-  margin: 0 auto;
-  padding: 0 var(--spacing-6);
-  text-align: center;
+/* 底部黑色渐变遮罩保护文本 */
+.banner-bg::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.banner-content {
   position: relative;
   z-index: 2;
-  flex: 1;
-  display: flex;
-  align-items: center;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.banner-super-title {
+  font-size: 80px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f5f5f7;
+  margin-bottom: 8px;
+}
+
+.banner-title {
+  font-size: 56px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #f5f5f7;
+  margin-bottom: 12px;
+}
+
+.banner-subtitle {
+  font-size: 24px;
+  font-weight: 400;
+  color: #d1d1d6;
+  margin-bottom: 32px;
+}
+
+/* ===== 1. Hero 专有样式 ===== */
+.hero-bg {
+  /* 恢复为你要求的图片 */
+  background: url('https://images.unsplash.com/photo-1639732624839-dd52e940b46c?q=80&w=1332&auto=format&fit=crop') center 20%/cover no-repeat;
 }
 
 .hero-content {
-  max-width: 600px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 2;
+  margin-bottom: -15vh;
+  /* Apple主页常见文字稍篇底部排版 */
 }
 
-.hero-emoji {
-  font-size: 4rem;
-  margin-bottom: var(--spacing-6);
-}
-
-.hero-title {
-  font-size: var(--text-5xl);
-  font-weight: var(--font-bold);
-  color: var(--color-black);
-  margin-bottom: var(--spacing-4);
-  line-height: 1.2;
-}
-
-.hero-subtitle {
-  font-size: var(--text-xl);
-  color: var(--color-gray-600);
-  margin-bottom: var(--spacing-8);
-}
-
-/* ===== 搜索框 ===== */
-.search-container {
-  margin-bottom: var(--spacing-8);
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  background: var(--color-white);
-  border: 2px solid var(--color-gray-200);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-2) var(--spacing-4);
-  transition: all var(--duration-base);
-}
-
-.search-box:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.1);
-}
-
-.search-icon {
-  font-size: var(--text-lg);
-  color: var(--color-gray-400);
-  margin-right: var(--spacing-3);
-}
-
-.search-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  font-size: var(--text-base);
-  color: var(--color-gray-700);
-  background: transparent;
-}
-
-.search-input::placeholder {
-  color: var(--color-gray-400);
-}
-
-/* ===== CTA按钮 ===== */
 .cta-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  background: var(--gradient-primary);
-  color: var(--color-white);
+  background-color: #f5f5f7;
+  color: #1d1d1f;
   border: none;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-4) var(--spacing-8);
-  font-size: var(--text-lg);
-  font-weight: var(--font-medium);
+  border-radius: 980px;
+  padding: 14px 28px;
+  font-size: 17px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all var(--duration-base);
-  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease, background-color 0.2s ease;
 }
 
 .cta-button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  background-color: #fff;
+  transform: scale(1.02);
 }
 
-.cta-arrow {
-  font-size: var(--text-xl);
-  font-weight: var(--font-bold);
-  transition: transform var(--duration-base);
-}
-
-.cta-button:hover .cta-arrow {
-  transform: translateX(4px);
-}
-
-/* ===== 功能导航卡片 ===== */
-.features-section {
-  padding: var(--spacing-20) 0;
-  background: var(--color-white);
-}
-
-.features-container {
-  max-width: var(--container-xl);
-  margin: 0 auto;
-  padding: 0 var(--spacing-6);
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--spacing-8);
-}
-
-.feature-card {
-  background: var(--color-white);
-  border: 1px solid var(--color-gray-200);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-8);
-  cursor: pointer;
-  transition: all var(--duration-base);
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--color-primary-light);
-}
-
-.primary-card {
-  background: var(--gradient-primary);
-  color: var(--color-white);
-  border-color: transparent;
-}
-
-.card-icon {
-  font-size: 3rem;
-  margin-bottom: var(--spacing-4);
-  line-height: 1;
-  position: relative;
+/* ===== 2. 日记与社区 (Apple 科技感无图卡片) ===== */
+.split-section {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 24px;
+  background-color: #ffffff;
+  min-height: 80vh;
+  /* 与前后巨幅区块保持视觉等高 */
+}
+
+.split-card {
+  flex: 1;
+  min-width: 320px;
+  position: relative;
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
-  width: 80px;
-  height: 80px;
-  background: var(--color-gray-50);
-  border-radius: var(--radius-xl);
-  margin: 0 auto var(--spacing-4);
+  align-items: center;
+  cursor: pointer;
+  background-color: #f5f5f7;
+  text-align: center;
+  padding: 80px 40px;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, background-color 0.4s ease;
 }
 
-.primary-card .card-icon {
-  background: rgba(255, 255, 255, 0.2);
-  filter: brightness(1.2);
+.split-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+  background-color: #ffffff;
 }
 
-.feature-card:nth-child(2) .card-icon {
-  background: linear-gradient(135deg, rgba(74, 144, 226, 0.1) 0%, rgba(24, 144, 255, 0.1) 100%);
-}
-
-.feature-card:nth-child(3) .card-icon {
-  background: linear-gradient(135deg, rgba(82, 196, 26, 0.1) 0%, rgba(115, 209, 61, 0.1) 100%);
+.card-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .card-title {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-bold);
-  margin-bottom: var(--spacing-2);
-  color: inherit;
+  font-size: 40px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
 }
 
 .card-description {
-  font-size: var(--text-base);
-  color: var(--color-gray-600);
-  margin-bottom: var(--spacing-4);
-  line-height: 1.6;
+  font-size: 20px;
+  color: #86868b;
+  max-width: 360px;
+  margin-bottom: 24px;
+  line-height: 1.4;
 }
 
-.primary-card .card-description {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.card-arrow {
-  display: flex;
+.card-link {
+  font-size: 17px;
+  color: #0066cc;
+  font-weight: 500;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1);
-  font-weight: var(--font-medium);
-  color: var(--color-primary);
+  gap: 6px;
+  transition: color 0.2s ease;
 }
 
-.primary-card .card-arrow {
-  color: var(--color-white);
+.split-card:hover .card-link {
+  color: #0071e3;
 }
 
 .arrow-icon {
-  font-size: var(--text-lg);
-  transition: transform var(--duration-base);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.feature-card:hover .arrow-icon {
+.split-card:hover .arrow-icon {
   transform: translateX(4px);
 }
 
-/* ===== 平台介绍 ===== */
-.intro-section {
-  padding: var(--spacing-20) 0;
-  background: linear-gradient(135deg, rgba(250, 251, 252, 0.85) 0%, rgba(245, 247, 250, 0.85) 100%),
-              url('https://images.unsplash.com/photo-1587300003388-592b2dc77263?q=80&w=1920&auto=format&fit=crop') center/cover no-repeat;
-  position: relative;
-  min-height: 400px;
+/* ===== 3. 为什么选择我们 (背景图与三栏内容) ===== */
+.intro-bg {
+  /* 使用干净的室内与宠物隐约背景，不喧宾夺主 */
+  background: url('https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=2688&auto=format&fit=crop') center 70%/cover no-repeat;
+  opacity: 0.6;
 }
 
-.intro-section::before {
+/* 对底层图片进行轻微模糊和极简渐变，完全凸显内容 */
+.intro-bg::after {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(250, 251, 252, 0.9) 0%, rgba(245, 247, 250, 0.9) 100%);
-  z-index: 1;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
 }
 
-.intro-container {
-  max-width: var(--container-lg);
-  margin: 0 auto;
-  padding: 0 var(--spacing-6);
-  text-align: center;
-  position: relative;
-  z-index: 2;
+.intro-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .intro-header {
-  margin-bottom: var(--spacing-12);
-  position: relative;
-  z-index: 2;
-  padding: var(--spacing-8) 0;
+  margin-bottom: 60px;
 }
 
 .intro-title {
-  font-size: var(--text-4xl);
-  font-weight: var(--font-bold);
-  color: var(--color-black);
-  margin-bottom: var(--spacing-4);
+  font-size: 48px;
 }
 
 .intro-subtitle {
-  font-size: var(--text-xl);
-  color: var(--color-gray-600);
+  font-size: 21px;
 }
 
 .features-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-8);
-  text-align: left;
-  position: relative;
-  z-index: 2;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  width: 100%;
+  max-width: 900px;
 }
 
 .feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-4);
-}
-
-.feature-icon {
-  font-size: var(--text-2xl);
-  line-height: 1;
-  margin-top: 2px;
-}
-
-.feature-content {
-  flex: 1;
+  text-align: center;
 }
 
 .feature-name {
-  font-size: var(--text-lg);
-  font-weight: var(--font-semibold);
-  color: var(--color-black);
-  margin-bottom: var(--spacing-1);
+  font-size: 21px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
 }
 
 .feature-desc {
-  font-size: var(--text-base);
-  color: var(--color-gray-600);
+  font-size: 17px;
+  color: #a1a1a6;
+  line-height: 1.5;
+}
+
+/* ===== 4. 关于我们 ===== */
+.about-section {
+  padding: 140px 20px;
+  background-color: #fff;
+  text-align: center;
+}
+
+.about-container {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.about-title {
+  font-size: 48px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #1d1d1f;
+  margin-bottom: 32px;
+  line-height: 1.25;
+}
+
+.about-desc {
+  font-size: 21px;
+  color: #86868b;
   line-height: 1.6;
 }
 
 /* ===== 响应式设计 ===== */
 @media (max-width: 768px) {
-  .hero-title {
-    font-size: var(--text-4xl);
+
+  .banner-title,
+  .intro-title {
+    font-size: 40px;
   }
 
-  .hero-subtitle {
-    font-size: var(--text-lg);
+  .banner-subtitle,
+  .intro-subtitle {
+    font-size: 19px;
   }
 
-  .features-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-6);
+  .split-section {
+    display: block;
+  }
+
+  .split-card {
+    min-height: 50vh;
+    margin-bottom: 12px;
   }
 
   .features-list {
     grid-template-columns: 1fr;
-    gap: var(--spacing-6);
-  }
-}
-
-@media (max-width: 480px) {
-  .hero-container,
-  .features-container,
-  .intro-container {
-    padding: 0 var(--spacing-4);
+    gap: 32px;
   }
 
-  .hero-title {
-    font-size: var(--text-3xl);
-  }
-
-  .cta-button {
-    padding: var(--spacing-3) var(--spacing-6);
-    font-size: var(--text-base);
-  }
-
-  .feature-card {
-    padding: var(--spacing-6);
+  .about-title {
+    font-size: 36px;
   }
 }
 </style>
