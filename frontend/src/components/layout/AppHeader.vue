@@ -1,5 +1,5 @@
 <template>
-  <header class="app-header" @mouseleave="handleNavLeave">
+  <header class="app-header" :class="{ 'header-scrolled': isScrolled }" @mouseleave="handleNavLeave">
     <div class="container header-container">
       <!-- Top Row: Logo, Search, Actions -->
       <div class="header-top">
@@ -130,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -139,6 +139,20 @@ const authStore = useAuthStore()
 
 const searchQuery = ref('')
 const activeMenu = ref(null)
+
+const isScrolled = ref(false)
+
+const handleScroll = () => {
+  isScrolled.value = window.scrollY > 20
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
 
 const userAvatar = computed(() => authStore.avatar || '')
 
@@ -238,12 +252,20 @@ const handleLogout = async () => {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  /* 稍微加深一点的高级蓝毛玻璃背景 */
-  background: rgba(226, 239, 255, 0.9);
+  /* 米白色半透明背景配合毛玻璃 */
+  background: rgba(250, 250, 249, 0.85);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid rgba(0, 113, 227, 0.2); 
+  border-bottom: 1px solid rgba(22, 163, 74, 0.05); 
   box-sizing: border-box;
+  transition: box-shadow 0.3s ease, background 0.3s ease, padding 0.3s ease;
+  padding: 6px 0; /* 默认纵向宽度设定 */
+}
+
+.header-scrolled {
+  box-shadow: 0 6px 24px rgba(22, 163, 74, 0.08); /* 稍微加强一点下坠阴影，让层次分明 */
+  background: rgba(250, 250, 249, 0.95); /* 滚动时增强背景不透度保证可看清楚 */
+  padding: 0 0; /* 下拉屏幕时，Padding 归零，高度变细拉扁 */
 }
 
 .header-container {
@@ -540,26 +562,24 @@ const handleLogout = async () => {
 }
 
 .nav-link {
-  font-size: 17px; /* 增大了字体 */
-  font-weight: 400;
+  font-size: 18px; /* 增大了字体 */
+  font-weight: 500;
   letter-spacing: -0.01em;
-  color: #1d1d1f;
+  color: #374151; /* 默认深灰保留高级感和对比度 */
   text-decoration: none;
-  opacity: 0.8;
-  /* 增加悬浮变蓝和放大 */
-  transition: opacity 0.2s ease, color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  /* 增加天空蓝的变色和悬浮放大互动 */
+  transition: color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   transform-origin: center bottom;
 }
 
 .nav-item-wrapper:hover .nav-link {
-  opacity: 1;
-  color: #0071e3;
-  transform: scale(1.08); /* 触发放大 */
+  color: #38bdf8; /* bg-sky-400 */
+  transform: scale(1.12); /* 明显触发放大 */
 }
 
 .nav-link--active {
-  opacity: 1;
-  font-weight: 500;
+  color: #38bdf8; /* Active选中态也使用极其鲜艳的天空蓝 */
+  font-weight: 600;
 }
 
 /* ===== Mega Menu Apple 高级面板特效 ===== */

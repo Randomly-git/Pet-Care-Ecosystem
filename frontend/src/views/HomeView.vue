@@ -2,71 +2,218 @@
   <div class="home-view">
     <AppHeader />
 
-    <!-- 1. Hero 组件 -->
+    <!-- 1. Hero 亲自然巨幅组件 -->
     <section class="banner-section hero-section">
-      <div class="banner-bg hero-bg"></div>
-      <div class="banner-content hero-content">
-        <h1 class="banner-super-title">笑猫的窝</h1>
-        <h2 class="banner-title">让宠物生活更美好。</h2>
-        <p class="banner-subtitle">全平台的一站式宠物健康管理与社区服务，专为爱宠人士打造。</p>
-        <button class="cta-button" @click="goToActivities">开始使用</button>
+      <!-- 阳关径向渐变背景 -->
+      <div class="sunlight-bg"></div>
+
+      <div class="hero-container">
+        <!-- 保留原始狗图片，但套用自然风阴影圆角和树叶遮罩 -->
+        <div class="hero-image-wrapper fly-in-up">
+          <img src="https://images.unsplash.com/photo-1639732624839-dd52e940b46c?q=80&w=1332&auto=format&fit=crop"
+            alt="Happy Dog" class="hero-image" />
+          <!-- 藤蔓与树叶 SVG 叠加 -->
+          <div class="leaf-overlay leaf-1 animate-float-slow">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+            </svg>
+          </div>
+          <div class="leaf-overlay leaf-2 animate-float">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50,10 Q30,40 50,90 Q70,40 50,10" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="hero-content fly-in-up" style="transition-delay: 0.1s;">
+          <!-- 增加顶部小文案 -->
+          <div class="hero-tags">
+            <span class="hero-tag">日志</span>
+            <span class="hero-tag-dot">•</span>
+            <span class="hero-tag">社区</span>
+            <span class="hero-tag-dot">•</span>
+            <span class="hero-tag">周边</span>
+          </div>
+
+          <h1 class="nature-title main-title" style="white-space: nowrap;">让宠物生活更美好。</h1>
+          <p class="nature-subtitle">全平台一站式宠物健康管理系统与社区服务。</p>
+          <button class="nature-button primary-btn" @click="goToActivities">开始使用</button>
+        </div>
+      </div>
+
+      <!-- 波浪形分隔线 (过滤至纯白) -->
+      <div class="wave-divider bottom-wave">
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <path fill="#ffffff" fill-opacity="1"
+            d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,69.3C1200,85,1320,107,1380,117.3L1440,128L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z">
+          </path>
+        </svg>
       </div>
     </section>
 
-    <!-- 2. 日记与社区 组件 (Apple 式高级科技感灰卡片) -->
-    <section class="split-section">
-      <!-- 宠物日记 -->
-      <div class="split-card tech-card" @click="goToActivities">
-        <div class="card-content">
-          <h3 class="card-title">宠物日记</h3>
-          <p class="card-description">记录爱宠的每一天，珍藏专属于你们的美好时光。</p>
-          <div class="card-link">进入 <span class="arrow-icon">→</span></div>
+    <!-- 纯白背景过渡区包含卡片与照片墙 -->
+    <div class="white-bg-container" style="background-color: #ffffff;">
+      <!-- 2. 日记与社区 (纯自然卡片) -->
+      <section class="split-section">
+        <div class="nature-card fly-in-up" @click="goToActivities">
+          <div class="card-leaf-decoration">
+            <svg viewBox="0 0 100 100" fill="currentColor" class="text-mint-green">
+              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+            </svg>
+          </div>
+          <div class="card-content">
+            <h3 class="nature-title card-title">宠物日志</h3>
+            <p class="nature-text card-description">记录宠物的日常活动。</p>
+            <div class="nature-link">进入 <span class="arrow-icon">→</span></div>
+          </div>
         </div>
+
+        <div class="nature-card fly-in-up" @click="goToCommunity" style="transition-delay: 0.15s;">
+          <div class="card-leaf-decoration right-leaf">
+            <svg viewBox="0 0 100 100" fill="currentColor" class="text-sky-blue">
+              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+            </svg>
+          </div>
+          <div class="card-content">
+            <h3 class="nature-title card-title">宠物社区</h3>
+            <p class="nature-text card-description">分享宠物的日常，交流养宠心得。</p>
+            <div class="nature-link">进入 <span class="arrow-icon">→</span></div>
+          </div>
+        </div>
+
+        <div class="nature-card fly-in-up" @click="goToMap" style="transition-delay: 0.3s;">
+          <div class="card-leaf-decoration right-leaf">
+            <svg viewBox="0 0 100 100" fill="currentColor" class="text-amber-500" style="color: #f59e0b;">
+              <path d="M50,10 C50,10 20,50 20,70 A30,30 0 0,0 80,70 C80,50 50,10 50,10 Z" />
+            </svg>
+          </div>
+          <div class="card-content">
+            <h3 class="nature-title card-title">周边网络</h3>
+            <p class="nature-text card-description">探索发现附近的宠物医院与服务点。</p>
+            <div class="nature-link">进入 <span class="arrow-icon">→</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 新增照片墙组件 (Instagram 社区动态展示) -->
+      <section class="photo-wall-section max-w-container">
+        <div class="photo-header fly-in-up">
+          <h2 class="nature-title section-title">发现萌宠瞬间</h2>
+          <p class="nature-subtitle text-center">探索更多来自动物社区的温暖日常</p>
+        </div>
+
+        <div class="photo-masonry">
+          <!-- Item 1 (大图) -->
+          <div class="photo-item photo-large fly-in-up">
+            <div class="ins-border">
+              <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=1000&auto=format&fit=crop"
+                alt="Cute dog">
+            </div>
+          </div>
+          <!-- Item 2 (长竖图) -->
+          <div class="photo-item photo-vertical fly-in-up" style="transition-delay: 0.1s;">
+            <div class="ins-border">
+              <img src="https://images.unsplash.com/photo-1517849845537-4d257902454a?q=80&w=600&auto=format&fit=crop"
+                alt="Dog">
+            </div>
+          </div>
+          <!-- Item 3 (长横图) -->
+          <div class="photo-item photo-horizontal fly-in-up" style="transition-delay: 0.2s;">
+            <div class="ins-border">
+              <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=800&auto=format&fit=crop"
+                alt="Cat in bag">
+            </div>
+          </div>
+          <!-- Item 4 (小图) -->
+          <div class="photo-item photo-small fly-in-up" style="transition-delay: 0.3s;">
+            <div class="ins-border">
+              <img src="https://images.unsplash.com/photo-1533743983669-94fa5c4338ec?q=80&w=400&auto=format&fit=crop"
+                alt="Kitten">
+            </div>
+          </div>
+          <!-- Item 5 (中图) -->
+          <div class="photo-item photo-medium fly-in-up" style="transition-delay: 0.4s;">
+            <div class="ins-border">
+              <img src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=600&auto=format&fit=crop"
+                alt="Running dogs">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 倒转波浪形分隔线 (从白回石色) -->
+      <div class="wave-divider top-wave">
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <path fill="#fafaf9" fill-opacity="1"
+            d="M0,64L60,58.7C120,53,240,43,360,53.3C480,64,600,96,720,101.3C840,107,960,85,1080,74.7C1200,64,1320,64,1380,64L1440,64L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z">
+          </path>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 4. 生态服务 -->
+    <section class="features-section">
+      <div class="features-header fly-in-up">
+        <h2 class="nature-title section-title">专业生态服务</h2>
+
       </div>
 
-      <!-- 宠物社区 -->
-      <div class="split-card tech-card" @click="goToCommunity">
-        <div class="card-content">
-          <h3 class="card-title">宠物社区</h3>
-          <p class="card-description">分享宠物日常起居，与世界各地的同好交流经验。</p>
-          <div class="card-link">进入 <span class="arrow-icon">→</span></div>
+      <div class="features-list">
+        <div class="feature-item fly-in-up">
+          <div class="feature-icon water-drop">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50,10 C50,10 20,50 20,70 A30,30 0 0,0 80,70 C80,50 50,10 50,10 Z" />
+            </svg>
+          </div>
+          <!-- 增加一张展示图满足要求 -->
+          <img src="https://images.unsplash.com/photo-1541364983171-a8ba01e95cfc?q=80&w=400&auto=format&fit=crop"
+            class="feature-img" alt="Health">
+          <h4 class="feature-name">健康守护</h4>
+          <p class="feature-desc">为您建立完整的爱宠健康档案，日记打卡、疫苗接种一手掌握。</p>
+        </div>
+
+        <div class="feature-item fly-in-up" style="transition-delay: 0.15s;">
+          <div class="feature-icon leaf-icon">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+            </svg>
+          </div>
+          <img src="https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=400&auto=format&fit=crop"
+            class="feature-img" alt="Community">
+          <h4 class="feature-name">温馨社区</h4>
+          <p class="feature-desc">在这里与天南海北的爱宠人士畅游交流，分享毛孩子们的温馨日常。</p>
+        </div>
+
+        <div class="feature-item fly-in-up" style="transition-delay: 0.3s;">
+          <div class="feature-icon earth-icon">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <circle cx="50" cy="50" r="40" />
+            </svg>
+          </div>
+          <img src="https://images.unsplash.com/photo-1581888227599-779811939961?q=80&w=400&auto=format&fit=crop"
+            class="feature-img" alt="Map">
+          <h4 class="feature-name">周边网络</h4>
+          <p class="feature-desc">一键发现附近5公里优质宠物医院与美容店，构筑安全便利的宠物生活圈。</p>
         </div>
       </div>
     </section>
 
-    <!-- 3. 为什么选择我们 组件 -->
-    <section class="banner-section intro-section">
-      <div class="banner-bg intro-bg"></div>
-      <div class="banner-content intro-content-wrapper">
-        <div class="intro-header">
-          <h2 class="banner-title intro-title">为什么选择我们？</h2>
-          <p class="banner-subtitle intro-subtitle">专业、可靠的宠物生态体验</p>
-        </div>
+    <!-- 波浪形分隔线 (过滤至浅绿色区) -->
+    <div class="wave-divider bottom-wave about-wave" style="background:#fafaf9">
+      <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
+        <path fill="#f0fdf4" fill-opacity="1"
+          d="M0,32L80,26.7C160,21,320,11,480,16C640,21,800,43,960,42.7C1120,43,1280,21,1360,10.7L1440,0L1440,60L1360,60C1280,60,1120,60,960,60C800,60,640,60,480,60C320,60,160,60,80,60L0,60Z">
+        </path>
+      </svg>
+    </div>
 
-        <div class="features-list">
-          <div class="feature-item">
-            <h4 class="feature-name">专业健康管理</h4>
-            <p class="feature-desc">完整的健康记录和提醒功能，全方位时刻守护您的宠物。</p>
-          </div>
-          <div class="feature-item">
-            <h4 class="feature-name">精彩社区分享</h4>
-            <p class="feature-desc">与其他宠物主人交流心得经验，在广场发现更多新乐趣。</p>
-          </div>
-          <div class="feature-item">
-            <h4 class="feature-name">便捷智能服务</h4>
-            <p class="feature-desc">一站式宠物生活服务生态圈，省心省力，无忧养宠。</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 4. 关于我们 (About Us) -->
+    <!-- 5. 结尾标语 -->
     <section class="about-section">
-      <div class="about-container">
-        <h2 class="about-title">我们相信，<br>每一次陪伴都值得铭记。</h2>
-        <p class="about-desc">
-          笑猫の窝不仅是一个冰冷的记录工具，更是充满温度的宠物生态社区。<br>
-          我们致力于用极简的科技与纯粹的设计，让全世界的爱宠人士紧密连接，共同见证毛孩子们生命中的每一个闪光时刻。
+      <div class="about-container fly-in-up">
+        <h2 class="nature-title quote-title">"每一次用心的陪伴，<br>都是对生命最好的馈赠。"</h2>
+        <p class="nature-text quote-desc">
+          打造系统化、无干扰的宠物科技空间，<br>
+          回归健康、自由、充满呼吸感的生活绿洲。
         </p>
       </div>
     </section>
@@ -76,7 +223,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/layout/AppHeader.vue'
@@ -95,303 +242,599 @@ const goToCommunity = () => {
   if (isLoggedIn.value) router.push('/moments')
   else router.push('/login')
 }
+
+const goToMap = () => {
+  if (isLoggedIn.value) router.push('/map')
+  else router.push('/login')
+}
+
+// ==== 向下滑动进入动画 (IntersectionObserver) ====
+let observer = null
+
+onMounted(() => {
+  observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('fly-in-visible')
+        // 触发一次后移除监听
+        observer.unobserve(entry.target)
+      }
+    })
+  }, {
+    threshold: 0.1,
+    rootMargin: "0px 0px -50px 0px"
+  })
+
+  // 为所有含 fly-in-up 的元素绑定
+  document.querySelectorAll('.fly-in-up').forEach(el => {
+    observer.observe(el)
+  })
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+  }
+})
 </script>
 
 <style scoped>
-/* ===== 全局区块通用设定 (等效高度与Apple巨幅海报风格) ===== */
-.banner-section {
-  position: relative;
-  min-height: 80vh;
-  /* 与 Hero 保持一样巨大的尺寸 */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background-color: #000;
-  text-align: center;
-  padding: 40px 20px;
+/* ===== 基础排版与宏观色调设定 ===== */
+.home-view {
+  background-color: #fafaf9;
+  color: #374151;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
 }
 
-.banner-bg {
+.nature-title {
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  color: #14532d;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.nature-text {
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+/* 全新动态：向上飞入动画效果 */
+.fly-in-up {
+  opacity: 0;
+  transform: translateY(60px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fly-in-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 公共宽度限制拉宽 */
+.max-w-container {
+  max-width: 1400px;
+  /* 拉大主视图宽度 */
+  margin: 0 auto;
+}
+
+/* 波浪分隔线 */
+.wave-divider {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.wave-divider svg {
+  display: block;
+  width: calc(100% + 1.3px);
+}
+
+.bottom-wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 80px;
+}
+
+.top-wave {
+  height: 80px;
+  background-color: #ffffff;
+}
+
+/* ===== Hero 区 ===== */
+.hero-section {
+  position: relative;
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fafaf9;
+  padding: 80px 20px 120px;
+}
+
+.sunlight-bg {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.8;
+  background: radial-gradient(circle at 70% 30%, rgba(254, 252, 211, 0.4) 0%, rgba(250, 250, 249, 0) 60%);
   z-index: 0;
 }
 
-/* 底部黑色渐变遮罩保护文本 */
-.banner-bg::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 60%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
-}
-
-.banner-content {
+.hero-container {
   position: relative;
   z-index: 2;
-  max-width: 980px;
+  max-width: 1400px;
   width: 100%;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 80px;
 }
 
-.banner-super-title {
-  font-size: 80px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #f5f5f7;
-  margin-bottom: 8px;
+.hero-image-wrapper {
+  flex: 1;
+  position: relative;
+  border-radius: 2rem;
+  box-shadow: 0 20px 40px -10px rgba(22, 163, 74, 0.15);
+  background: white;
+  padding: 16px;
+  transform: rotate(2deg);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.banner-title {
-  font-size: 56px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: #f5f5f7;
-  margin-bottom: 12px;
+.hero-image-wrapper.fly-in-visible:hover {
+  transform: rotate(0deg) scale(1.02);
+  /* 兼容触发动画后的复合变换 */
 }
 
-.banner-subtitle {
-  font-size: 24px;
-  font-weight: 400;
-  color: #d1d1d6;
-  margin-bottom: 32px;
+.hero-image {
+  width: 100%;
+  height: auto;
+  border-radius: 1.5rem;
+  object-fit: cover;
+  display: block;
 }
 
-/* ===== 1. Hero 专有样式 ===== */
-.hero-bg {
-  /* 恢复为你要求的图片 */
-  background: url('https://images.unsplash.com/photo-1639732624839-dd52e940b46c?q=80&w=1332&auto=format&fit=crop') center 20%/cover no-repeat;
+.leaf-overlay {
+  position: absolute;
+  z-index: 3;
+}
+
+.leaf-1 {
+  width: 80px;
+  height: 80px;
+  bottom: -30px;
+  left: -30px;
+  color: #15803d;
+  transform-origin: center right;
+}
+
+.leaf-2 {
+  width: 60px;
+  height: 60px;
+  top: -20px;
+  right: -20px;
+  color: #22c55e;
+  transform-origin: bottom left;
 }
 
 .hero-content {
-  margin-bottom: -15vh;
-  /* Apple主页常见文字稍篇底部排版 */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
-.cta-button {
-  background-color: #f5f5f7;
-  color: #1d1d1f;
+.hero-tags {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.08);
+  padding: 8px 16px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.hero-tag-dot {
+  opacity: 0.5;
+  font-size: 12px;
+}
+
+.main-title {
+  font-size: 52px;
+  margin-bottom: 24px;
+  line-height: 1.25;
+}
+
+.nature-subtitle {
+  font-size: 20px;
+  color: #4b5563;
+  line-height: 1.8;
+  margin-bottom: 40px;
+  max-width: 480px;
+}
+
+.primary-btn {
+  background-color: #16a34a;
+  color: white;
   border: none;
-  border-radius: 980px;
-  padding: 14px 28px;
-  font-size: 17px;
+  border-radius: 9999px;
+  padding: 18px 48px;
+  font-size: 18px;
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  box-shadow: 0 10px 20px -5px rgba(22, 163, 74, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.cta-button:hover {
-  background-color: #fff;
-  transform: scale(1.02);
+.primary-btn:hover {
+  background-color: #15803d;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 24px -5px rgba(22, 163, 74, 0.4);
 }
 
-/* ===== 2. 日记与社区 (Apple 科技感无图卡片) ===== */
+/* ===== 卡片区块 ===== */
 .split-section {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
-  padding: 24px;
-  background-color: #ffffff;
-  min-height: 80vh;
-  /* 与前后巨幅区块保持视觉等高 */
+  gap: 32px;
+  padding: 60px 40px 80px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.split-card {
+.nature-card {
   flex: 1;
-  min-width: 320px;
+  min-width: 300px;
   position: relative;
-  border-radius: 28px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  background-color: #f0fdf4;
+  border-radius: 24px;
+  padding: 48px 40px;
   cursor: pointer;
-  background-color: #f5f5f7;
-  text-align: center;
-  padding: 80px 40px;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, background-color 0.4s ease;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.05);
+  transition: box-shadow 0.25s, transform 0.8s, background-color 0.25s;
+  /* 保留飞入时的 transform 复合 */
 }
 
-.split-card:hover {
-  transform: scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
-  background-color: #ffffff;
+.nature-card:nth-child(2) {
+  background-color: #fafaf9;
+  margin-top: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* Hover需处理与 fly-in-visible 的 translateY(0) 叠加 */
+.nature-card.fly-in-visible:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgba(22, 163, 74, 0.1), 0 8px 10px -6px rgba(22, 163, 74, 0.04);
+}
+
+.card-leaf-decoration {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 120px;
+  height: 120px;
+  opacity: 0.08;
+  color: #16a34a;
+  transform: translate(20%, -20%) rotate(15deg);
+  transition: all 0.5s ease;
+}
+
+.nature-card:hover .card-leaf-decoration {
+  opacity: 0.15;
+  transform: translate(15%, -15%) rotate(5deg) scale(1.1);
+}
+
+.text-mint-green {
+  color: #84cc16;
+}
+
+.text-sky-blue {
+  color: #0ea5e9;
 }
 
 .card-content {
   position: relative;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 .card-title {
-  font-size: 40px;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin-bottom: 16px;
-  letter-spacing: -0.01em;
+  font-size: 32px;
+  margin-bottom: 20px;
 }
 
 .card-description {
-  font-size: 20px;
-  color: #86868b;
-  max-width: 360px;
-  margin-bottom: 24px;
-  line-height: 1.4;
+  font-size: 18px;
+  margin-bottom: 32px;
 }
 
-.card-link {
+.nature-link {
   font-size: 17px;
-  color: #0066cc;
+  color: #15803d;
   font-weight: 500;
+  font-style: italic;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   transition: color 0.2s ease;
 }
 
-.split-card:hover .card-link {
-  color: #0071e3;
-}
-
 .arrow-icon {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.split-card:hover .arrow-icon {
-  transform: translateX(4px);
+.nature-card:hover .arrow-icon {
+  transform: translateX(6px);
 }
 
-/* ===== 3. 为什么选择我们 (背景图与三栏内容) ===== */
-.intro-bg {
-  /* 使用干净的室内与宠物隐约背景，不喧宾夺主 */
-  background: url('https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=2688&auto=format&fit=crop') center 70%/cover no-repeat;
-  opacity: 0.6;
+/* ===== 新增：Instagram 照片墙 ===== */
+.photo-wall-section {
+  padding: 20px 40px 100px;
 }
 
-/* 对底层图片进行轻微模糊和极简渐变，完全凸显内容 */
-.intro-bg::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
+.photo-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.photo-masonry {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 260px);
+  gap: 24px;
+}
+
+/* Ins风格边框特效与Hover暗化层 */
+.photo-item {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  cursor: pointer;
+  background: white;
+  transition: transform 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.photo-item.fly-in-visible:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
+}
+
+.ins-border {
+  position: relative;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
+  /* 模拟Instagram精美渐变加圈边框的风格 */
+  padding: 4px;
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  border-radius: 24px;
 }
 
-.intro-content-wrapper {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+.ins-border img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 4px solid white;
+  transition: transform 0.4s ease;
 }
 
-.intro-header {
+.photo-item:hover .ins-border img {
+  transform: scale(1.05);
+  /* 仅图片放大，外框不动 */
+}
+
+/* 瀑布布局定义 */
+.photo-large {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.photo-vertical {
+  grid-row: span 2;
+}
+
+.photo-horizontal {
+  grid-column: span 2;
+}
+
+.photo-small,
+.photo-medium {
+  grid-column: span 1;
+}
+
+/* ===== 生态服务 ===== */
+.features-section {
+  padding: 40px 20px 100px;
+  background-color: #fafaf9;
+}
+
+.features-header {
+  text-align: center;
   margin-bottom: 60px;
 }
 
-.intro-title {
-  font-size: 48px;
-}
-
-.intro-subtitle {
-  font-size: 21px;
+.section-title {
+  font-size: 40px;
+  margin-bottom: 16px;
 }
 
 .features-list {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 40px;
-  width: 100%;
-  max-width: 900px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .feature-item {
   text-align: center;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.feature-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  opacity: 0.85;
+}
+
+.water-drop {
+  color: #0ea5e9;
+}
+
+.leaf-icon {
+  color: #16a34a;
+}
+
+.earth-icon {
+  color: #92400e;
+}
+
+.feature-img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
 }
 
 .feature-name {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 600;
-  color: #fff;
+  color: #14532d;
   margin-bottom: 12px;
 }
 
 .feature-desc {
   font-size: 17px;
-  color: #a1a1a6;
-  line-height: 1.5;
+  color: #6b7280;
+  line-height: 1.6;
 }
 
-/* ===== 4. 关于我们 ===== */
+/* ===== 结尾标语 ===== */
 .about-section {
-  padding: 140px 20px;
-  background-color: #fff;
+  background-color: #f0fdf4;
+  padding: 100px 20px;
   text-align: center;
 }
 
 .about-container {
-  max-width: 860px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
-.about-title {
-  font-size: 48px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: #1d1d1f;
+.quote-title {
+  font-size: 40px;
+  line-height: 1.5;
   margin-bottom: 32px;
-  line-height: 1.25;
+  color: #15803d;
 }
 
-.about-desc {
-  font-size: 21px;
-  color: #86868b;
-  line-height: 1.6;
+.quote-desc {
+  font-size: 18px;
 }
 
-/* ===== 响应式设计 ===== */
-@media (max-width: 768px) {
+/* 植物动效 */
+@keyframes float {
 
-  .banner-title,
-  .intro-title {
-    font-size: 40px;
+  0%,
+  100% {
+    transform: rotate(45deg) translateY(0);
   }
 
-  .banner-subtitle,
-  .intro-subtitle {
-    font-size: 19px;
+  50% {
+    transform: rotate(50deg) translateY(-8px);
+  }
+}
+
+@keyframes float-slow {
+
+  0%,
+  100% {
+    transform: rotate(-30deg) translateY(0);
   }
 
-  .split-section {
-    display: block;
+  50% {
+    transform: rotate(-35deg) translateY(10px);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .hero-container {
+    flex-direction: column;
+    text-align: center;
+    gap: 40px;
   }
 
-  .split-card {
-    min-height: 50vh;
-    margin-bottom: 12px;
+  .hero-content {
+    align-items: center;
+  }
+
+  .main-title {
+    font-size: 48px;
+    white-space: normal !important;
+  }
+
+  .nature-card:nth-child(2) {
+    margin-top: 0;
+  }
+
+  .split-section,
+  .photo-wall-section {
+    flex-direction: column;
+    padding: 40px 20px;
   }
 
   .features-list {
     grid-template-columns: 1fr;
-    gap: 32px;
   }
 
-  .about-title {
-    font-size: 36px;
+  .photo-masonry {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .photo-item {
+    grid-column: span 1 !important;
+    grid-row: span 1 !important;
+    height: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-title {
+    font-size: 32px;
+  }
+
+  .quote-title {
+    font-size: 28px;
+  }
+
+  .section-title {
+    font-size: 28px;
   }
 }
 </style>

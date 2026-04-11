@@ -134,8 +134,17 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
+  // 👇🏼================= 纯前端调试模式宏开关 =================👇🏼
+  // 改为 false 即可恢复正常拦截模式
+  const MOCK_DEV_MODE = true 
+  if (MOCK_DEV_MODE && !authStore.isAuthenticated) {
+    authStore.token = 'mock-debug-token'
+    authStore.user = { userId: 1, id: 1, name: '调试大神', nickname: 'DevAdmin', avatar: '' }
+  }
+  // 👆🏼======================================================👆🏼
+
   // 初始化认证状态
-  if (!authStore.isAuthenticated && authStore.token) {
+  if (!authStore.isAuthenticated && authStore.token && !MOCK_DEV_MODE) {
     await authStore.initAuth()
   }
 
