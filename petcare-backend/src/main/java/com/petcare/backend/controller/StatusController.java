@@ -2,10 +2,11 @@ package com.petcare.backend.controller;
 
 import com.petcare.backend.client.MediaServiceClient;
 import com.petcare.backend.controller.ApiResponse;
-import com.petcare.backend.dto.response.MediaResponse;
+import com.petcare.backend.dto.response.TimelineDTO;
 import com.petcare.backend.dto.request.CreateStatusRecordDTO;
 import com.petcare.backend.entity.Status;
 import com.petcare.backend.service.StatusService;
+import com.petcare.backend.service.PetStatusHBaseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,10 +30,12 @@ public class StatusController {
 
     private final StatusService statusService;
     private final MediaServiceClient mediaServiceClient;
+    private final PetStatusHBaseService petStatusHBaseService;
 
-    public StatusController(StatusService statusService, MediaServiceClient mediaServiceClient) {
+    public StatusController(StatusService statusService, MediaServiceClient mediaServiceClient, PetStatusHBaseService petStatusHBaseService) {
         this.statusService = statusService;
         this.mediaServiceClient = mediaServiceClient;
+        this.petStatusHBaseService = petStatusHBaseService;
     }
 
     @Operation(summary = "获取宠物的有效状态列表", description = "获取该宠物定义的所有未被软删除的状态类型")
@@ -91,17 +94,21 @@ public class StatusController {
         }
     }
 
-    @Operation(summary = "新增状态类型", description = "为宠物创建一种新的宠物状态（如：过敏中）")
-    @PostMapping
-    public ApiResponse<Status> createStatus(
-            @Parameter(description = "宠物ID") @RequestParam Long petId,
-            @Parameter(description = "状态名称") @RequestParam String statusName) {
+    @Operation(summary = "获取宠物状态变更时间线", description = "获取宠物的状态变更历史时间线，支持按状态ID过滤，分页加载")
+    @GetMapping("/timeline/{petId}")
+    public ApiResponse<List<TimelineDTO>> getStatusTimeline(
+            @Parameter(description = "宠物ID") @PathVariable Long petId,
+            @Parameter(description = "状态ID过滤，可选") @RequestParam(required = false) Long statusId,
+            @Parameter(description = "页码，从0开始") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "每页大小，默认50") @RequestParam(defaultValue = "50") int size) {
+        log.debug("开始获取宠物ID为 {} 的状态时间线, statusId={}, page={}, size={}", petId, statusId, page, size);
+
         try {
-            Status createdStatus = statusService.createStatus(petId, statusName);
-            return ApiResponse.success(createdStatus, "创建成功");
+            List<TimelineDTO> timeline = petStatusHBaseService.getStatusTimeline(petId, statusId, page, size);
+            return ApiResponse.success(timeline);
         } catch (Exception e) {
-            log.error("为宠物ID {} 创建状态 {} 失败", petId, statusName, e);
-            return ApiResponse.error("创建失败: " + e.getMessage());
+            log.error("获取宠物ID为 {} 的状态时间线失败", petId, e);
+            return ApiResponse.error("获取状态时间线失败: " + e.getMessage());
         }
     }
 }

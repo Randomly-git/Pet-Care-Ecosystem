@@ -106,6 +106,39 @@ DELETE /api/status/3/with-records
 #### 说明
 - 此操作会删除该状态分类以及所有相关的历史记录和媒体文件
 
+### 2.0.5 获取宠物状态变更时间线
+**GET** `/api/status/timeline/{petId}`
+
+#### 路径参数
+- `petId` (Long, 必需): 宠物ID
+
+#### 查询参数
+- `statusId` (Long, 可选): 状态ID过滤，仅返回该状态的时间线
+- `page` (int, 可选，默认0): 页码，从0开始
+- `size` (int, 可选，默认50): 每页记录数，默认50
+
+#### 请求示例
+```
+GET /api/status/timeline/393?statusId=2&page=0&size=50
+```
+
+#### 响应格式
+```json
+[
+  {
+    "status_name": "主食",
+    "startTime": "2026-04-10 12:00:00",
+    "status_value": "皇家100g"
+  }
+]
+```
+
+#### 说明
+- 返回按时间倒序排列的状态变更时间线
+- 单条记录只返回开始时间，下一条记录的开始时间即为本条记录的结束时间
+- `statusId` 提供时只返回该状态的时间线
+- 默认优先加载最近50条记录
+
 ### 2.1 获取宠物所有状态记录（带媒体文件信息）
 **GET** `/api/status/records/pet/{petId}`
 
