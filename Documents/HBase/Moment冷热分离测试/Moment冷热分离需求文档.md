@@ -39,9 +39,9 @@
 | **编号**       | M-1                                                          |
 | **简述**       | 定时任务扫描冷动态并迁移至 HBase，同时删除 MySQL 数据        |
 | **执行者**     | 系统定时任务                                                 |
-| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 动态 `last_access_time` 超过 7 天<br>3. 动态评论数 ≤ 阈值（默认 1000） |
+| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 动态 `last_access_time` 超过 7 天<br>3. 动态评论数 ≤ 阈值（默认 2000） |
 | **基本事件流** | 1. 定时任务扫描满足条件的动态<br>2. 系统尝试将 `migration_status` 原子改为 `MIGRATING`（CAS 操作）<br>3. 查询动态、评论、点赞数据<br>4. 构建扁平化冷存档数据（JSON），包含评论+点赞<br>5. 使用 GZIP 压缩存入 HBase<br>6. 验证 HBase 存在性检查<br>7. 删除 MySQL 中的动态、评论、点赞（按外键顺序）<br>8. 执行 flush() 确保 MySQL 删除完成 |
-| **扩展事件流** | **E1-HBase 写入失败**：<br> - 验证失败时抛异常<br> - 回滚当前事务<br> - `migration_status` 恢复为 `NONE`<br> - 下次扫描重新迁移<br><br>**E2-MySQL 删除失败**：<br> - 删除失败时验证失败抛异常<br> - 回滚当前事务<br> - `migration_status` 保持 `MIGRATING`<br> - 下次扫描重试时 HBase 通过 [exists()](vscode-file://vscode-app/e:/Microsoft VS Code/e7fb5e96c0/resources/app/out/vs/code/electron-browser/workbench/workbench.html) 幂等跳过，直接删除 |
+| **扩展事件流** | **E1-HBase 写入失败**：<br> - 验证失败时抛异常<br> - 回滚当前事务<br> - `migration_status` 保持 `MIGRATING`<br> - 下次扫描重新迁移<br><br>**E2-MySQL 删除失败**：<br> - 删除失败时验证失败抛异常<br> - 回滚当前事务<br> - `migration_status` 保持 `MIGRATING`<br> - 下次扫描重试时 HBase 通过 [exists()](vscode-file://vscode-app/e:/Microsoft VS Code/e7fb5e96c0/resources/app/out/vs/code/electron-browser/workbench/workbench.html) 幂等跳过，直接删除 |
 | **后置条件**   | 1. HBase 中存在该动态的冷归档数据<br>2. MySQL 中该动态及所有相关评论、点赞已删除<br>3. 动态记录不再出现在热库中 |
 
 ------
@@ -53,7 +53,7 @@
 | **编号**       | M-2                                                          |
 | **简述**       | 在迁移前检查评论数量，超过阈值则暂不迁移                     |
 | **执行者**     | 系统定时任务                                                 |
-| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 动态 `last_access_time` 超过 7 天<br>3. 动态评论数 > 阈值（如 1000） |
+| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 动态 `last_access_time` 超过 7 天<br>3. 动态评论数 > 阈值（2000） |
 | **基本事件流** | 1. 定时任务选中该动态<br>2. 将 `migration_status` 改为 `MIGRATING`<br>3. 查询评论数量<br>4. 发现超过阈值<br>5. 将 `migration_status` 恢复为 `NONE`<br>6. 记录日志并跳过 |
 | **扩展事件流** | 无                                                           |
 | **后置条件**   | 1. 动态保留在 MySQL 中<br>2. 动态状态回到 `NONE`<br>3. 下次扫描仍会尝试迁移（仍不符合条件） |
@@ -142,48 +142,67 @@
 | **扩展事件流** | **E1-HBase 不存在**：<br> - 返回 404 Not Found<br><br>**E2-HBase 读取异常**：<br> - 记录日志，返回错误 |
 | **后置条件**   | 1. 用户看到冷动态数据<br>2. 可选：触发异步恢复流程           |
 
-### 1.8 Moments 状态转移图
+## 5. Moments 状态转移图
 
 ```
 @startuml
+left to right direction
 skinparam state {
   BackgroundColor White
   BorderColor Black
-  FontSize 12
+  FontSize 11
 }
 
-state NONE
-state MIGRATING
-state MYSQL_DELETED <<final>>
+state ACTIVE as "ACTIVE (NONE)" {
+    ACTIVE: do / join comments+likes
+}
 
-note right of NONE : 1. 默认冷数据状态\n2. last_access_time 超过 7 天可进入迁移\n3. 迁移失败后会回到该状态继续重试
-note right of MIGRATING : 1. 迁移锁定状态\n2. 仅在迁移事务中存在\n3. 表示当前正在处理或上次失败重试数据
-note right of MYSQL_DELETED : 1. MySQL 数据已删除\n2. 该状态不是 migration_status 字段值\n3. 归档数据已落入 HBase
+state MIGRATING as "MIGRATING" {
+    MIGRATING: do / deny accessing and modifying 
+}
 
-[*] --> NONE
+state COLD as "COLD (ARCHIVED)" {
+    COLD: data exists in HBase only
+}
 
-NONE --> MIGRATING : 找到冷数据\n(last_access_time > 7天)
-MIGRATING --> NONE : 评论数量超过阈值\n恢复为 NONE
-MIGRATING --> NONE : HBase 写入失败 / 验证失败\n(当次迁移回滚、下次扫描继续重试)
-MIGRATING --> MIGRATING : HBase 已存在\n幂等跳过写入
-MIGRATING --> NONE : MySQL 删除失败\n事务回滚、下次扫描继续重试
-MIGRATING --> MYSQL_DELETED : HBase 写入成功\nMySQL 删除成功
+[*] --> ACTIVE
 
-note bottom of MIGRATING
-如果 HBase 已存在但 MySQL 删除失败，
-下一次扫描会重新进入 MIGRATING，
-HBase 写入步骤通过 exists() 幂等跳过，
-直接继续删除 MySQL。
+' --- 迁移逻辑 (Migration Job) ---
+ACTIVE --> MIGRATING : scan[last_access > 7d] / \n update status to MIGRATING
+
+MIGRATING --> ACTIVE : check_popularity[comments ≥ 2000] / \n rollback status to NONE
+
+MIGRATING --> ACTIVE : migration_failed / \n rollback status to NONE
+
+MIGRATING --> COLD : HBase write success && \n MySQL delete success
+
+' --- 恢复逻辑 (Restore Consumer) ---
+COLD --> ACTIVE : user query[trigger restore event] / \n 1. HBase read\n 2. MySQL native insert\n 3. HBase delete(after commit)
+
+' --- 删除逻辑 ---
+ACTIVE --> [*] : user delete / delete from MySQL \n and send cleanup event to HBase
+
+COLD --> [*] : user delete / send delete_from_cold event
+
+note top of MIGRATING
+  State machine lock:
+  Prevents concurrent access
+  during migration.
 end note
 
+note bottom of COLD
+  Flattened storage:
+  Comments and likes are
+  serialized in full_data.
+end note
 @enduml
 ```
 
-![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/XPDlJzD07CUVtwkuXs021dn0OiY2o4GIm2WanZYpL2ZGiBMcxHB_n6GZCBR1sAA2On1qqWcYtH2HpOt9Yw5tRH_v5hpk1sMRItpIt7rxzxlFx_kz6r1KJbP3mG1IvWNn6ITpGSmabSUl4CQ3tDJyh2o5nEdRKa2IySCvGUKTNPAdUHcqmG1RnBGxagXE22zvtDEBNYC4HSRlZNilXcCZmmzkJOwC3r_E7qtS7_KFUKUzazuXtDy_8uXSmED1I9JONrcOdLEnD5ElW6_YdcviLpDMGIFH4bq_fCc2cJYXuOXFxEt60KvH_TpK5AyeVbK8yjWwMRBEbd4V9jeNaYfQPrjaAM-THSozga-yqOrXIBJlrd6UfDUCqopPsY6nGwkOXx9cTS-iwlPoqYgkjm2vVG0LbBBVHKWXsu1aL9V8zZxyD2eh994poZhHCqm4Wjo-gLL8xIs99wc-osIYBPhfA8rj6EK4_PO3E220Xbiuclm3bh4NJCAmcfIEIEoZlQdLSTp6Z7AIPeeuACpAd2f8ejy98wHWeh-dXPyaV5gd8xKtDBVh5hBIDUOVlZl8AJn2ZwyzmLrT7iWMELzdskGBZVzcRhfH-SIEVoBou3uMJYTojq5DIDigBbg52jjiBwSWIpiJgyFHo2UY9Oro1OvljniuCObkCcYm4L_7zi6gLOp0bF4mvvd9a0_BdbQpvuuvAqoayQyqbMgy0QsKxkpgiDBHPRZaruAfnwtI3qOD3Eqf8Ip8w18BRif_ULfnccz2K_yqbYQ93pwnyJJGBXxQKqbLfM3JnKRaymBTsMvjpQX5sq3_ELr5ZDCeXrrKzfmO9zquX7TtLTXPsmIdv-q3pGvddSVAFnSKLUden8q6EZlChMEwbeV-uMJ0E0yl85wSnauRQ82DGi70Nm00)
+![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/bPJDJbGn5CVtVOeJ5ZXe-00N9hCWm820uKE1w68aat9xvawTtdPiJz71cCXE5ovSkZC6uqEGwBkOeF0MjlVsUj64XRkUUzhV-Pz_J--I8sx95uefx1EG0Ilp0O6G5ZEIHZCtb7h4BIyWR2M4LmnWXMV3t1glHSSeO-79G1B6xyOAjDMt5HKsCO3xHjE-F46OdsUl6QiWovs3pSThm1rCf6LhPtTdRMgYn4FAjq4Oc8LdHch8J56W9dT7oI6wXhIzkRwtVB2virx2_aG9rAGJIw0U0yyoT4xg7BWMK1WX--CODTJExjPg2ImNhUMzpaRGirhhA_E1o8a3lfIE74WD6olS8HYjnX7KlNq8qzEBgHN6ReLe6Yw_d_xwUdxrvlposmTeRSlSykWoF317Kt43ItR4aqrhRN0Prrt57VKgyR08zyHXQEYf1ZyIKNDKxXsGQGuorZ0QBG6N3J0RzaPcv1MtaiRTsbxuyUuBBCpDpIMsDKeTXOkyHeyNTIEug3lgzRbKAFw7KhdUJZw-i38svQjs9oSZPtky_sWB12fiKhMpFqy_NvozhvtTGqV68dICThv0MvaR2_ojrpkqyDoZ7NV9oZmFaKr7yHWr9HlcPv8gYro4U64cQT6Sv362r8538N4tRKmYMxnF0HdTbJHLIxru--dgurcI-i-bnx59ibAVi_MYRqsHoePASNGTQW6PGgxzgD8BP2e1B3Lx0pAUJ54lSdkPKQ92CAODOG2DmFIlpHB0Vlas2fuDf4PG9Xks6S13Mnvpa1cTUMl3Ehsma1JUIfqtOp73Ok5O89KvCaIcY9MYtlY_K9m8DGg8ry1pZ3KwzNZ6hii_072B8U7GIgxa2GgG6lfUgLvybTVAB8MLBzHl)
 
 ------
 
-## 5. 测试要点建议
+## 6. 测试要点建议
 
 - 迁移条件测试：7 天未访问可迁移、`MIGRATING` 记录不重复迁移
 - HBase 归档完整性：`full_data` 包含 comments/likes
