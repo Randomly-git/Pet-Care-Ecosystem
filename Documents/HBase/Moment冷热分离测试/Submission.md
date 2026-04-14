@@ -51,6 +51,8 @@
 - **DT (5条)**：深入覆盖了 HBase 写入失败、MySQL 删除死锁、幂等自愈等异常原子路径。
 - **EP/BVA (7条)**：精准捕捉了评论数（2000）与冷却时间（168h）的边界溢出错误。
 
+为了增强测试的严谨性，我们从上述模型中进一步提取了 **9 项被测覆盖项 (TCI)**，并构建了 **需求追溯矩阵 (RTM)**，确保每一行代码测试都有据可查。
+
 同时，LLM 生成了基于 **JUnit 5 + Mockito** 的自动化测试脚本，实现了对核心迁移类 `CommunityColdDataMigrationJob` 的逻辑验证。
 
 ---
@@ -58,7 +60,7 @@
 ### 4. Experimental Analysis (实验分析)
 
 #### 4.1 Accuracy and Coverage (准确性与覆盖率)
-<!-- (SUN) 此部分由负责测试用例设计覆盖率分析的同学填写 -->
+<!-- (SUN) 此部分由负责测试用例设计覆盖率分析（如 TCI 达成率、方法/分支覆盖率统计）的同学填写 -->
 
 #### 4.2 Bug Reporting and Validation by the developers (缺陷报告与验证)
 
@@ -102,3 +104,4 @@ org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected:
 ### 5. Project Report (项目总结)
 
 *(此处预留：比较 AI 测试与传统手工测试在发现复杂分布式 Bug 方面的效率差异)*
+#### 
