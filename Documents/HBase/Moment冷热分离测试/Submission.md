@@ -41,3 +41,64 @@
 - **Prompt 5: 测试用例生成 (Test Case Generation)**
 
   > "请综合上述 STT、DT 和 EP/BVA 模型，生成一组详细的黑盒测试用例。用例应涵盖全生命周期路径覆盖、异常注入测试（Fault Injection）以及负向并发保护测试。每条用例需包含：测试 ID、场景描述、前置条件、测试步骤及预期回滚/自愈行为。"
+
+---
+
+### 3. Generated Output (生成输出)
+
+基于上述提示词，LLM 成功生成了涵盖三个维度的 **21 条黑盒测试用例**（详见 `Moment冷热分离黑盒测试用例.md`）：
+- **STT (9条)**：覆盖了从数据变冷到归档、再到 MQ 异步恢复的全生命周期。
+- **DT (5条)**：深入覆盖了 HBase 写入失败、MySQL 删除死锁、幂等自愈等异常原子路径。
+- **EP/BVA (7条)**：精准捕捉了评论数（2000）与冷却时间（168h）的边界溢出错误。
+
+同时，LLM 生成了基于 **JUnit 5 + Mockito** 的自动化测试脚本，实现了对核心迁移类 `CommunityColdDataMigrationJob` 的逻辑验证。
+
+---
+
+### 4. Experimental Analysis (实验分析)
+
+#### 4.1 Accuracy and Coverage (准确性与覆盖率)
+<!-- (SUN) 此部分由负责测试用例设计覆盖率分析的同学填写 -->
+
+#### 4.2 Bug Reporting and Validation by the developers (缺陷报告与验证)
+
+在执行基于决策表建模生成的 **TC-DT-04 (幂等自愈测试)** 时，自动化测试脚本发现并证实了一个高风险逻辑缺陷：
+
+**[BUG-COLD-001] 状态机自愈逻辑被业务规则覆盖导致的“数据孤儿”风险**
+- **缺陷描述**：在 `migrateSingleMoment` 方法中，系统在事务开始阶段优先检查了业务准入规则（`last_access_time`），而没有优先判定状态机的锁定状态。
+- **触发场景**：若迁移任务在删除 MySQL 阶段崩溃，记录将保持 `MIGRATING` 状态。若此时因运维操作、系统级全量扫描或逻辑漏洞导致该记录的访问时间被更新，下次迁移任务会因其“最近被访问过”而跳过自愈。
+
+**测试失败日志（缺陷证据 - 修复前）:**
+```log
+19:48:25.312 [main] INFO ... - 【冷迁移】查询到动态: momentId=6, userId=600, status=MIGRATING, lastAccessTime=2026-04-13...
+19:48:25.312 [main] INFO ... - 【冷迁移】动态最近被访问过，跳过迁移: momentId=6, lastAccessTime=2026-04-13...
+...
+[ERROR] petcare.example.community_backend.service.CommunityColdDataMigrationJobTest.testTC_DT_04_IdempotentRecovery -- Time elapsed: 0.013 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected: <true> but was: <false>
+```
+
+- **影响评估**：该动态将由于状态为 `MIGRATING` 而对用户不可见，同时由于“变热”而无法被后台自愈逻辑处理，最终沦为永久无法访问且无法归档的“僵尸数据”。
+- **修复方案**：调整 `migrateSingleMoment` 方法的逻辑顺序，将 `MIGRATING` 状态的检查（自愈路径）优先级提升至业务规则判定（冷热检查）之前。
+
+**验证结果**：
+开发团队应用修复补丁后，重新运行自动化测试脚本。结果显示 `testTC_DT_04_IdempotentRecovery` 成功忽略了“热点时间戳”的干扰，正确触发了幂等清理逻辑。所有 9 个核心单元测试全部通过。
+
+**测试执行日志摘要 (2026-04-14 11:14):**
+```log
+...
+11:14:25.579 [main] INFO ... - 【冷迁移】检测到上次迁移失败的遗留数据，继续迁移: momentId=6
+11:14:25.579 [main] INFO ... - 【冷迁移】HBase 中已存在数据（幂等跳过）: momentId=6
+11:14:25.579 [main] INFO ... - 【冷迁移】开始删除MySQL数据: momentId=6
+...
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.094 s
+[INFO] BUILD SUCCESS
+```
+
+#### 4.3 Refining Prompts for Accuracy (提示词迭代改进)
+<!-- (SUN) 此部分由负责 Prompt 优化策略分析的同学填写 -->
+
+---
+
+### 5. Project Report (项目总结)
+
+*(此处预留：比较 AI 测试与传统手工测试在发现复杂分布式 Bug 方面的效率差异)*

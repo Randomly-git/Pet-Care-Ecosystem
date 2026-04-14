@@ -231,21 +231,19 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         log.info("【冷迁移】查询到动态: momentId={}, userId={}, status={}, lastAccessTime={}",
                 momentId, userId, currentStatus, moment.getLastAccessTime());
 
-        // ========== 步骤 1：在状态改变之前检查 lastAccessTime ==========
-        // 如果用户最近访问过（lastAccessTime 被更新），则不进行迁移
-        // 这个检查必须在状态改变之前，确保迁移开始前一刻数据仍然是冷的
-        LocalDateTime coldThreshold = LocalDateTime.now().minusDays(7);
-        if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(coldThreshold)) {
-            log.info("【冷迁移】动态最近被访问过，跳过迁移: momentId={}, lastAccessTime={}",
-                    momentId, moment.getLastAccessTime());
-            return false;
-        }
-
-        // ========== 步骤 1.5：状态机锁定 ==========
+        // ========== 步骤 1：状态机锁定与自愈判定 ==========
         // 如果状态已经是 MIGRATING，说明是上次迁移失败遗留的数据，直接继续执行迁移
         // 如果状态是 NONE，尝试获取锁
         boolean isResumingFromFailure = "MIGRATING".equals(currentStatus);
         if (!isResumingFromFailure) {
+            // 1.1 准入检查：只有 NONE 状态需要检查冷热规则
+            LocalDateTime coldThreshold = LocalDateTime.now().minusDays(7);
+            if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(coldThreshold)) {
+                log.info("【冷迁移】动态属于热数据，跳过迁移: momentId={}, lastAccessTime={}",
+                        momentId, moment.getLastAccessTime());
+                return false;
+            }
+
             // 使用乐观锁：只有状态为 NONE 时才能设置为 MIGRATING
             int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
             log.info("【冷迁移】尝试获取锁: momentId={}, updated={}", momentId, updated);
@@ -260,9 +258,10 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         // 状态已经锁定为 MIGRATING，后续步骤中即使 lastAccessTime 变化也不检查了
         // 因为状态锁定本身就表示"我正在处理这个"，不应该被用户访问打断
 
-        // ========== 步骤 2：检查评论数量阈值 ==========
+        // ========== 步骤 2：数据特征检查（仅针对新迁移） ==========
         List<Comment> comments = commentRepository.findByMomentIdOrderByCreatedAtAsc(momentId);
-        if (comments.size() > MAX_COMMENT_THRESHOLD) {
+        // 如果是自愈模式，我们无视评论数限制，因为数据可能已经部分迁移至 HBase
+        if (!isResumingFromFailure && comments.size() > MAX_COMMENT_THRESHOLD) {
             log.info("【冷迁移】动态评论数超过阈值，跳过迁移: momentId={}, commentCount={}, threshold={}",
                     momentId, comments.size(), MAX_COMMENT_THRESHOLD);
             // 恢复状态
