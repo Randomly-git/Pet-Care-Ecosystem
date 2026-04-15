@@ -49,7 +49,7 @@ public class MomentService {
         List<MomentResponseDTO> result = new ArrayList<>();
 
         // 1. 查询 MySQL（热数据）
-        List<PetMoment> mysqlMoments = momentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<PetMoment> mysqlMoments = momentRepository.findByUserIdAndAuditStatusOrderByCreatedAtDesc(userId, "APPROVED");
         log.debug("查询MySQL动态: userId={}, count={}", userId, mysqlMoments.size());
 
         if (mysqlMoments.isEmpty()) {
@@ -131,7 +131,7 @@ public class MomentService {
      */
     public List<MomentResponseDTO> getAllMomentsWithPagination(Pageable pageable) {
         // 1. 查询数据库获取分页的动态实体
-        Page<PetMoment> momentPage = momentRepository.findAllByOrderByCreatedAtDesc(pageable);
+        Page<PetMoment> momentPage = momentRepository.findAllByAuditStatusOrderByCreatedAtDesc("APPROVED", pageable);
         List<PetMoment> moments = momentPage.getContent();
 
         if (!moments.isEmpty()) {
@@ -239,7 +239,7 @@ public class MomentService {
      * 创建动态
      * 不再接收文件，而是接收媒体ID列表，并调用媒体服务进行批量关联。
      */
-    @Transactional(rollbackFor = Exception.class)
+    /*@Transactional(rollbackFor = Exception.class)
     public PetMoment createMoment(PetMoment moment, List<Long> mediaIds) {
         // 1. 保存动态主体，获取真实 ID
         PetMoment savedMoment = momentRepository.save(moment);
@@ -250,6 +250,19 @@ public class MomentService {
             mediaServiceFacade.batchUpdateRelatedId(mediaIds, "MOMENT", momentId);
         }
 
+        return savedMoment;
+    }*/
+    @Transactional(rollbackFor = Exception.class)
+    public PetMoment createMoment(PetMoment moment, List<Long> mediaIds) {
+        // 【一致性保障】强制初始状态为审核中
+        moment.setAuditStatus("PENDING"); 
+        
+        PetMoment savedMoment = momentRepository.save(moment);
+        Long momentId = savedMoment.getId();
+
+        if (mediaIds != null && !mediaIds.isEmpty()) {
+            mediaServiceFacade.batchUpdateRelatedId(mediaIds, "MOMENT", momentId);
+        }
         return savedMoment;
     }
 
@@ -466,5 +479,46 @@ public class MomentService {
         }
 
         return dto;
+    }
+
+    // ==================== 审核流状态机操作 ====================
+
+    /**
+     * 审核通过
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean approveMoment(Long momentId) {
+        log.info("【内容审核】尝试通过动态: momentId={}", momentId);
+        // 使用 CAS 乐观锁：只允许从 PENDING 改为 APPROVED
+        int updated = momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED");
+        
+        if (updated == 0) {
+            // 幂等性拦截：如果返回 0，说明要么帖子不存在，要么已经被别的管理员点过通过了
+            log.warn("【内容审核】动态已被处理或不存在，幂等拦截: momentId={}", momentId);
+            throw new IllegalStateException("该动态已被处理，请勿重复操作");
+        }
+        return true;
+    }
+
+    /**
+     * 审核拒绝
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public boolean rejectMoment(Long momentId) {
+        log.info("【内容审核】尝试拒绝动态: momentId={}", momentId);
+        int updated = momentRepository.updateAuditStatus(momentId, "PENDING", "REJECTED");
+        
+        if (updated == 0) {
+            throw new IllegalStateException("该动态已被处理，请勿重复操作");
+        }
+        return true;
+    }
+
+    /**
+     * 获取待审核列表（给管理员用）
+     */
+    public List<MomentResponseDTO> getPendingMoments(Pageable pageable) {
+        Page<PetMoment> pendingPage = momentRepository.findAllByAuditStatusOrderByCreatedAtDesc("PENDING", pageable);
+        return buildMomentDTOList(pendingPage.getContent());
     }
 }

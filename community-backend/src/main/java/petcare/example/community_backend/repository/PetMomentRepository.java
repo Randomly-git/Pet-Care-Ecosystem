@@ -97,4 +97,21 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
      * @return 动态列表
      */
     List<PetMoment> findByMigrationStatus(String status);
+
+    // ==================== 审核流相关方法 (一致性与幂等性保障) ====================
+
+    /**
+     * 1. 列表查询隔离：只查询“已通过 (APPROVED)”的动态（用于普通用户）
+     */
+    List<PetMoment> findByUserIdAndAuditStatusOrderByCreatedAtDesc(Long userId, String auditStatus);
+
+    Page<PetMoment> findAllByAuditStatusOrderByCreatedAtDesc(String auditStatus, Pageable pageable);
+
+    /**
+     * 2. 状态机 CAS 原子更新（幂等性保障）
+     * 只有当当前状态等于 expectedStatus 时，才更新为 newStatus
+     */
+    @Modifying
+    @Query("UPDATE PetMoment m SET m.auditStatus = :newStatus WHERE m.id = :id AND m.auditStatus = :expectedStatus")
+    int updateAuditStatus(@Param("id") Long id, @Param("expectedStatus") String expectedStatus, @Param("newStatus") String newStatus);
 }

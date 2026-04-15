@@ -64,4 +64,13 @@ public class PetMoment {
         this.userId = userId;
         this.content = content;
     }
+
+    // ==================== 审核流字段 ====================
+
+    /**
+     * 审核状态: PENDING(审核中) / APPROVED(已通过) / REJECTED(已拒绝)
+     * 默认状态为 PENDING，外界不可见
+     */
+    @Column(name = "audit_status", length = 20)
+    private String auditStatus = "PENDING";
 }
