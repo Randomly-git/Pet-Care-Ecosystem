@@ -160,22 +160,39 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
                 .collect(Collectors.toList());
 
         for (Long momentId : momentIds) {
-            // 使用 TransactionTemplate 为每个动态的迁移创建独立事务
-            // PROPAGATION_REQUIRES_NEW 确保每个迁移在独立事务中执行
-            // 这样即使某个迁移失败，也不会影响其他迁移和外层事务
+            // 1. 获取迁移锁 (NONE -> MIGRATING) 
+            // 此操作不应在主数据事务中，确保锁定状态在出错时不会被回滚
+            PetMoment moment = momentRepository.findById(momentId).orElse(null);
+            if (moment == null) continue;
+
+            boolean isLocked = "MIGRATING".equals(moment.getMigrationStatus());
+            if (!isLocked) {
+                int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
+                isLocked = updated > 0;
+            }
+
+            if (!isLocked) {
+                log.warn("【冷迁移】无法获取迁移锁，跳过: momentId={}", momentId);
+                stats.incrementSkipped();
+                continue;
+            }
+
+            // 2. 执行数据搬运事务
             Boolean success = newTransactionTemplate.execute(status -> {
                 try {
                     return migrateSingleMoment(momentId);
                 } catch (Exception e) {
-                    log.error("【冷迁移】迁移动态失败: momentId={}, error={}", momentId, e.getMessage(), e);
+                    log.error("【冷迁移】数据搬运事务异常，记录将保持 MIGRATING 状态等待自愈: momentId={}, error={}", 
+                            momentId, e.getMessage());
                     status.setRollbackOnly();
-                    return false;
+                    stats.incrementFailed(); // 明确增加失败计数
+                    return null; // 返回 null 以区分业务跳过和异常失败
                 }
             });
 
             if (Boolean.TRUE.equals(success)) {
                 stats.incrementSuccess();
-            } else {
+            } else if (success != null) { // 只有在业务返回 false (跳过) 时增加 skipped
                 stats.incrementSkipped();
             }
         }
@@ -218,7 +235,7 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
      * 6. 写入 HBase
      * 7. 删除 MySQL 数据
      */
-    @Transactional
+    // 注意：此方法现在由 executeMigration 中的 newTransactionTemplate 调用
     public boolean migrateSingleMoment(Long momentId) {
         log.info("【冷迁移】开始处理动态: momentId={}", momentId);
 
@@ -240,34 +257,26 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         // 如果状态已经是 MIGRATING，说明是上次迁移失败遗留的数据，直接继续执行迁移
         // 如果状态是 NONE，尝试获取锁
         boolean isResumingFromFailure = "MIGRATING".equals(currentStatus);
-        if (!isResumingFromFailure) {
-            // 1.0 审核状态安全性检查：严禁迁移 PENDING 状态的动态
-            if ("PENDING".equals(auditStatus)) {
-                log.warn("【冷迁移】动态审核状态为 PENDING，严禁迁移: momentId={}", momentId);
-                return false;
-            }
 
-            // 1.1 再次校验准入规则 (防止在扫描和执行之间的间隙数据变热)
-            int daysLimit = "REJECTED".equals(auditStatus)
-                ? hBaseProperties.getColdData().getCommunity().getRejectedDaysThreshold()
-                : hBaseProperties.getColdData().getCommunity().getApprovedDaysThreshold();
-            LocalDateTime threshold = LocalDateTime.now().minusDays(daysLimit);
+        // 1.0 审核状态安全性检查：严禁迁移 PENDING 状态的动态
+        if ("PENDING".equals(auditStatus)) {
+            log.warn("【冷迁移】动态审核状态为 PENDING，严禁迁移: momentId={}", momentId);
+            // 业务拒绝，应释放锁
+            momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+            return false;
+        }
 
-            if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(threshold)) {
-                log.info("【冷迁移】动态属于热数据，跳过迁移: momentId={}, lastAccessTime={}",
-                        momentId, moment.getLastAccessTime());
-                return false;
-            }
+        // 1.1 再次校验准入规则
+        int daysLimit = "REJECTED".equals(auditStatus)
+            ? hBaseProperties.getColdData().getCommunity().getRejectedDaysThreshold()
+            : hBaseProperties.getColdData().getCommunity().getApprovedDaysThreshold();
+        LocalDateTime threshold = LocalDateTime.now().minusDays(daysLimit);
 
-            // 使用乐观锁：只有状态为 NONE 时才能设置为 MIGRATING
-            int updated = momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING");
-            log.info("【冷迁移】尝试获取锁: momentId={}, updated={}", momentId, updated);
-            if (updated == 0) {
-                log.warn("【冷迁移】动态状态不是 NONE 或 MIGRATING，跳过: momentId={}, status={}", momentId, currentStatus);
-                return false;
-            }
-        } else {
-            log.info("【冷迁移】检测到上次迁移失败的遗留数据，继续迁移: momentId={}", momentId);
+        if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(threshold)) {
+            log.info("【冷迁移】动态属于热数据，跳过迁移并释放锁: momentId={}, lastAccessTime={}",
+                    momentId, moment.getLastAccessTime());
+            momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+            return false;
         }
 
         // 状态已经锁定为 MIGRATING，后续步骤中即使 lastAccessTime 变化也不检查了
@@ -384,9 +393,7 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
 
             // 验证 HBase 写入成功
             if (!hBaseService.exists(userId, momentId)) {
-                log.error("【冷迁移】HBase写入验证失败: momentId={}", momentId);
-                // 恢复状态
-                momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE");
+                log.error("【冷迁移】HBase写入验证失败，抛出异常以回滚数据操作: momentId={}", momentId);
                 throw new RuntimeException("HBase写入验证失败");
             }
             log.debug("【冷迁移】HBase写入验证通过: momentId={}", momentId);
