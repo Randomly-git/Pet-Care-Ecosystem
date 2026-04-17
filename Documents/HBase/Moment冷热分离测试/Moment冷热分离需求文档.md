@@ -182,15 +182,12 @@
 @startuml
 left to right direction
 skinparam state {
-  BackgroundColor White
   BackgroundColor<<active>> #F0F8FF
   BackgroundColor<<archive>> #F5F5F5
   BorderColor Black
   FontSize 11
 }
 
-state ACTIVE as "ACTIVE (NONE)" {
-    ACTIVE: do / join comments+likes
 state ACTIVE as "ACTIVE (NONE)" <<active>> {
     state PENDING : do / wait for admin audit
     state APPROVED : entry / set public visibility\ndo / allow user interactions
@@ -205,66 +202,39 @@ state ACTIVE as "ACTIVE (NONE)" <<active>> {
 }
 
 state MIGRATING as "MIGRATING" {
-    MIGRATING: do / deny accessing and modifying 
     MIGRATING : entry / acquire migration lock (CAS)
     MIGRATING : do / compress and write to HBase\ndo / validate HBase data integrity
     MIGRATING : exit / release lock (on failure)
 }
 
-state COLD as "COLD (ARCHIVED)" {
-    COLD: data exists in HBase only
 state COLD as "COLD (ARCHIVED)" <<archive>> {
     COLD : do / data exists in HBase only
 }
 
-[*] --> ACTIVE
 [*] --> ACTIVE : createMoment / set audit_status = 'PENDING'
 
 ' --- 迁移逻辑 (Migration Job) ---
-ACTIVE --> MIGRATING : scan[last_access > 7d] / \n update status to MIGRATING
 APPROVED --> MIGRATING : scheduledScan [last_access > 7d] / startMigration
 REJECTED --> MIGRATING : scheduledScan [last_access > 3d] / startMigration
 
-MIGRATING --> ACTIVE : check_popularity[comments ≥ 2000] / \n rollback status to NONE
-
-MIGRATING --> ACTIVE : migration_failed / \n rollback status to NONE
-
-MIGRATING --> COLD : HBase write success && \n MySQL delete success
 MIGRATING --> ACTIVE : thresholdExceeded [comments > 2000] / rollbackStatus
-MIGRATING --> ACTIVE : migrationFailure [exception_occurred] / logError & rollbackStatus
 MIGRATING --> COLD : migrationSuccess [HBase_exists && MySQL_deleted] / commitTransaction
 
 ' --- 业务请求拦截 ---
-MIGRATING --> MIGRATING : 评论/点赞/修改 / \n **REJECT (Business Exception)**
 MIGRATING --> MIGRATING : userAction [any_modifying_request] / throw BusinessException
 
 ' --- 恢复逻辑 (Restore Consumer) ---
-COLD --> ACTIVE : user query[trigger restore event] / \n 1. HBase read\n 2. MySQL native insert\n 3. HBase delete(after commit)
 COLD --> ACTIVE : userActivation [trigger restore] / restoreMySQL & deleteHBase
 
 ' --- 删除逻辑 ---
-ACTIVE --> [*] : user delete / delete from MySQL \n and send cleanup event to HBase
-
 PENDING --> [*] : userDelete / deleteMySQL
 APPROVED --> [*] : userDelete / deleteMySQL & cleanupHBase (if migrating)
 REJECTED --> [*] : userDelete / deleteMySQL
 COLD --> [*] : userDelete / publish DELETE_FROM_COLD event
-
-note top of MIGRATING
-  State machine lock:
-  Prevents concurrent access
-  during migration.
-end note
-
-note bottom of COLD
-  Flattened storage:
-  Comments and likes are
-  serialized in full_data.
-end note
 @enduml
 ```
 
-![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/dLPVRnj547-_Jp4gKc87fKrR8L3LHdKSkt_K_C59ouDRMPkxiRtDtgwxkvVKHKYqug60U43Y1HuGe08I3wruG50gqU-2sZJz5kpkZRrkt2WAicJjxSxyVlERdPcxYyOoROjS90Ax5gm2pNjz2ndNc5gkP6AskHmmpN9mfXRXumHWYQNRFQqAcTMLK1e-wdEBq_ldppE7iOEBY_1ESw7vGRFvLXkTzaT6x_cVDr8wGrs2BmdduVQQIjeDVW_XzEdaaoGfewdLDw_SQ00pS8AMbTMrrKRrH8WJwFmSP0fEmMt59QGgpr5QywxWssYEX8aQ2B5qM6-iBbzPlGI4lCkuXQxImBBSSR0YutR2khQ-tbgxqLXsvevQ3vs7GGk3Oalm57QuuLjSS3kyAGCQ4qBjGc5G0vSMDGitOIO0MushZVhc520hR5_fUIN5S08r2OxjkLimFxyuYZpiqJhinnXB4RN1GAiTX7REUvhv03gUkp1muGBC-kpCtdAqKbdU7LvtiHv4Z44IOWjlOsgF2UZ_OcmEDgO-PEZw86Fso2ZxFCEcLlbwo7Z0fEZ-FwP6WxRcRteZdCQYNBbogLNRT7YXeCPFL9Fnc8edGpa4bgPe39SzO3A3N6Kk2VxfJOzutyxXJi4rmZX842hTXagzjb6TSWeyhl87sf44XbtDBVf-lxp435BXxJ31W_Im2Mx9GWNsdF5mEfAxt8Oy27JMHE_Yw38k2etLc93wshNba8kmgDHQzSkknvR7NUgtpmKw3sgiSQmKWw_b8r4cXqX49Ds7u_e0gIre0XnuT0YfHiUzelpCe2uBtJqk2PYbufbDabddEm_xp--_-lNPwq-VxV_pDLHMnlTpLMrLlK52u9vdCfycPR8jcB6TiXXW4TxFVANTb52K9KcaLaN793R755uViq9Wjk60uQt8OVgF8qoe9uu9TVPjK4bqVpEVVKotEmCrA0JpLTKUpMFuz_EVuSp2mW8frag8BJVv9pJxrZiKE3Qhhp_CZeL2vH9AWrh35AM-cHcFipBS-F0QP2Wm7XqMYUrhD7qbiiRT535peKIHYsE9eyXeU1obgbas5RJHWGw2JfMcXTOOiYzKhw6rqZ1pE70K6c4tI6KxIEzGbpZDGN2d51mOl0HkDpMJfdmVZShznL_VlVpYn_qdV-xz_c3lor_s7lxcjoFlL37jF_bi__7VfruzUBh_n_UdNZn_lFVDq_AsvkRA2eJAKc6uz84rHdAhStE7OTBOheMmeCtai3CUe1sDTmeqrakmVQrsOGHDo578tlsVNZxwQjItBUUaD49TILFagClM3VcBDqJCu2Zqi6qrx_NSaoPNt45fgPnFdwJgqiWoztpc9DMKPFxp0hXqEDOTd2L3AhOAwrhKbFtg57zKliE2-eD1U7fQbdmp11n8Hj9VFlpXzRUFIFg14UL68j6GfqEaHLUhd6IuoFrhnQ3xImKoMGnA_RxbY8i6vG7KvJT10rmSQaVREaL4MEQjmhkZ-fQzQfnfHoE5x1vc5pxMJ1-M6zSQcurEixMsqWdsGMMII1NUfmDGtOdX3E3R425dQP_ByYLvpkskw-1c85KoTB6qz0dW3hD2kz1ZavvCV5Oz0T5iAMjLxfby1CwZAPYrA343VzEiXvwZJaCdN4pusWMcqHquMPm9Vi-PSmdTGeYEVqTEq5nqgo8N_m40)
+![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/dLL1Rnj55BxlhtWAKcmZHKr128JQg8wzRbF5IR3TNanbJNQUxI6pC-xCh5E3a2Yd2iI18vm0LI1nGPn0gWH_XeJqNp3pFDvkv4XHKALgCddl-xxtlMyszwnZnXMvJ2IE7JWDHaoc3hWmc3cXLM9FX9enmtBmfGxXimHWbsKd4wCBnLjQQdFd3lErSzpPWRSwsvqFEfqhQqmsNHMz5_w58cqu6Yg0NUax_5r7AzSNdoBSlfrydYHBrcPhiFSu1MPX8nxh1uS7QMC3AkH16aIPH-b1U-_WFdm8NCCjE6N2mTYpC9uB1QpWmbMgcqT7lSF7QTkNet9cuJiiEfWLnr9aC1TM70iftE9ZHMXCIdqAXKK3GZaqZAoo5S1U-Z1j3TO0MU6cscnf9HSLr8GQXsy_WQsjdPLokejdkgzef26QivdHSuHXBYQ61G6Zm5rOk7iNQi6TsXDFgxGJuyKZhtKDiIAI47lu2MRkXe3qNwajm9RMaqEFPfovQrLE1SUEqVaHEKwOKTt_npHeqJN3fllqspTfwkxTxpK77ey2LVwq4HDKNbIsnxAdXJ089IL8dPr0lTNiDzQQA2IPpcTUWWMcE9mQuNcTXWUxp6ACqPn9GOFG9VWZepnDVF5YNSapuMWgYRuwqdiTOoPaOR3nPhpMuNwR9gD3lTbhFTZpow77Khx2E2kLHCKamDDOPxsEg2faDK37UCQNw5ioWvwigtDKheotDxlS1TJYrcf9KlEzMt3nz_D_Vtdr-ejN5tzz2_LkQUL3VTm81KarHvU6jzaKUI6HzpEcO2YPTIEMPS7U7NYVXtNJbwp4J69yRWZrxbLGITb-sG4tDMYdMlBqMOR8aSFGBptu4Q3UsTxUfXXgAOzPTX93U1ahsb-cgbyibGp9_55SnkOcT1VzZ_P772Kw98s1IRY1OSekFpyha__vy_kphtwy-EsFyz-_FF_wv_CNluRhAc_LaFYYcWG1GwOMernp_y25cemCFYtGka3dPzMdi5jOeRo-CF2iIdh-_AUpbz-iDjlpJTeWjBIoHOvckLoQjMfWoJndItPdn6I21iooF_368uqFcx0qWCnPKP-z-E7rToyZTU2fVk9yQYDFcphXLeGWm39lrzOIUIQHgM96x50NuzNQrAHHYTlrhD68A-leJuwTGZlTJmVfgDCxx8we7kUeN78F5Izo-Hy0)
 
 ------
 
