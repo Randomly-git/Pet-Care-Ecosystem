@@ -90,44 +90,16 @@ public class MomentController {
                 requestDTO.getUserId(), requestDTO.getMediaIds());
 
         try {
-            // 1. 手动 DTO 转换为 Moment 实体
+            // 统一委托给 Service 处理，确保 auditStatus 和媒体关联逻辑一致
             PetMoment momentEntity = new PetMoment();
             momentEntity.setUserId(requestDTO.getUserId());
             momentEntity.setContent(requestDTO.getContent());
-
-            // 2. 直接保存到数据库
-            PetMoment savedEntity = momentRepository.save(momentEntity);
-
-            long saveEndTime = System.currentTimeMillis();
-            log.info("【性能监控】动态保存完成，动态ID: {}, 耗时: {}ms",
-                    savedEntity.getId(), (saveEndTime - startTime));
-
-            // 3. 使用 MQ 异步关联媒体文件
-            if (requestDTO.getMediaIds() != null && !requestDTO.getMediaIds().isEmpty()) {
-                try {
-                    // 通过 MQ 发送媒体关联事件
-                    mediaEventPublisher.publishCommunityMediaBindEvent(
-                            savedEntity.getId(),
-                            requestDTO.getMediaIds(),
-                            requestDTO.getUserId()
-                    );
-                    log.info("【性能监控】媒体关联消息已发送，动态ID: {}", savedEntity.getId());
-                } catch (Exception e) {
-                    log.error("【MQ】发送媒体关联消息失败，动态ID: {}, error: {}",
-                            savedEntity.getId(), e.getMessage());
-                    // MQ 发送失败不影响动态创建成功
-                }
-            }
-
-            // 4. 将保存后的 Entity 转换回 Response DTO 返回
-            MomentResponseDTO responseDTO = new MomentResponseDTO();
-            responseDTO.setId(savedEntity.getId());
-            responseDTO.setUserId(savedEntity.getUserId());
-            responseDTO.setContent(savedEntity.getContent());
-            responseDTO.setCreatedAt(savedEntity.getCreatedAt());
-            responseDTO.setMediaUrls(new java.util.ArrayList<>());
-            responseDTO.setLikeCount(0);
-            responseDTO.setCommentCount(0);
+            
+            PetMoment saved = momentService.createMoment(momentEntity, requestDTO.getMediaIds());
+            
+            // 转换返回对象
+            MomentResponseDTO responseDTO = momentService.getMomentById(saved.getId(), saved.getUserId())
+                    .orElseThrow(() -> new RuntimeException("创建成功但查询失败"));
 
             long endTime = System.currentTimeMillis();
             log.info("【性能监控】创建社区动态总耗时: {}ms", (endTime - startTime));
@@ -138,6 +110,27 @@ public class MomentController {
             log.error("创建动态失败: " + e.getMessage());
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * PUT /api/v1/moments/{momentId}
+     * 修改动态内容
+     */
+    @PutMapping("/{momentId}")
+    @Operation(summary = "修改动态", description = "修改已发布的动态内容，修改后将重新进入审核状态。")
+    public ResponseEntity<MomentResponseDTO> updateMoment(
+            @PathVariable Long momentId,
+            @Valid @RequestBody MomentCreateRequestDTO requestDTO) {
+        
+        log.info("【API】修改动态请求: momentId={}, userId={}", momentId, requestDTO.getUserId());
+        
+        MomentResponseDTO updated = momentService.updateMoment(
+                momentId, 
+                requestDTO.getUserId(), 
+                requestDTO.getContent(), 
+                requestDTO.getMediaIds());
+        
+        return ResponseEntity.ok(updated);
     }
 
     /**

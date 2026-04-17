@@ -2,7 +2,7 @@
 
 | 当前状态            | 输入事件        | 约束条件 (Guard)                 | 目标状态            | 动作 / 输出 (Action)                   | 对应 ID |
 | ------------------- | --------------- | -------------------------------- | ------------------- | -------------------------------------- | ------- |
-| **ACTIVE (NONE)**   | 定时任务扫描    | `last_access > 7d`               | **MIGRATING**       | 原子更新 `migration_status`            | M-1     |
+| **ACTIVE (NONE)**   | 定时任务扫描    | `(APPROVED & >7d) \| (REJECTED & >3d)` | **MIGRATING**       | 原子更新 `migration_status`            | M-1     |
 | **ACTIVE (NONE)**   | 用户删除        | 鉴权通过                         | **[TERMINATED]**    | 从 MySQL 物理删除                      | -       |
 | **ACTIVE (NONE)**   | 正常查询/互动   | 状态为 NONE                      | **ACTIVE (NONE)**   | 更新 `last_access_time`                | M-3A    |
 | **MIGRATING**       | 评论数检查      | `comments > 2000`                | **ACTIVE (NONE)**   | 回滚状态至 NONE                        | M-2     |
@@ -20,7 +20,7 @@
 
 ### 2.1. 条件定义 (Conditions)
 
-- **C1**: 动态是否为冷数据 (`last_access > 7d`)
+- **C1**: 符合准入条件 (`APP`&>7d 或 `REJ`&>3d)
 - **C2**: 当前迁移状态 (`NONE` / `MIGRATING` / 其他)
 - **C3**: 评论数是否在阈值内 (`comments <= 2000`)
 - **C4**: HBase 存储结果 (成功或已存在 / 失败)

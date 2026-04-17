@@ -34,11 +34,15 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
     // ==================== 冷热分离查询方法 ====================
 
     /**
-     * 查询需要迁移的记录（超过指定天数未访问且未开始迁移）
+     * 查询符合准入条件的记录：
+     * 1. APPROVED 且超过 approvedThreshold 未访问
+     * 2. REJECTED 且超过 rejectedThreshold 未访问
      */
-    @Query("SELECT m FROM PetMoment m WHERE m.lastAccessTime < :threshold " +
-           "AND (m.migrationStatus IS NULL OR m.migrationStatus = 'NONE')")
-    Page<PetMoment> findRecordsToMigrate(@Param("threshold") LocalDateTime threshold, Pageable pageable);
+    @Query("SELECT m FROM PetMoment m WHERE (m.migrationStatus IS NULL OR m.migrationStatus = 'NONE') AND (" +
+           "(m.auditStatus = 'APPROVED' AND m.lastAccessTime < :approvedThreshold) OR " +
+           "(m.auditStatus = 'REJECTED' AND m.lastAccessTime < :rejectedThreshold))")
+    List<PetMoment> findEligibleRecordsForMigration(@Param("approvedThreshold") LocalDateTime approvedThreshold, 
+                                                   @Param("rejectedThreshold") LocalDateTime rejectedThreshold);
 
     /**
      * 查询迁移中的记录
@@ -47,11 +51,13 @@ public interface PetMomentRepository extends JpaRepository<PetMoment, Long> {
     Page<PetMoment> findMigratingRecords(Pageable pageable);
 
     /**
-     * 统计待迁移记录数
+     * 统计符合准入条件的待迁移记录数
      */
-    @Query("SELECT COUNT(m) FROM PetMoment m WHERE m.migrationStatus = 'NONE' " +
-           "AND m.lastAccessTime < :threshold")
-    long countPendingMigrationRecords(@Param("threshold") LocalDateTime threshold);
+    @Query("SELECT COUNT(m) FROM PetMoment m WHERE (m.migrationStatus IS NULL OR m.migrationStatus = 'NONE') AND (" +
+           "(m.auditStatus = 'APPROVED' AND m.lastAccessTime < :approvedThreshold) OR " +
+           "(m.auditStatus = 'REJECTED' AND m.lastAccessTime < :rejectedThreshold))")
+    long countPendingMigrationRecords(@Param("approvedThreshold") LocalDateTime approvedThreshold, 
+                                     @Param("rejectedThreshold") LocalDateTime rejectedThreshold);
 
     /**
      * 统计迁移中记录数

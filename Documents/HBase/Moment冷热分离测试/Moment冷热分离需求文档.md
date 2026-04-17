@@ -9,14 +9,23 @@
 
 ## 2. 迁移规则
 
-- 条件：`last_access_time` 7天未访问 / `migration_status = NONE`
+- 条件：
+  1. `migration_status = 'NONE'`
+  2. audit_status = 'APPROVED' 且 last_access_time > 7天未访问
+  3. 或：audit_status = 'REJECTED' 且 last_access_time > 3天未访问
+  4. audit_status = 'PENDING' (审核中) 的动态严禁移入冷库。
 - 过程：
   1. 定时任务扫描符合条件的 MySQL 动态
-  2. 将状态标记为 `MIGRATING`
-  3. 读取动态、评论、点赞、媒体、用户信息
-  4. 构建 [ColdArchiveData](vscode-file://vscode-app/e:/Microsoft VS Code/e7fb5e96c0/resources/app/out/vs/code/electron-browser/workbench/workbench.html)，压缩写入 HBase
-  5. 验证 HBase 写入
-  6. 删除 MySQL 中动态、评论、点赞
+  2. 尝试获取迁移锁：将 migration_status 原子性改为 MIGRATING
+  3. 二次校验：确保 audit_status 仍符合上述 2、3 条规则
+  4. 读取动态、评论、点赞、媒体、用户信息
+  5. 构建 ColdArchiveData，压缩写入 HBase
+  6. 验证 HBase 写入
+  7. 删除 MySQL 中动态、评论、点赞
+
+## 2.1 活跃度维护准则
+- **审计隔离**：管理员进行的审核（Audit）、巡检查看等后台操作，**不得**触发 `last_access_time` 的更新。
+- **用户触发**：该字段仅由普通用户侧的详情查看、点赞、评论等互动行为触发更新。
 
 ## 3. 恢复规则
 
@@ -39,8 +48,8 @@
 | **编号**       | M-1                                                          |
 | **简述**       | 定时任务扫描冷动态并迁移至 HBase，同时删除 MySQL 数据        |
 | **执行者**     | 系统定时任务                                                 |
-| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 动态 `last_access_time` 超过 7 天<br>3. 动态评论数 ≤ 阈值（默认 2000） |
-| **基本事件流** | 1. 定时任务扫描满足条件的动态<br>2. 系统尝试将 `migration_status` 原子改为 `MIGRATING`（CAS 操作）<br>3. 查询动态、评论、点赞数据<br>4. 构建扁平化冷存档数据（JSON），包含评论+点赞<br>5. 使用 GZIP 压缩存入 HBase<br>6. 验证 HBase 存在性检查<br>7. 删除 MySQL 中的动态、评论、点赞（按外键顺序）<br>8. 执行 flush() 确保 MySQL 删除完成 |
+| **前置条件**   | 1. 动态 `migration_status = 'NONE'`<br>2. 审核状态为 APPROVED 且超过 7 天未访问，或 REJECTED 且超过 3 天未访问<br>3. 动态评论数 ≤ 阈值（默认 2000） |
+| **基本事件流** | 1. 定时任务扫描满足条件的动态<br>2. 系统尝试将 `migration_status` 原子改为 `MIGRATING`（CAS 操作）<br>3. 二次校验：再次检查 audit_status 逻辑<br>4. 查询动态、评论、点赞数据<br>5. 构建扁平化冷存档数据（JSON），包含评论+点赞<br>6. 使用 GZIP 压缩存入 HBase<br>7. 验证 HBase 存在性检查<br>8. 删除 MySQL 中的动态、评论、点赞（按外键顺序）<br>9. 执行 flush() 确保 MySQL 删除完成 |
 | **扩展事件流** | **E1-HBase 写入失败**：<br> - 验证失败时抛异常<br> - 回滚当前事务<br> - `migration_status` 保持 `MIGRATING`<br> - 下次扫描重新迁移<br><br>**E2-MySQL 删除失败**：<br> - 删除失败时验证失败抛异常<br> - 回滚当前事务<br> - `migration_status` 保持 `MIGRATING`<br> - 下次扫描重试时 HBase 通过 [exists()](vscode-file://vscode-app/e:/Microsoft VS Code/e7fb5e96c0/resources/app/out/vs/code/electron-browser/workbench/workbench.html) 幂等跳过，直接删除 |
 | **后置条件**   | 1. HBase 中存在该动态的冷归档数据<br>2. MySQL 中该动态及所有相关评论、点赞已删除<br>3. 动态记录不再出现在热库中 |
 
@@ -142,6 +151,31 @@
 | **扩展事件流** | **E1-HBase 不存在**：<br> - 返回 404 Not Found<br><br>**E2-HBase 读取异常**：<br> - 记录日志，返回错误 |
 | **后置条件**   | 1. 用户看到冷动态数据<br>2. 可选：触发异步恢复流程           |
 
+------
+
+### M-8: 管理员审核动态 (CAS 锁定)
+
+| 项目           | 内容                                                         |
+| -------------- | ------------------------------------------------------------ |
+| **编号**       | M-8                                                          |
+| **简述**       | 管理员对 PENDING 动态进行审核，确保幂等性与数据一致性        |
+| **前置条件**   | 动态处于 `NONE` 状态且 `audit_status = 'PENDING'`            |
+| **基本事件流** | 1. 管理员调用审核接口（Approve/Reject）<br>2. 系统使用 CAS 乐观锁尝试更新：`WHERE audit_status = 'PENDING'`<br>3. 更新成功后，该动态可被用户查看（若通过）或进入冷迁移队列 |
+| **后置条件**   | 1. `audit_status` 更新为目标状态<br>2. 管理员操作不触发 `last_access_time` 的更新 |
+
+------
+
+### M-9: 用户修改已发布动态
+
+| 项目           | 内容                                                         |
+| -------------- | ------------------------------------------------------------ |
+| **编号**       | M-9                                                          |
+| **简述**       | 用户修改内容后，动态必须退回到待审核状态，并保护迁移过程     |
+| **执行者**     | 动态作者                                                     |
+| **基本事件流** | 1. 用户调用 `PUT /api/v1/moments/{id}`<br>2. 系统检查 `migration_status` 是否为 `MIGRATING`<br>3. 若非迁移中，更新内容并强制将 `audit_status` 重置为 `PENDING`<br>4. 更新 `last_access_time` 确保其变热 |
+| **异常流**     | **E1-迁移中修改**: 状态为 `MIGRATING` 时，拒绝修改并提示用户数据整理中 |
+| **后置条件**   | 动态进入 `PENDING` 状态，对普通用户不可见，且暂停冷迁移扫描 |
+
 ## 5. Moments 状态转移图
 
 ```
@@ -149,40 +183,72 @@
 left to right direction
 skinparam state {
   BackgroundColor White
+  BackgroundColor<<active>> #F0F8FF
+  BackgroundColor<<archive>> #F5F5F5
   BorderColor Black
   FontSize 11
 }
 
 state ACTIVE as "ACTIVE (NONE)" {
     ACTIVE: do / join comments+likes
+state ACTIVE as "ACTIVE (NONE)" <<active>> {
+    state PENDING : do / wait for admin audit
+    state APPROVED : entry / set public visibility\ndo / allow user interactions
+    state REJECTED : entry / set author-only visibility
+
+    [*] --> PENDING
+    PENDING --> APPROVED : adminApprove [migration_status == 'NONE'] / notifyUser
+    PENDING --> REJECTED : adminReject [migration_status == 'NONE'] / notifyUser
+    
+    APPROVED --> PENDING : userUpdate [migration_status == 'NONE'] / hideFromPublic
+    REJECTED --> PENDING : userUpdate [migration_status == 'NONE'] / resetAuditStatus
 }
 
 state MIGRATING as "MIGRATING" {
     MIGRATING: do / deny accessing and modifying 
+    MIGRATING : entry / acquire migration lock (CAS)
+    MIGRATING : do / compress and write to HBase\ndo / validate HBase data integrity
+    MIGRATING : exit / release lock (on failure)
 }
 
 state COLD as "COLD (ARCHIVED)" {
     COLD: data exists in HBase only
+state COLD as "COLD (ARCHIVED)" <<archive>> {
+    COLD : do / data exists in HBase only
 }
 
 [*] --> ACTIVE
+[*] --> ACTIVE : createMoment / set audit_status = 'PENDING'
 
 ' --- 迁移逻辑 (Migration Job) ---
 ACTIVE --> MIGRATING : scan[last_access > 7d] / \n update status to MIGRATING
+APPROVED --> MIGRATING : scheduledScan [last_access > 7d] / startMigration
+REJECTED --> MIGRATING : scheduledScan [last_access > 3d] / startMigration
 
 MIGRATING --> ACTIVE : check_popularity[comments ≥ 2000] / \n rollback status to NONE
 
 MIGRATING --> ACTIVE : migration_failed / \n rollback status to NONE
 
 MIGRATING --> COLD : HBase write success && \n MySQL delete success
+MIGRATING --> ACTIVE : thresholdExceeded [comments > 2000] / rollbackStatus
+MIGRATING --> ACTIVE : migrationFailure [exception_occurred] / logError & rollbackStatus
+MIGRATING --> COLD : migrationSuccess [HBase_exists && MySQL_deleted] / commitTransaction
+
+' --- 业务请求拦截 ---
+MIGRATING --> MIGRATING : 评论/点赞/修改 / \n **REJECT (Business Exception)**
+MIGRATING --> MIGRATING : userAction [any_modifying_request] / throw BusinessException
 
 ' --- 恢复逻辑 (Restore Consumer) ---
 COLD --> ACTIVE : user query[trigger restore event] / \n 1. HBase read\n 2. MySQL native insert\n 3. HBase delete(after commit)
+COLD --> ACTIVE : userActivation [trigger restore] / restoreMySQL & deleteHBase
 
 ' --- 删除逻辑 ---
 ACTIVE --> [*] : user delete / delete from MySQL \n and send cleanup event to HBase
 
-COLD --> [*] : user delete / send delete_from_cold event
+PENDING --> [*] : userDelete / deleteMySQL
+APPROVED --> [*] : userDelete / deleteMySQL & cleanupHBase (if migrating)
+REJECTED --> [*] : userDelete / deleteMySQL
+COLD --> [*] : userDelete / publish DELETE_FROM_COLD event
 
 note top of MIGRATING
   State machine lock:
@@ -198,7 +264,7 @@ end note
 @enduml
 ```
 
-![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/bPJDJbGn5CVtVOeJ5ZXe-00N9hCWm820uKE1w68aat9xvawTtdPiJz71cCXE5ovSkZC6uqEGwBkOeF0MjlVsUj64XRkUUzhV-Pz_J--I8sx95uefx1EG0Ilp0O6G5ZEIHZCtb7h4BIyWR2M4LmnWXMV3t1glHSSeO-79G1B6xyOAjDMt5HKsCO3xHjE-F46OdsUl6QiWovs3pSThm1rCf6LhPtTdRMgYn4FAjq4Oc8LdHch8J56W9dT7oI6wXhIzkRwtVB2virx2_aG9rAGJIw0U0yyoT4xg7BWMK1WX--CODTJExjPg2ImNhUMzpaRGirhhA_E1o8a3lfIE74WD6olS8HYjnX7KlNq8qzEBgHN6ReLe6Yw_d_xwUdxrvlposmTeRSlSykWoF317Kt43ItR4aqrhRN0Prrt57VKgyR08zyHXQEYf1ZyIKNDKxXsGQGuorZ0QBG6N3J0RzaPcv1MtaiRTsbxuyUuBBCpDpIMsDKeTXOkyHeyNTIEug3lgzRbKAFw7KhdUJZw-i38svQjs9oSZPtky_sWB12fiKhMpFqy_NvozhvtTGqV68dICThv0MvaR2_ojrpkqyDoZ7NV9oZmFaKr7yHWr9HlcPv8gYro4U64cQT6Sv362r8538N4tRKmYMxnF0HdTbJHLIxru--dgurcI-i-bnx59ibAVi_MYRqsHoePASNGTQW6PGgxzgD8BP2e1B3Lx0pAUJ54lSdkPKQ92CAODOG2DmFIlpHB0Vlas2fuDf4PG9Xks6S13Mnvpa1cTUMl3Ehsma1JUIfqtOp73Ok5O89KvCaIcY9MYtlY_K9m8DGg8ry1pZ3KwzNZ6hii_072B8U7GIgxa2GgG6lfUgLvybTVAB8MLBzHl)
+![PlantUML diagram](https://cdn-0.plantuml.com/plantuml/png/dLPVRnj547-_Jp4gKc87fKrR8L3LHdKSkt_K_C59ouDRMPkxiRtDtgwxkvVKHKYqug60U43Y1HuGe08I3wruG50gqU-2sZJz5kpkZRrkt2WAicJjxSxyVlERdPcxYyOoROjS90Ax5gm2pNjz2ndNc5gkP6AskHmmpN9mfXRXumHWYQNRFQqAcTMLK1e-wdEBq_ldppE7iOEBY_1ESw7vGRFvLXkTzaT6x_cVDr8wGrs2BmdduVQQIjeDVW_XzEdaaoGfewdLDw_SQ00pS8AMbTMrrKRrH8WJwFmSP0fEmMt59QGgpr5QywxWssYEX8aQ2B5qM6-iBbzPlGI4lCkuXQxImBBSSR0YutR2khQ-tbgxqLXsvevQ3vs7GGk3Oalm57QuuLjSS3kyAGCQ4qBjGc5G0vSMDGitOIO0MushZVhc520hR5_fUIN5S08r2OxjkLimFxyuYZpiqJhinnXB4RN1GAiTX7REUvhv03gUkp1muGBC-kpCtdAqKbdU7LvtiHv4Z44IOWjlOsgF2UZ_OcmEDgO-PEZw86Fso2ZxFCEcLlbwo7Z0fEZ-FwP6WxRcRteZdCQYNBbogLNRT7YXeCPFL9Fnc8edGpa4bgPe39SzO3A3N6Kk2VxfJOzutyxXJi4rmZX842hTXagzjb6TSWeyhl87sf44XbtDBVf-lxp435BXxJ31W_Im2Mx9GWNsdF5mEfAxt8Oy27JMHE_Yw38k2etLc93wshNba8kmgDHQzSkknvR7NUgtpmKw3sgiSQmKWw_b8r4cXqX49Ds7u_e0gIre0XnuT0YfHiUzelpCe2uBtJqk2PYbufbDabddEm_xp--_-lNPwq-VxV_pDLHMnlTpLMrLlK52u9vdCfycPR8jcB6TiXXW4TxFVANTb52K9KcaLaN793R755uViq9Wjk60uQt8OVgF8qoe9uu9TVPjK4bqVpEVVKotEmCrA0JpLTKUpMFuz_EVuSp2mW8frag8BJVv9pJxrZiKE3Qhhp_CZeL2vH9AWrh35AM-cHcFipBS-F0QP2Wm7XqMYUrhD7qbiiRT535peKIHYsE9eyXeU1obgbas5RJHWGw2JfMcXTOOiYzKhw6rqZ1pE70K6c4tI6KxIEzGbpZDGN2d51mOl0HkDpMJfdmVZShznL_VlVpYn_qdV-xz_c3lor_s7lxcjoFlL37jF_bi__7VfruzUBh_n_UdNZn_lFVDq_AsvkRA2eJAKc6uz84rHdAhStE7OTBOheMmeCtai3CUe1sDTmeqrakmVQrsOGHDo578tlsVNZxwQjItBUUaD49TILFagClM3VcBDqJCu2Zqi6qrx_NSaoPNt45fgPnFdwJgqiWoztpc9DMKPFxp0hXqEDOTd2L3AhOAwrhKbFtg57zKliE2-eD1U7fQbdmp11n8Hj9VFlpXzRUFIFg14UL68j6GfqEaHLUhd6IuoFrhnQ3xImKoMGnA_RxbY8i6vG7KvJT10rmSQaVREaL4MEQjmhkZ-fQzQfnfHoE5x1vc5pxMJ1-M6zSQcurEixMsqWdsGMMII1NUfmDGtOdX3E3R425dQP_ByYLvpkskw-1c85KoTB6qz0dW3hD2kz1ZavvCV5Oz0T5iAMjLxfby1CwZAPYrA343VzEiXvwZJaCdN4pusWMcqHquMPm9Vi-PSmdTGeYEVqTEq5nqgo8N_m40)
 
 ------
 

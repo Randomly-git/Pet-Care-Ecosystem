@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import petcare.example.community_backend.service.CommunityColdDataMigrationJob;
+import petcare.example.community_backend.config.HBaseProperties;
 import petcare.example.community_backend.service.CommunityHBaseColdStorageService;
 import petcare.example.community_backend.repository.PetMomentRepository;
 
@@ -29,6 +30,7 @@ public class MigrationAdminController {
     private final CommunityColdDataMigrationJob migrationJob;
     private final CommunityHBaseColdStorageService hBaseService;
     private final PetMomentRepository momentRepository;
+    private final HBaseProperties hBaseProperties;
 
     /**
      * POST /api/admin/migration/trigger
@@ -82,15 +84,18 @@ public class MigrationAdminController {
     public ResponseEntity<Map<String, Object>> getMigrationStatus() {
         log.info("【管理接口】查询迁移状态");
 
-        LocalDateTime threshold = LocalDateTime.now().minusDays(7);
-        long pendingCount = momentRepository.countPendingMigrationRecords(threshold);
+        HBaseProperties.ColdData.Community config = hBaseProperties.getColdData().getCommunity();
+        LocalDateTime approvedThreshold = LocalDateTime.now().minusDays(config.getApprovedDaysThreshold());
+        LocalDateTime rejectedThreshold = LocalDateTime.now().minusDays(config.getRejectedDaysThreshold());
+
+        long pendingCount = momentRepository.countPendingMigrationRecords(approvedThreshold, rejectedThreshold);
         long migratingCount = momentRepository.countMigratingRecords();
         long totalCount = momentRepository.count();
 
         Map<String, Object> result = new HashMap<>();
         result.put("timestamp", LocalDateTime.now().toString());
-        result.put("coldThresholdDays", 7);
-        result.put("coldThreshold", threshold.toString());
+        result.put("approvedThresholdDays", config.getApprovedDaysThreshold());
+        result.put("rejectedThresholdDays", config.getRejectedDaysThreshold());
         result.put("statistics", Map.of(
                 "totalMoments", totalCount,
                 "pendingMigration", pendingCount,

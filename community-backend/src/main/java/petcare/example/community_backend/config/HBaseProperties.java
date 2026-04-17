@@ -91,6 +91,16 @@ public class HBaseProperties {
             private int daysThreshold = 7;
 
             /**
+             * 已审核通过的动态迁移阈值（天）
+             */
+            private int approvedDaysThreshold = 7;
+
+            /**
+             * 已拒绝的动态迁移阈值（天）
+             */
+            private int rejectedDaysThreshold = 3;
+
+            /**
              * 批量迁移大小
              */
             private int batchSize = 1000;

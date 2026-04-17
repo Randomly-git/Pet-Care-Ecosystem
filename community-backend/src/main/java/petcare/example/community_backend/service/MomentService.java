@@ -134,13 +134,6 @@ public class MomentService {
         Page<PetMoment> momentPage = momentRepository.findAllByAuditStatusOrderByCreatedAtDesc("APPROVED", pageable);
         List<PetMoment> moments = momentPage.getContent();
 
-        if (!moments.isEmpty()) {
-            // 更新最后访问时间（触发冷数据恢复）
-            for (PetMoment moment : moments) {
-                updateLastAccessTime(moment);
-            }
-        }
-
         // 2. 如果 MySQL 数量 < page_size，尝试从 HBase 补齐
         int pageSize = pageable.getPageSize();
         if (moments.size() < pageSize) {
@@ -178,7 +171,7 @@ public class MomentService {
 
         // 3. 返回已聚合的动态列表（可能不足 page_size）
         if (!moments.isEmpty()) {
-            return buildMomentDTOList(moments);
+            return buildMomentDTOList(moments, true);
         }
 
         // 4. MySQL 完全无数据，返回空列表
@@ -188,15 +181,18 @@ public class MomentService {
 
     /**
      * 构建 MomentResponseDTO 列表（通用方法）
+     * @param updateAccess 是否更新最后访问时间（管理员操作应传 false）
      */
-    private List<MomentResponseDTO> buildMomentDTOList(List<PetMoment> moments) {
+    private List<MomentResponseDTO> buildMomentDTOList(List<PetMoment> moments, boolean updateAccess) {
         if (moments.isEmpty()) {
             return Collections.emptyList();
         }
 
         // 更新最后访问时间
-        for (PetMoment moment : moments) {
-            updateLastAccessTime(moment);
+        if (updateAccess) {
+            for (PetMoment moment : moments) {
+                updateLastAccessTime(moment);
+            }
         }
 
         // 收集所需 ID
@@ -264,6 +260,46 @@ public class MomentService {
             mediaServiceFacade.batchUpdateRelatedId(mediaIds, "MOMENT", momentId);
         }
         return savedMoment;
+    }
+
+    /**
+     * 修改动态
+     * 规则：
+     * 1. 正在迁移 (MIGRATING) 的动态禁止修改
+     * 2. 修改后 audit_status 必须重置为 PENDING 重新审核
+     * 3. 更新 last_access_time
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public MomentResponseDTO updateMoment(Long momentId, Long userId, String content, List<Long> mediaIds) {
+        PetMoment moment = momentRepository.findById(momentId)
+                .orElseThrow(() -> new IllegalArgumentException("动态不存在"));
+
+        // 1. 权限校验
+        if (!moment.getUserId().equals(userId)) {
+            throw new SecurityException("无权修改他人的动态");
+        }
+
+        // 2. 冷迁移保护：正在搬运的数据禁止修改，以防 MySQL 和 HBase 数据不一致
+        if ("MIGRATING".equals(moment.getMigrationStatus())) {
+            log.warn("【冷迁移保护】拒绝修改正在迁移的动态: momentId={}", momentId);
+            throw new IllegalStateException("动态正在数据整理中，请稍后再试");
+        }
+
+        // 3. 业务逻辑处理
+        moment.setContent(content);
+        // 核心：修改后必须重新审核
+        moment.setAuditStatus("PENDING");
+        // 更新访问时间，确保它不会立即被当成冷数据搬走
+        moment.setLastAccessTime(LocalDateTime.now());
+
+        PetMoment saved = momentRepository.save(moment);
+
+        // 4. 更新媒体关联（如果是异步关联，这里可以发送 MQ）
+        if (mediaIds != null && !mediaIds.isEmpty()) {
+            mediaServiceFacade.batchUpdateRelatedId(mediaIds, "MOMENT", momentId);
+        }
+
+        return buildMomentDTO(saved);
     }
 
     /**
@@ -519,6 +555,6 @@ public class MomentService {
      */
     public List<MomentResponseDTO> getPendingMoments(Pageable pageable) {
         Page<PetMoment> pendingPage = momentRepository.findAllByAuditStatusOrderByCreatedAtDesc("PENDING", pageable);
-        return buildMomentDTOList(pendingPage.getContent());
+        return buildMomentDTOList(pendingPage.getContent(), false);
     }
 }

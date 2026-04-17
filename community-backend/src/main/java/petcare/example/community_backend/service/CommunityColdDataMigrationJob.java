@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import petcare.example.community_backend.config.HBaseProperties;
 import petcare.example.community_backend.client.UserServiceFacade;
 import petcare.example.community_backend.client.dto.UserResponseDTO;
 import petcare.example.community_backend.dto.ColdArchiveData;
@@ -66,6 +67,7 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
     private final LikeRepository likeRepository;
     private final CommunityHBaseColdStorageService hBaseService;
     private final UserServiceFacade userServiceFacade;
+    private final HBaseProperties hBaseProperties;
 
     // 迁移开关（可通过配置或接口控制）
     private final AtomicBoolean migrationEnabled = new AtomicBoolean(true);
@@ -133,19 +135,20 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         log.info("【冷迁移】开始扫描待迁移动态...");
 
         // 1. 查询待迁移的动态
-        // NONE 状态：需要同时满足 7 天无访问条件
-        // MIGRATING 状态：表示上次迁移失败遗留的数据，继续处理（不检查 lastAccessTime）
-        LocalDateTime threshold = LocalDateTime.now().minusDays(7);
-        List<PetMoment> noneStatusMoments = momentRepository.findByMigrationStatusAndLastAccessTimeBefore("NONE", threshold);
+        HBaseProperties.ColdData.Community config = hBaseProperties.getColdData().getCommunity();
+        LocalDateTime approvedThreshold = LocalDateTime.now().minusDays(config.getApprovedDaysThreshold());
+        LocalDateTime rejectedThreshold = LocalDateTime.now().minusDays(config.getRejectedDaysThreshold());
+
+        List<PetMoment> eligibleMoments = momentRepository.findEligibleRecordsForMigration(approvedThreshold, rejectedThreshold);
         List<PetMoment> stuckMoments = momentRepository.findByMigrationStatus("MIGRATING");
 
         // 合并两个列表
         List<PetMoment> coldMoments = new ArrayList<>();
-        coldMoments.addAll(noneStatusMoments);
+        coldMoments.addAll(eligibleMoments);
         coldMoments.addAll(stuckMoments);
 
         log.info("【冷迁移】找到 {} 条待迁移动态 (NONE={}, MIGRATING={})",
-                coldMoments.size(), noneStatusMoments.size(), stuckMoments.size());
+                coldMoments.size(), eligibleMoments.size(), stuckMoments.size());
 
         // 释放持久化上下文，避免实体与原事务绑定
         entityManager.flush();
@@ -230,15 +233,27 @@ public class CommunityColdDataMigrationJob implements ApplicationRunner {
         String currentStatus = moment.getMigrationStatus();
         log.info("【冷迁移】查询到动态: momentId={}, userId={}, status={}, lastAccessTime={}",
                 momentId, userId, currentStatus, moment.getLastAccessTime());
+        
+        String auditStatus = moment.getAuditStatus();
 
         // ========== 步骤 1：状态机锁定与自愈判定 ==========
         // 如果状态已经是 MIGRATING，说明是上次迁移失败遗留的数据，直接继续执行迁移
         // 如果状态是 NONE，尝试获取锁
         boolean isResumingFromFailure = "MIGRATING".equals(currentStatus);
         if (!isResumingFromFailure) {
-            // 1.1 准入检查：只有 NONE 状态需要检查冷热规则
-            LocalDateTime coldThreshold = LocalDateTime.now().minusDays(7);
-            if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(coldThreshold)) {
+            // 1.0 审核状态安全性检查：严禁迁移 PENDING 状态的动态
+            if ("PENDING".equals(auditStatus)) {
+                log.warn("【冷迁移】动态审核状态为 PENDING，严禁迁移: momentId={}", momentId);
+                return false;
+            }
+
+            // 1.1 再次校验准入规则 (防止在扫描和执行之间的间隙数据变热)
+            int daysLimit = "REJECTED".equals(auditStatus)
+                ? hBaseProperties.getColdData().getCommunity().getRejectedDaysThreshold()
+                : hBaseProperties.getColdData().getCommunity().getApprovedDaysThreshold();
+            LocalDateTime threshold = LocalDateTime.now().minusDays(daysLimit);
+
+            if (moment.getLastAccessTime() != null && moment.getLastAccessTime().isAfter(threshold)) {
                 log.info("【冷迁移】动态属于热数据，跳过迁移: momentId={}, lastAccessTime={}",
                         momentId, moment.getLastAccessTime());
                 return false;
