@@ -210,6 +210,37 @@ public class CommunityColdDataMigrationJobTest {
     }
 
     @Test
+    void testTC_BVA_01_D_CommentCount2001_Intercept() {
+        Long momentId = 12L;
+        Long userId = 1200L;
+        // 构造 2001 条评论，触发拦截
+        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 2001, LocalDateTime.now().minusDays(10));
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
+        // 预期会尝试释放锁
+        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
+
+        boolean result = migrationJob.migrateSingleMoment(momentId);
+        assertFalse(result, "2001 条评论应触发拦截并返回 false");
+        verify(hBaseService, never()).saveArchive(any(), any());
+    }
+
+    @Test
+    void testTC_BVA_02_A_RejectedMoment_71Hours_Skip() {
+        Long momentId = 13L;
+        Long userId = 1300L;
+        // 已拒绝动态，未满 72 小时 (3天)
+        LocalDateTime hotTime = LocalDateTime.now().minusHours(71);
+        PetMoment moment = createMoment(momentId, userId, "REJECTED", "NONE", hotTime, 0, LocalDateTime.now().minusDays(5));
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
+        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
+
+        boolean result = migrationJob.migrateSingleMoment(momentId);
+        assertFalse(result, "REJECTED 状态未满 72h 应跳过迁移");
+    }
+
+    @Test
     void testTC_BVA_05_LastAccessTime167Hours() {
         Long momentId = 8L;
         Long userId = 800L;
