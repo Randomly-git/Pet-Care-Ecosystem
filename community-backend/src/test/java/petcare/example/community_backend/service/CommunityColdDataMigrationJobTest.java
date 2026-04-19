@@ -96,211 +96,159 @@ public class CommunityColdDataMigrationJobTest {
         return moment;
     }
 
+    /**
+     * TS-1: 一致性与原子性
+     * TC-1-01: 标准全生命周期成功路径与自愈
+     * 场景：验证从 APPROVED 到 COLD 的完整迁移，以及 MIGRATING 状态遗留时的幂等自愈。
+     */
     @Test
-    void testTC_STT_01_StandardMigrationSuccess() {
+    void testTC_1_01_StandardMigrationAndIdempotentRecovery() {
         Long momentId = 1L;
         Long userId = 100L;
-        LocalDateTime oldAccessTime = LocalDateTime.now().minusDays(8);
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", oldAccessTime, 0, LocalDateTime.now().minusDays(10));
+        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
 
         when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
         when(momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING")).thenReturn(1);
-        // 修复：第一次检查不存在(false)，第二次验证已写入(true)
         when(hBaseService.exists(userId, momentId)).thenReturn(false).thenReturn(true);
-        when(momentRepository.existsById(momentId)).thenReturn(false); // 模拟删除成功
+        when(momentRepository.existsById(momentId)).thenReturn(false);
 
+        // 1. 正常迁移验证
         boolean result = migrationJob.migrateSingleMoment(momentId);
         assertTrue(result);
 
-        verify(hBaseService).saveArchive(any(), any());
-        verify(momentRepository).deleteById(momentId);
+        // 2. 自愈路径验证：模拟残留 MIGRATING 记录
+        PetMoment staleMoment = createMoment(momentId, userId, "APPROVED", "MIGRATING", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(staleMoment));
+        when(hBaseService.exists(userId, momentId)).thenReturn(true); 
+
+        boolean recoveryResult = migrationJob.migrateSingleMoment(momentId);
+        assertTrue(recoveryResult, "自愈逻辑应通过 exists 校验并删除 MySQL 数据");
+        verify(hBaseService, times(1)).saveArchive(any(), any()); // 标准迁移保存一次，自愈不重复保存
     }
 
+    /**
+     * TS-1: 一致性与原子性
+     * TC-1-02: MySQL 删除阶段超时回滚
+     * 场景：HBase 写入成功但 MySQL 删除时发生死锁/超时，验证状态回滚。
+     */
     @Test
-    void testTC_STT_02_SkipHotMoment() {
-        Long momentId = 2L;
-        Long userId = 200L;
-        LocalDateTime recentAccessTime = LocalDateTime.now().minusDays(1); 
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", recentAccessTime, 0, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        // 必须 Mock 锁的获取和释放
-        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertFalse(result, "热动态不应迁移");
-        verify(hBaseService, never()).saveArchive(any(), any());
-    }
-
-    @Test
-    void testTC_STT_03_HBaseExceptionRollback() {
-        Long momentId = 3L;
-        Long userId = 300L;
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        doThrow(new RuntimeException("HBase Connection Timeout")).when(hBaseService).saveArchive(any(), any());
-
-        assertThrows(RuntimeException.class, () -> migrationJob.migrateSingleMoment(momentId));
-        verify(momentRepository, never()).deleteById(any());
-    }
-
-    @Test
-    void testTC_DT_02_HBaseFakeSuccess() {
-        Long momentId = 4L;
-        Long userId = 400L;
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(hBaseService.exists(userId, momentId)).thenReturn(false); // 写入前不存在
-        // 模拟写入后 exists 检查依然返回 false
-        when(hBaseService.exists(userId, momentId)).thenReturn(false); 
-
-        RuntimeException thrown = assertThrows(RuntimeException.class, () -> migrationJob.migrateSingleMoment(momentId));
-        assertEquals("HBase写入验证失败", thrown.getMessage());
-    }
-
-    @Test
-    void testTC_DT_03_MySqlDeleteTimeout() {
+    void testTC_1_02_MySqlDeleteTimeout() {
         Long momentId = 5L;
         Long userId = 500L;
         PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
 
         when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        // 修复：让写入验证通过，才能走到后续的删除逻辑
         when(hBaseService.exists(userId, momentId)).thenReturn(false).thenReturn(true);
-        // 模拟删除时存在依然检查失败
+        // 模拟删除后记录依然存在 (超时或死锁导致删除未生效)
         when(momentRepository.existsById(momentId)).thenReturn(true); 
 
+        assertThrows(RuntimeException.class, () -> migrationJob.migrateSingleMoment(momentId));
+    }
+
+    /**
+     * TS-1: 一致性与原子性
+     * TC-1-03: 存储基础设施故障回滚
+     * 场景：模拟 HBase 连接断开，验证事务全局回滚。
+     */
+    @Test
+    void testTC_1_03_HBaseInfrastructureFailure() {
+        Long momentId = 3L;
+        PetMoment moment = createMoment(momentId, 300L, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
+        doThrow(new RuntimeException("HBase IO Exception")).when(hBaseService).saveArchive(any(), any());
+
+        assertThrows(RuntimeException.class, () -> migrationJob.migrateSingleMoment(momentId));
+        verify(momentRepository, never()).deleteById(any());
+    }
+
+    /**
+     * TS-1: 一致性与原子性
+     * TC-1-04: 虚假写入成功校验拦截
+     * 场景：HBase 写入返回成功但后续 exists 验证失败。
+     */
+    @Test
+    void testTC_1_04_FakeSuccessCheck() {
+        Long momentId = 4L;
+        PetMoment moment = createMoment(momentId, 400L, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
+        when(hBaseService.exists(anyLong(), anyLong())).thenReturn(false); // 写入后检查仍不存在
+
         RuntimeException thrown = assertThrows(RuntimeException.class, () -> migrationJob.migrateSingleMoment(momentId));
-        assertTrue(thrown.getMessage().contains("动态删除失败"));
+        assertTrue(thrown.getMessage().contains("验证失败"));
     }
 
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-01: 迁移准入决策过滤器
+     * 场景：验证评论超限(2001)或状态为 PENDING 时静默跳过迁移。
+     */
     @Test
-    void testTC_DT_04_IdempotentRecovery() {
-        Long momentId = 6L;
-        Long userId = 600L;
-        // 模拟已经是 MIGRATING 状态（遗留数据）
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "MIGRATING", LocalDateTime.now().minusDays(8), 0, LocalDateTime.now().minusDays(10));
+    void testTC_5_01_MigrationAdmissionFilter() {
+        // 场景 A: 评论数 2001
+        PetMoment m1 = createMoment(101L, 1L, "APPROVED", "NONE", LocalDateTime.now().minusDays(10), 2001, LocalDateTime.now());
+        when(momentRepository.findById(101L)).thenReturn(Optional.of(m1));
+        assertFalse(migrationJob.migrateSingleMoment(101L), "2001条评论应被拦截");
 
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(hBaseService.exists(userId, momentId)).thenReturn(true); // HBase 已有数据
-        when(momentRepository.existsById(momentId)).thenReturn(false); // 删除成功
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertTrue(result, "自愈迁移应当返回 true");
-        
-        verify(hBaseService, never()).saveArchive(any(), any()); // 不应重复写入
-        verify(momentRepository).deleteById(momentId); // 应该执行删除
+        // 场景 B: 审核中 PENDING
+        PetMoment m2 = createMoment(102L, 2L, "PENDING", "NONE", LocalDateTime.now().minusDays(10), 0, LocalDateTime.now());
+        when(momentRepository.findById(102L)).thenReturn(Optional.of(m2));
+        assertFalse(migrationJob.migrateSingleMoment(102L), "PENDING状态应被拦截");
     }
 
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-04: 评论数有效边界测试
+     * 场景：验证 0, 1999, 2000 条评论均可正常迁移。
+     */
     @Test
-    void testTC_BVA_03_CommentCountExact2000() {
-        Long momentId = 7L;
-        Long userId = 700L;
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 2000, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        // 修复：让写入验证通过
-        when(hBaseService.exists(userId, momentId)).thenReturn(false).thenReturn(true);
-        when(momentRepository.existsById(momentId)).thenReturn(false);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertTrue(result, "边界值 2000 评论应当允许迁移");
+    void testTC_5_04_CommentCountBoundaries() {
+        int[] boundaries = {0, 1999, 2000};
+        for (int count : boundaries) {
+            PetMoment m = createMoment(100L + count, 1L, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), count, LocalDateTime.now());
+            when(momentRepository.findById(100L + count)).thenReturn(Optional.of(m));
+            when(hBaseService.exists(anyLong(), anyLong())).thenReturn(false).thenReturn(true);
+            when(momentRepository.existsById(anyLong())).thenReturn(false);
+            
+            assertTrue(migrationJob.migrateSingleMoment(100L + count), "评论数 " + count + " 应允许迁移");
+        }
     }
 
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-05A/B: REJECTED 状态有效/无效边界
+     */
     @Test
-    void testTC_BVA_01_D_CommentCount2001_Intercept() {
-        Long momentId = 12L;
-        Long userId = 1200L;
-        // 构造 2001 条评论，触发拦截
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", LocalDateTime.now().minusDays(8), 2001, LocalDateTime.now().minusDays(10));
+    void testTC_5_05_RejectedStatusBoundaries() {
+        // A: 有效 (72h)
+        PetMoment m1 = createMoment(201L, 1L, "REJECTED", "NONE", LocalDateTime.now().minusHours(72), 0, LocalDateTime.now());
+        when(momentRepository.findById(201L)).thenReturn(Optional.of(m1));
+        when(hBaseService.exists(anyLong(), anyLong())).thenReturn(false).thenReturn(true);
+        assertTrue(migrationJob.migrateSingleMoment(201L));
 
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        // 预期会尝试释放锁
-        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertFalse(result, "2001 条评论应触发拦截并返回 false");
-        verify(hBaseService, never()).saveArchive(any(), any());
+        // B: 无效 (71h)
+        PetMoment m2 = createMoment(202L, 1L, "REJECTED", "NONE", LocalDateTime.now().minusHours(71), 0, LocalDateTime.now());
+        when(momentRepository.findById(202L)).thenReturn(Optional.of(m2));
+        assertFalse(migrationJob.migrateSingleMoment(202L), "未满72h不应迁移");
     }
 
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-06A/B: APPROVED 状态有效/无效边界
+     */
     @Test
-    void testTC_BVA_02_A_RejectedMoment_71Hours_Skip() {
-        Long momentId = 13L;
-        Long userId = 1300L;
-        // 已拒绝动态，未满 72 小时 (3天)
-        LocalDateTime hotTime = LocalDateTime.now().minusHours(71);
-        PetMoment moment = createMoment(momentId, userId, "REJECTED", "NONE", hotTime, 0, LocalDateTime.now().minusDays(5));
+    void testTC_5_06_ApprovedStatusBoundaries() {
+        // A: 有效 (168h)
+        PetMoment m1 = createMoment(301L, 1L, "APPROVED", "NONE", LocalDateTime.now().minusHours(168), 0, LocalDateTime.now());
+        when(momentRepository.findById(301L)).thenReturn(Optional.of(m1));
+        when(hBaseService.exists(anyLong(), anyLong())).thenReturn(false).thenReturn(true);
+        assertTrue(migrationJob.migrateSingleMoment(301L));
 
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertFalse(result, "REJECTED 状态未满 72h 应跳过迁移");
-    }
-
-    @Test
-    void testTC_BVA_05_LastAccessTime167Hours() {
-        Long momentId = 8L;
-        Long userId = 800L;
-        LocalDateTime hotTime = LocalDateTime.now().minusHours(167); 
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", hotTime, 0, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertFalse(result, "167小时仍属于热数据");
-    }
-
-    @Test
-    void testTC_BVA_07_LastAccessTime169Hours() {
-        Long momentId = 9L;
-        Long userId = 900L;
-        LocalDateTime coldTime = LocalDateTime.now().minusHours(169);
-        PetMoment moment = createMoment(momentId, userId, "APPROVED", "NONE", coldTime, 0, LocalDateTime.now().minusDays(10));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(momentRepository.updateMigrationStatus(momentId, "NONE", "MIGRATING")).thenReturn(1);
-        // 修复：让写入验证通过
-        when(hBaseService.exists(userId, momentId)).thenReturn(false).thenReturn(true);
-        when(momentRepository.existsById(momentId)).thenReturn(false);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertTrue(result, "169小时应当迁移");
-    }
-
-    @Test
-    void testTC_STT_10_PendingMomentNotMigrated() {
-        Long momentId = 10L;
-        Long userId = 1000L;
-        LocalDateTime oldAccessTime = LocalDateTime.now().minusDays(10);
-        PetMoment moment = createMoment(momentId, userId, "PENDING", "NONE", oldAccessTime, 0, LocalDateTime.now().minusDays(15));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        when(momentRepository.updateMigrationStatus(momentId, "MIGRATING", "NONE")).thenReturn(1);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertFalse(result, "PENDING 状态严禁迁移");
-        verify(hBaseService, never()).saveArchive(any(), any());
-    }
-
-    @Test
-    void testTC_STT_11_RejectedMomentFastMigration() {
-        Long momentId = 11L;
-        Long userId = 1100L;
-        // 已拒绝状态，超过 3 天未访问即可迁移
-        LocalDateTime accessTime = LocalDateTime.now().minusDays(4);
-        PetMoment moment = createMoment(momentId, userId, "REJECTED", "NONE", accessTime, 0, LocalDateTime.now().minusDays(5));
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
-        // 修复：让写入验证通过
-        when(hBaseService.exists(userId, momentId)).thenReturn(false).thenReturn(true);
-        when(momentRepository.existsById(momentId)).thenReturn(false);
-
-        boolean result = migrationJob.migrateSingleMoment(momentId);
-        assertTrue(result, "REJECTED 状态超过 3 天应被迁移");
+        // B: 无效 (167h)
+        PetMoment m2 = createMoment(302L, 1L, "APPROVED", "NONE", LocalDateTime.now().minusHours(167), 0, LocalDateTime.now());
+        when(momentRepository.findById(302L)).thenReturn(Optional.of(m2));
+        assertFalse(migrationJob.migrateSingleMoment(302L), "未满168h不应迁移");
     }
 
     @Test

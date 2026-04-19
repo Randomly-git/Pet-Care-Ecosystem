@@ -145,7 +145,7 @@ public class MomentService {
             Set<Long> existingMomentIds = moments.stream().map(PetMoment::getId).collect(Collectors.toSet());
 
             // 计算时间阈值：基于最后一条动态的时间
-            LocalDateTime timeThreshold = null;
+            LocalDateTime timeThreshold = LocalDateTime.now(); // 默认从当前时间开始扫描，防止 NPE
             if (!moments.isEmpty()) {
                 PetMoment lastMoment = moments.get(moments.size() - 1);
                 timeThreshold = lastMoment.getCreatedAt();
@@ -300,6 +300,21 @@ public class MomentService {
         }
 
         return buildMomentDTO(saved);
+    }
+
+    /**
+     * 主动触发冷数据动态恢复
+     * @param momentId 动态ID
+     */
+    public void restoreMoment(Long momentId) {
+        PetMoment moment = momentRepository.findById(momentId)
+                .orElseThrow(() -> new IllegalArgumentException("动态不存在"));
+
+        // 只有处于冷库 (COLD) 状态的动态才需要触发恢复流程 (TC-4-02 验证点)
+        if ("COLD".equals(moment.getMigrationStatus())) {
+            log.info("【冷热分离】主动触发动态恢复: momentId={}", momentId);
+            eventPublisher.publishRestoreFromColdEvent(momentId, moment.getUserId());
+        }
     }
 
     /**

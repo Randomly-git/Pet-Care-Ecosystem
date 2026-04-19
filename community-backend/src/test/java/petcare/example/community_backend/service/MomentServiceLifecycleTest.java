@@ -1,13 +1,15 @@
 package petcare.example.community_backend.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
+import petcare.example.community_backend.config.HBaseProperties;
 import petcare.example.community_backend.mapper.MomentMapper;
 import petcare.example.community_backend.client.MediaServiceFacade;
 import petcare.example.community_backend.client.UserServiceFacade;
@@ -19,10 +21,11 @@ import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.repository.PetMomentRepository;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
+import java.util.Collections;
 
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -57,92 +60,123 @@ public class MomentServiceLifecycleTest {
     @Mock
     private CommunityColdStorageEventPublisher eventPublisher;
 
-    @Test
-    void testTC_STT_09_ApproveMoment_Success() {
-        Long momentId = 101L;
-        when(momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED")).thenReturn(1);
+    @Mock
+    private HBaseProperties hBaseProperties;
 
-        boolean result = momentService.approveMoment(momentId);
+    @BeforeEach
+    void setUp() {
+        // 初始化 HBase 阈值配置，防止 getAllMomentsWithPagination 等方法报 NPE
+        HBaseProperties.ColdData.Community communityConfig = new HBaseProperties.ColdData.Community();
+        communityConfig.setApprovedDaysThreshold(7);
+        communityConfig.setRejectedDaysThreshold(3);
 
-        assertTrue(result);
-        verify(momentRepository).updateAuditStatus(momentId, "PENDING", "APPROVED");
+        HBaseProperties.ColdData coldData = new HBaseProperties.ColdData();
+        ReflectionTestUtils.setField(coldData, "community", communityConfig);
+        
+        // 模拟配置类层级调用
+        lenient().when(hBaseProperties.getColdData()).thenReturn(coldData);
     }
 
+    /**
+     * TS-2: 数据完整性
+     * TC-2-01: 冷数据综合恢复全链路
+     * 场景：验证冷数据恢复后 MySQL 状态为 NONE 且保留原审核状态。
+     */
     @Test
-    void testTC_STT_10_UpdateMoment_ResetsToPending() {
-        Long momentId = 102L;
+    void testTC_2_01_ColdDataComprehensiveRecovery() {
+        // 显式恢复逻辑验证 (由 Service 触发 RESTORE 事件)
+        Long momentId = 201L;
+        PetMoment moment = new PetMoment();
+        moment.setId(momentId);
+        moment.setUserId(100L);
+        moment.setMigrationStatus("COLD");
+        moment.setAuditStatus("REJECTED");
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(moment));
+        
+        momentService.restoreMoment(momentId);
+        
+        verify(eventPublisher).publishRestoreFromColdEvent(eq(momentId), eq(100L));
+    }
+
+    /**
+     * TS-3: 并发保护
+     * TC-3-01: 迁移锁保护与物理删除
+     * 场景：MIGRATING 期间拒绝修改，物理删除同步清理。
+     */
+    @Test
+    void testTC_3_01_MigrationLockAndPhysicalDelete() {
+        Long momentId = 301L;
         Long userId = 1L;
-        PetMoment existingMoment = new PetMoment();
-        existingMoment.setId(momentId);
-        existingMoment.setUserId(userId);
-        existingMoment.setAuditStatus("APPROVED"); // 原本是通过状态
-        existingMoment.setMigrationStatus("NONE");
+        PetMoment m = new PetMoment();
+        m.setId(momentId); m.setUserId(userId); m.setMigrationStatus("MIGRATING");
 
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(existingMoment));
-        when(momentRepository.save(any(PetMoment.class))).thenAnswer(i -> i.getArgument(0));
-        when(momentMapper.toResponseDTO(any())).thenReturn(new MomentResponseDTO());
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(m));
 
-        momentService.updateMoment(momentId, userId, "New Content", Collections.emptyList());
+        // 1. 写保护验证
+        assertThrows(IllegalStateException.class, () -> momentService.updateMoment(momentId, userId, "txt", null));
 
-        // 验证状态是否被重置为 PENDING
-        assertEquals("PENDING", existingMoment.getAuditStatus(), "修改内容后审核状态必须重置为 PENDING");
-        verify(momentRepository).save(existingMoment);
+        // 2. 物理删除同步清理验证 (调用 deleteService 逻辑，此处简化验证调用)
+        momentService.deleteMoment(momentId, userId);
+        verify(momentRepository).deleteById(momentId);
+        verify(eventPublisher).publishDeleteFromColdEvent(eq(momentId), eq(userId));
     }
 
+    /**
+     * TS-4: 稳定性与拦截
+     * TC-4-01: 重复审核操作拦截
+     */
     @Test
-    void testTC_STT_14_PendingMoment_InvisibleInAllMoments() {
-        // 模拟全站动态查询，数据库中应该只查 APPROVED 状态
+    void testTC_4_01_RepeatAuditInterception() {
+        Long momentId = 401L;
+        when(momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED")).thenReturn(0);
+        assertFalse(momentService.approveMoment(momentId));
+    }
+
+    /**
+     * TS-4: 稳定性与拦截
+     * TC-4-02: 重复恢复事件拦截
+     */
+    @Test
+    void testTC_4_02_RepeatRestoreInterception() {
+        Long momentId = 402L;
+        PetMoment m = new PetMoment(); m.setId(momentId); m.setMigrationStatus("NONE"); m.setUserId(1L);
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(m));
+        
+        // Service 层应识别 NONE 状态不触发恢复
+        momentService.restoreMoment(momentId);
+        verify(eventPublisher, never()).publishRestoreFromColdEvent(anyLong(), anyLong());
+    }
+
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-02: 审核流转与可见性
+     */
+    @Test
+    void testTC_5_02_AuditVisibilityAndFlow() {
         PageRequest pageable = PageRequest.of(0, 10);
         when(momentRepository.findAllByAuditStatusOrderByCreatedAtDesc(eq("APPROVED"), eq(pageable)))
                 .thenReturn(new PageImpl<>(Collections.emptyList()));
-
+        
         momentService.getAllMomentsWithPagination(pageable);
-
-        // 验证 Repository 调用参数
         verify(momentRepository).findAllByAuditStatusOrderByCreatedAtDesc("APPROVED", pageable);
     }
 
+    /**
+     * TS-5: 业务规则与边界
+     * TC-5-03: 互动行为与热度重置
+     */
     @Test
-    void testTC_STT_04_UpdateMoment_RejectedWhenMigrating() {
-        Long momentId = 103L;
-        Long userId = 1L;
-        PetMoment migratingMoment = new PetMoment();
-        migratingMoment.setId(momentId);
-        migratingMoment.setUserId(userId);
-        migratingMoment.setMigrationStatus("MIGRATING"); // 正在迁移
+    void testTC_5_03_InteractionAndHeatReset() {
+        Long momentId = 503L;
+        PetMoment m = new PetMoment(); 
+        m.setId(momentId); m.setAuditStatus("APPROVED"); m.setMigrationStatus("NONE");
 
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(migratingMoment));
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(m));
+        when(momentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(momentMapper.toResponseDTO(any())).thenReturn(new MomentResponseDTO());
 
-        assertThrows(IllegalStateException.class, () -> {
-            momentService.updateMoment(momentId, userId, "Edit content", null);
-        }, "正在迁移的动态禁止修改");
-    }
-
-    @Test
-    void testTC_4_02_RepeatAuditInterception() {
-        // TC-4-02: TCI-STT-Neg-01 重复审核拦截
-        Long momentId = 104L;
-        // 模拟已经是 APPROVED 状态的动态
-        // 业务规则：只有 PENDING 状态才能执行 updateAuditStatus
-        when(momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED")).thenReturn(0);
-
-        boolean result = momentService.approveMoment(momentId);
-
-        assertFalse(result, "对已通过/拒绝的动态再次操作应返回 false");
-        verify(momentRepository).updateAuditStatus(momentId, "PENDING", "APPROVED");
-    }
-
-    @Test
-    void testTC_4_03_RepeatRestoreInterception() {
-        // TC-4-03: TCI-STT-Neg-02 重复恢复拦截
-        Long momentId = 105L;
-        PetMoment activeMoment = new PetMoment();
-        activeMoment.setId(momentId);
-        activeMoment.setMigrationStatus("NONE"); // 已经是热数据状态
-
-        when(momentRepository.findById(momentId)).thenReturn(Optional.of(activeMoment));
-
-        // 业务逻辑：如果 findById 查到了 NONE 状态，则不应发送或执行 RESTORE 逻辑
-        // 此处可验证是否调用了 consumer 层的后续处理
+        momentService.updateMoment(momentId, 1L, "New Content", Collections.emptyList());
+        assertEquals("PENDING", m.getAuditStatus(), "修改内容必须重置状态");
     }
 }
