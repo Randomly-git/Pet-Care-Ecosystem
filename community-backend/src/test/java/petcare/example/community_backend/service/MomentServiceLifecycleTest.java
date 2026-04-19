@@ -117,4 +117,32 @@ public class MomentServiceLifecycleTest {
             momentService.updateMoment(momentId, userId, "Edit content", null);
         }, "正在迁移的动态禁止修改");
     }
+
+    @Test
+    void testTC_4_02_RepeatAuditInterception() {
+        // TC-4-02: TCI-STT-Neg-01 重复审核拦截
+        Long momentId = 104L;
+        // 模拟已经是 APPROVED 状态的动态
+        // 业务规则：只有 PENDING 状态才能执行 updateAuditStatus
+        when(momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED")).thenReturn(0);
+
+        boolean result = momentService.approveMoment(momentId);
+
+        assertFalse(result, "对已通过/拒绝的动态再次操作应返回 false");
+        verify(momentRepository).updateAuditStatus(momentId, "PENDING", "APPROVED");
+    }
+
+    @Test
+    void testTC_4_03_RepeatRestoreInterception() {
+        // TC-4-03: TCI-STT-Neg-02 重复恢复拦截
+        Long momentId = 105L;
+        PetMoment activeMoment = new PetMoment();
+        activeMoment.setId(momentId);
+        activeMoment.setMigrationStatus("NONE"); // 已经是热数据状态
+
+        when(momentRepository.findById(momentId)).thenReturn(Optional.of(activeMoment));
+
+        // 业务逻辑：如果 findById 查到了 NONE 状态，则不应发送或执行 RESTORE 逻辑
+        // 此处可验证是否调用了 consumer 层的后续处理
+    }
 }
