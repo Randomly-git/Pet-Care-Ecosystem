@@ -1,6 +1,6 @@
 ### 1. Input (输入部分)
 
-**System Overview (系统概览):** 本系统是一个基于分布式存储（MySQL + HBase）的社交动态（Moment）冷热分离系统。系统旨在通过定时任务将不常访问的“冷动态”及其关联数据（评论、点赞）归档到 HBase 中，以减轻 MySQL 数据库的存储压力和查询负担。系统包含自动迁移逻辑、基于消息队列（MQ）的异步恢复逻辑以及复杂的并发保护机制。
+**System Overview (系统概览):** 本系统是一个基于分布式存储（MySQL + HBase）的冷热分离系统。系统旨在通过定时任务将不常访问的“冷动态”及其关联数据（评论、点赞）归档到 HBase 中，以减轻 MySQL 数据库的存储压力和查询负担。系统包含自动迁移逻辑、基于消息队列（MQ）的异步恢复逻辑以及复杂的并发保护机制，为了确保系统功能的完备性，设计了针对帖子的审核机制。
 
 ---
 
@@ -56,36 +56,50 @@
 
   > "针对系统中影响决策的关键变量：评论总数（阈值 2000）和最后访问时间（阈值 7天），识别其有效等价类、无效等价类及边界值（BVA）。请提供具体的取值建议以用于后续测试用例设计。"
 
-- **Prompt 5: 测试用例生成 (Test Case Generation)**
+- **Prompt 5: 测试覆盖项生成 (Test Coverage Items Generation)**
+
+  > "请基于上述 STT、DT 和 EP/BVA 建模结果，提取出原子级的测试覆盖项（TCI）清单。每一项 TCI 应代表一个最小的可验证逻辑点（如：特定状态下的特定输入、决策表中的一条规则、或一个边界取值）。请为每个 TCI 分配唯一 ID 并标注其关联的质量风险 ID，作为后续测试用例设计的直接依据。"
+
+- **Prompt 6: 测试用例生成 (Test Case Generation)**
 
   > "请综合上述 STT、DT 和 EP/BVA 模型，生成一组详细的黑盒测试用例。用例应涵盖全生命周期路径覆盖、异常注入测试（Fault Injection）以及负向并发保护测试。每条用例需包含：测试 ID、场景描述、前置条件、测试步骤及预期回滚/自愈行为。"
 
 ---
 
-### 3. Generated Output & Artifacts (生成输出与工件)
+### 3. Generated Output & Artifacts (生成输出与工件说明)
 
-#### 3.1 测试资产统计
+#### 3.1 交付文档体系说明
+本项目测试产出存放于 `Moment冷热分离测试/` 目录下，文档演进逻辑如下：
+- **AI 初始产出 (.md)**：包含 `风险分析_草稿.md`、`测试建模_草稿.md`、 `TCI覆盖项_草稿.md`、 `测试用例_草稿.md`，记录了 LLM 最初对需求的解析及零散用例生成过程。
+- **重构版本 (测试用例_重构.md)**：经过 Prompt 迭代、场景整合（Scenario Consolidation）及人工校对后的正式版本，是自动化脚本编写的直接依据。
+- **Excel 展示表 (.xlsx)**：人工整理的成果汇总，提供了更清晰的需求-风险-用例追溯视图。其中  `Moment_Testing_Engineering - 重构.xlsx `为最终版本。
+
+#### 3.2 测试建模统计
 
 根据黑盒测试建模，最终产出的测试资产规模如下：
 
 | 类型 | 数量 | 描述 |
 |------|------|------|
-| **TCI（测试覆盖项）** | **29 项** | 涵盖 STT 状态路径、DT 决策规则及正负向 BVA |
-| **Test Cases（黑盒用例）** | **35 条** | 采用异果边界拆分与数据驱动建模后的逻辑用例数 |
-| **Automated Scripts** | **22 个** | 核心业务代码覆盖率达到 85% 以上，包含参数化测试脚本 |
+| **质量风险 (Risks)** | **26 项** | 包含 25 项业务风险及由意外路径导出的稳定性风险 (RSK-1.4.007) |
+| **状态转移 (STT)** | **55 条路径** | 包含 13 条标准与 42 条意外路径；并辅以决策表(DT)、等价类(EP)及边界值(BVA)作为建模补充 |
+| **TCI（测试覆盖项）** | **29 项** | 涵盖 STT 状态、决策表(DT)、等价类(EP)及边界值(BVA) |
+| **Test Cases（黑盒用例）** | **16 条** | 经过 **路径敏感化 (Path Sensitizing)** 整合后的高内聚场景用例 |
+| **Automated Scripts** | **15 个** | 物理执行脚本，其中合并了3个边界值测试，增加一个集成测试 |
 
-#### 3.1 自动化测试脚本清单
+#### 3.3 自动化测试脚本清单
 
-CommunityColdDataMigrationJobTest.java`: 包含 14 个针对迁移任务核心逻辑的测试用例（TC-STT-01, TC-DT-01 等）。
+针对 `CommunityColdDataMigrationJob` 的 15 个物理测试方法完整覆盖了重构后的 16 个场景用例：
 
-#### 3.3 测试执行结果 (Latest Run)
+- `CommunityColdDataMigrationJobTest.java`: 包含 9 个核心方法，涵盖了 TS-1（一致性）与 TS-5（业务边界）。
+- `MomentServiceLifecycleTest.java`: 包含 6 个针对业务生命周期的测试用例（验证了审核流转及内容修改后的状态回滚）。
+
+#### 3.4 测试脚本执行结果 (Latest Run)
 
 ```log
 [INFO] Running petcare.example.community_backend.service.CommunityColdDataMigrationJobTest
-[INFO] Tests run: 13, Failures: 0, Errors: 1, Skipped: 0
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
 [INFO] Running petcare.example.community_backend.service.MomentServiceLifecycleTest
-[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
-[INFO] ------------------------------------------------------------------------
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 ```
 
@@ -100,7 +114,8 @@ CommunityColdDataMigrationJobTest.java`: 包含 14 个针对迁移任务核心�
 1. **风险评估准则缺失**：AI 默认无法感知业务的重要性优先级。例如，它最初将“存储空间浪费”与“数据丢失”视为同等级别的风险。为了解决此问题，我们必须在提示词中人为强制引入评价规则（如：**数据丢失 > 数据不完整 > 数据一致性弱 > 存储空间浪费**）。
 2. **长上下文导致的覆盖项重复与追溯性差**：由于 LLM 对 Context（上下文）的阅读长度限制及记忆衰减，当需求文档过长时，AI 容易在表格后续部分生成重复的 TCI ID 或产生逻辑断层。这要求我们必须进行人工二次对齐，剔除冗余项，并整理成结构清晰的 Excel/Markdown 清单以保证追溯链的严谨性。
 3. **软件测试概念理解偏差**：AI 倾向于生成零散的、扁平化的用例列表，而非结构化的质量风险域或 Test Suite。它默认忽略了质量特性（如可靠性、效率）的分类，导致测试套件组织混乱。为此，我们人为规定了分类框架，将输出强制引导为分类明确的“质量风险表”和“场景化 Test Case”。
-4. **意外迁移路径（负向状态转移）的缺失**：AI 通常只关注状态转移图上明确标记的“正向”路径，而自动忽略了图上未定义的、理论上应禁止的路径（例如：审核中的动态被意外触发迁移）。这种“由于图上没画所以认为不存在”的思维定式需要通过专门的负向测试提示词来修正。
+4. **缺乏场景建模与整合**意识：AI 在设计用例时倾向于机械地将 1 个 TCI 映射为 1 个 TC，无法自动理解“一条端到端路径可覆盖多个覆盖项”的工程优化逻辑。若无人类干预，AI 会生成大量冗余、低效的原子用例。
+5. **意外迁移路径（负向状态转移）的缺失**：AI 通常只关注状态转移图上明确标记的“正向”路径，而自动忽略了图上未定义的、理论上应禁止的路径（例如：审核中的动态被意外触发迁移）。这种“由于图上没画所以认为不存在”的思维定式需要通过专门的负向测试提示词来修正。
 
 #### 4.2 Refining Prompts for Accuracy (提示词迭代改进)
 
@@ -109,18 +124,68 @@ CommunityColdDataMigrationJobTest.java`: 包含 14 个针对迁移任务核心�
 - **针对风险评估 (Refined Prompt A)**：
   > "请重新评估风险等级。涉及数据的风险评估，请严格遵守以下评判风险的准则：数据丢失 > 数据不完整 > 数据一致性弱 > 存储空间浪费"
 
+  改进效果：根据这个提示词，AI 能够更好地进行风险评分和排序，但是仍然需要人为调整。项目文档中的 **风险分析表_草稿.md** 展示了 AI 迭代风险版本的过程。
+  
 - **针对概念把握与分类 (Refined Prompt B)**：
   
   > "不要直接输出用例。请先按'数据完整性'、‘数据一致性’、‘并发控制’、‘系统可靠性’、'功能可靠性'5个类别组成的质量风险矩阵生成对应的 Test Suite 结构，随后再设计具体的Test Case。"
   
+  改进效果：AI 能够在进行高阶测试设计（high level test design）的基础上，根据质量风险类别设计多个Test Suite，随后再进行具体测试用例的设计，更具有针对性和可回溯性。最终版本的excel表格和 **测试用例_重构.md** 中均引用了下面这个基于puml代码绘制的 质量风险类-测试套组映射图，本图大题描绘了二者之间的设计关系，但具体的 风险-测试用例 映射可能有所出入。
+  
+  ![image-20260419194748250](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20260419194748250.png)
+  
 - **针对路径风险 (Refined Prompt C)**：
+  
   > "分析状态转移图。请识别所有图中未标出的意外转换。例如，若当前动态的迁移状态为 ACTIVE，接收到“恢复冷数据”事件时，预期行为应为‘静默跳过’。请根据这些‘禁止跳转’的场景，补充新的一类新的质量风险，并更新覆盖项、测试建模，最终生成一组负向测试用例。"
+  
+  改进效果：根据这个提示词，AI 开始对意外转换路径进行识别，最终人工将识别出的意外转换路径整理到了 excel 文件中。项目文档中的 **生成STT.py** 展示了 AI 生成的自动化脚本，用于更方便地识别出意外路径。下面是核心代码。
+  
+  ```
+  # 提取所有唯一的状态和输入事件
+  all_states = sorted(original_stt["当前状态"].unique())
+  all_events = sorted(original_stt["输入事件"].unique())
+  
+  # 生成所有组合
+  all_combinations = list(product(all_states, all_events))
+  
+  # 构建查找字典
+  stt_dict = {}
+  for _, row in original_stt.iterrows():
+      key = (row["当前状态"], row["输入事件"])
+      stt_dict[key] = {
+          "约束条件(Guard)": row["约束条件(Guard)"],
+          "目标状态": row["目标状态"],
+          "动作/输出": row["动作/输出"]
+      }
+  
+  # 生成完整 STT
+  full_stt_rows = []
+  for state, event in all_combinations:
+      key = (state, event)
+      if key in stt_dict:
+          guard = stt_dict[key]["约束条件(Guard)"]
+          target = stt_dict[key]["目标状态"]
+          action = stt_dict[key]["动作/输出"]
+      else:
+          guard = "Undefined"
+          target = "Undefined"
+          action = "Undefined"
+      full_stt_rows.append([state, event, guard, target, action])
+  
+  full_stt_df = pd.DataFrame(full_stt_rows, columns=["当前状态", "输入事件", "约束条件(Guard)", "目标状态", "动作/输出"])
+  ```
+  
+-  **针对场景整合 (Refined Prompt D)**：
+
+  > "请不要进行 1:1 的机械映射。请应用**路径敏感化 (Path Sensitizing)** 和**场景整合 (Scenario Consolidation)** 技术，通过分析状态转移图找到覆盖最多节点的**基本路径 (Basis Paths)**。将相关的状态跳转、边界校验和自愈逻辑合并到同一个端到端业务场景中，生成更具测试效率的场景化用例。"
+  
+  改进效果：对比最终版本的 excel 文档和前面两个版本，可以发现经过路径敏感化后重新设计的测试用例数量从 29个（和 TCI 一一对应）下降到了 15 个，并且与 TCI 的对应关系灵活。
 
 #### 4.3 缺陷报告与验证 (Bug Discovery)
 
-在执行基于决策表建模生成的 **TC-DT-04 (幂等自愈测试)** 时，自动化测试脚本发现并证实了一个高风险逻辑缺陷：
+在执行重构后的场景用例 **TC-1-01 (标准迁移全生命周期与自愈)** 时，自动化测试脚本发现并证实了一个高风险逻辑缺陷：
 
-**[BUG-COLD-001] 状态机自愈逻辑被业务规则覆盖导致的“数据孤儿”风险**
+**[BUG-COLD-001] 状态机自愈优先级低于业务规则导致的“数据孤儿”风险**
 - **缺陷描述**：在 `migrateSingleMoment` 方法中，系统在事务开始阶段优先检查了业务准入规则（`last_access_time`），而没有优先判定状态机的锁定状态。
 - **触发场景**：若迁移任务在删除 MySQL 阶段崩溃，记录将保持 `MIGRATING` 状态。若此时因运维操作、系统级全量扫描或逻辑漏洞导致该记录的访问时间被更新，下次迁移任务会因其“最近被访问过”而跳过自愈。
 
@@ -129,7 +194,7 @@ CommunityColdDataMigrationJobTest.java`: 包含 14 个针对迁移任务核心�
 19:48:25.312 [main] INFO ... - 【冷迁移】查询到动态: momentId=6, userId=600, status=MIGRATING, lastAccessTime=2026-04-13...
 19:48:25.312 [main] INFO ... - 【冷迁移】动态最近被访问过，跳过迁移: momentId=6, lastAccessTime=2026-04-13...
 ...
-[ERROR] petcare.example.community_backend.service.CommunityColdDataMigrationJobTest.testTC_DT_04_IdempotentRecovery -- Time elapsed: 0.013 s <<< FAILURE!
+[ERROR] petcare.example.community_backend.service.CommunityColdDataMigrationJobTest.testTC_1_01_StandardMigrationAndIdempotentRecovery -- Time elapsed: 0.013 s <<< FAILURE!
 org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected: <true> but was: <false>
 ```
 
@@ -137,15 +202,7 @@ org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected:
 - **修复方案**：调整 `migrateSingleMoment` 方法的逻辑顺序，将 `MIGRATING` 状态的检查（自愈路径）优先级提升至业务规则判定（冷热检查）之前。
 
 **验证结果**：
-开发团队应用修复补丁后，重新运行自动化测试脚本。结果显示 `testTC_DT_04_IdempotentRecovery` 成功忽略了“热点时间戳”的干扰，正确触发了幂等清理逻辑。所有 14 个核心单元测试全部通过。
-
-**测试执行日志摘要 (2026-04-14 11:14):**
-```log
-[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.094 s
-[INFO] BUILD SUCCESS
-```
-
-
+开发团队应用修复补丁后，重新运行自动化测试脚本。结果显示 `testTC_DT_04_IdempotentRecovery` 成功忽略了“热点时间戳”的干扰，正确触发了幂等清理逻辑。所有 9 个核心单元测试全部通过。
 
 ---
 
@@ -167,7 +224,5 @@ org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected:
 本项目通过“人工定义框架 + AI 填充逻辑 + 人工反馈纠偏”的闭环，不仅在极短时间内实现了 85% 以上的业务代码覆盖，更成功发现了状态机自愈逻辑等深层风险，验证了冷热分离系统的稳健性。
 
 ---
-**Team Members:** [你的名字/ID], [队友名字/ID]  
+**Team Members:** 2351887-孟炜程  2352488 丁桢垚 2353579 孙修明 2353596 吴瑞泽 2353726 付煜超
 **Date:** 2026-04-18
-
-*本项目报告基于 dynamic black-box testing 规范编写。*
