@@ -130,7 +130,8 @@ public class MomentServiceLifecycleTest {
     void testTC_4_01_RepeatAuditInterception() {
         Long momentId = 401L;
         when(momentRepository.updateAuditStatus(momentId, "PENDING", "APPROVED")).thenReturn(0);
-        assertFalse(momentService.approveMoment(momentId));
+        // 业务逻辑中对于重复审核会抛出 IllegalStateException，测试应捕获该异常
+        assertThrows(IllegalStateException.class, () -> momentService.approveMoment(momentId));
     }
 
     /**
@@ -170,7 +171,7 @@ public class MomentServiceLifecycleTest {
     void testTC_5_03_InteractionAndHeatReset() {
         Long momentId = 503L;
         PetMoment m = new PetMoment(); 
-        m.setId(momentId); m.setAuditStatus("APPROVED"); m.setMigrationStatus("NONE");
+        m.setId(momentId); m.setUserId(1L); m.setAuditStatus("APPROVED"); m.setMigrationStatus("NONE");
 
         when(momentRepository.findById(momentId)).thenReturn(Optional.of(m));
         when(momentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
