@@ -204,11 +204,6 @@ org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected:
 **验证结果**：
 开发团队应用修复补丁后，重新运行自动化测试脚本。结果显示 `testTC_DT_04_IdempotentRecovery` 成功忽略了“热点时间戳”的干扰，正确触发了幂等清理逻辑。所有 9 个核心单元测试全部通过。
 
-
----
-
-根据你提供的 `risk_coverage_matrix.xlsx` 和 `Moment_Testing_Engineering - 重构.xlsx` 中的数据，我已在 **实验分析（4）** 中新增 **4.4 覆盖率分析** 小节，内容如下：
-
 ---
 
 #### 4.4 覆盖率分析 (Coverage Analysis)
@@ -224,7 +219,7 @@ org.opentest4j.AssertionFailedError: 自愈迁移应当返回 true ==> expected:
 | 功能可用性（1.5.x） | 4 | 4 | 100% |
 | **合计** | **26** | **26** | **100%** |
 
-> ✅ **结论**：所有识别出的质量风险均已至少被一条测试用例覆盖，无“裸露风险”。
+> **结论**：所有识别出的质量风险均已至少被一条测试用例覆盖，无“裸露风险”。
 
 
 根据 `覆盖矩阵` 中每条用例关联的风险数量统计：
