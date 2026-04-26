@@ -70,3 +70,30 @@ json{
    - 由于评论和点赞通常包含大量重复的 `userName` 或 `userAvatar`，使用 **GZIP 压缩**存储到 `full_data` 可以显著降低 HBase 的磁盘占用。
 3. **可推算性恢复**:
    - RowKey 包含 `userId` 和 `momentId`，这意味着即使 MySQL 记录完全丢失，只要知道用户 ID 范围，就可以通过 HBase Scan 恢复出该用户的所有动态。
+
+
+
+
+
+### Activity Record (HBase) 存储结构
+
+| 区域        | 字段 (Qualifier)               | 数据类型 | 说明                                                         |
+| ----------- | ------------------------------ | -------- | ------------------------------------------------------------ |
+| **表名**    | `petcare_cold:activity_record` |          |                                                              |
+| **列族**    | `d`                            |          | **压缩方式：GZ**                                             |
+| **RowKey**  | `ROW`                          | String   | 格式：`{padding_pet_id}_{yyyyMMdd}_{padding_record_id}`其中 `padding_pet_id` 和 `padding_record_id` 都是左补零到15位的数字。例如：`000000000000004_20260117_000000000000025` |
+| **列族: d** | `record_id`                    | String   | 活动记录的唯一 ID (例如：`25`)                               |
+|             | `activity_id`                  | String   | 关联的活动定义 ID (Activity ID) (例如：`83`)                 |
+|             | `pet_id`                       | String   | 宠物 ID (例如：`4`)                                          |
+|             | `desc`                         | String   | 活动记录的文字描述 (Activity Description) (例如：`fds` 或空字符串) |
+|             | `date`                         | String   | 活动发生的日期时间，精确到分钟 (格式：`yyyyMMddHHmm`) (例如：`202601171526`) |
+
+### 关键点总结：
+
+1. **RowKey 结构**：`{padding_pet_id}_{yyyyMMdd}_{padding_record_id}`。这种设计非常适合按 `petId` 进行范围扫描，并且在同一 `petId` 下，按日期和 `recordId` 排序。
+2. **列族**：只有一个列族 `d`。
+3. **列名 (Qualifiers)**：`record_id`, `activity_id`, `pet_id`, `desc`, `date`。这些都是从 `ActivityRecordDTO` 中提取的核心业务字段，直接存储为字符串。
+4. **数据类型**：所有存储在 HBase 中的值都通过 `Bytes.toBytes(String.valueOf(...))` 或 `Bytes.toBytes(String)` 转换为字节数组，因此在 HBase 层面可以视为 `String` 类型。
+5. **压缩**：列族 `d` 启用了 `GZ` (Gzip) 压缩，这有助于节省存储空间，尤其对于文本数据。
+6. **无 `full_data` 字段**：与 `moments` 的设计不同，`activity_record` 的冷存储没有将整个 DTO 序列化为 `full_data` 字段，而是将关键字段拆分存储。这可能是为了在查询时避免不必要的反序列化开销，或者为了更灵活地进行列过滤。
+7. **关联信息补全**：`activity_name`, `activity_kind_name`, `pet_name` 等信息不会直接存储在 HBase 中，而是在从 HBase 读取 `ActivityRecordDTO` 后，由 `ActivityService` 层通过关联查询（通常是 MySQL）进行补全。

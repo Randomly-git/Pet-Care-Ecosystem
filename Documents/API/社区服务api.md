@@ -498,6 +498,53 @@ stompClient.connect({}, function(frame) {
 ```
 
 ---
+## 十一、审核管理接口 (管理端)
+
+### 11.1 获取待审核动态列表
+
+**接口地址**: `GET /api/v1/admin/moments/pending`
+
+**查询参数**:
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| page | Int | 0 | 页码 |
+| size | Int | 20 | 每页数量 |
+
+### 11.2 审核动态操作
+
+**接口地址**: `PUT /api/v1/admin/moments/{momentId}/audit`
+
+**请求参数** (JSON Body):
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| status | String | 是 | `APPROVED` (通过) / `REJECTED` (拒绝) |
+| reason | String | 否 | 拒绝原因 |
+| auditorId | Long | 是 | 审核人用户ID |
+
+**响应示例**:
+```json
+{
+  "momentId": 1,
+  "status": "APPROVED",
+  "auditTime": "2026-03-20T10:00:00"
+}
+```
+
+---
+
+## 十二、HBase 状态历史增强说明
+
+### 12.1 状态变更溯源查询
+
+**对应接口**: `GET /api/status/timeline/{petId}` (见状态记录API 2.0.5)
+
+**底层逻辑说明**:
+- **热数据**: MySQL `status_records` 存储当前活跃状态。
+- **冷数据**: HBase `petcare_cold:pet_status_history` 存储所有历史变更。
+- **RowKey**: `{pet_id}_{reversed_timestamp}`。
+- **查询建议**: 前端在展示时间轴时，若用户滚动到底部，应触发分页查询以调取 HBase 中的历史记录。
+
+---
 
 ## 十、通用响应状态码
 
