@@ -562,24 +562,31 @@ const handleLogout = async () => {
 }
 
 .nav-link {
-  font-size: 18px; /* 增大了字体 */
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: -0.01em;
   color: #374151; /* 默认深灰保留高级感和对比度 */
   text-decoration: none;
-  /* 增加天空蓝的变色和悬浮放大互动 */
-  transition: color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: center bottom;
+  /* 增加边框、天空蓝的变色和悬浮下沉互动 */
+  padding: 6px 16px;
+  border-radius: 980px; /* 胶囊圆角边框 */
+  border: 1px solid transparent;
+  transition: color 0.25s ease, border-color 0.25s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+  transform-origin: center center;
 }
 
 .nav-item-wrapper:hover .nav-link {
   color: #38bdf8; /* bg-sky-400 */
-  transform: scale(1.12); /* 明显触发放大 */
+  border-color: rgba(56, 189, 248, 0.5); /* 悬浮时显现浅蓝色边框 */
+  background-color: rgba(56, 189, 248, 0.05); /* 微妙的背景填充 */
+  transform: translateY(2px); /* 微微下沉符合自然设计 */
 }
 
 .nav-link--active {
   color: #38bdf8; /* Active选中态也使用极其鲜艳的天空蓝 */
   font-weight: 600;
+  border-color: #38bdf8; /* 当前页面时显示完整的蓝色外边框 */
+  background-color: rgba(56, 189, 248, 0.08);
 }
 
 /* ===== Mega Menu Apple 高级面板特效 ===== */

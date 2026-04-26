@@ -3,7 +3,7 @@
     <AppHeader />
 
     <!-- 1. Hero 亲自然巨幅组件 -->
-    <section class="banner-section hero-section">
+    <section id="hero" class="banner-section hero-section">
       <!-- 阳关径向渐变背景 -->
       <div class="sunlight-bg"></div>
 
@@ -36,8 +36,47 @@
           </div>
 
           <h1 class="nature-title main-title" style="white-space: nowrap;">让宠物生活更美好。</h1>
-          <p class="nature-subtitle">全平台一站式宠物健康管理系统与社区服务。</p>
-          <button class="nature-button primary-btn" @click="goToActivities">开始使用</button>
+          <p class="nature-subtitle">一个拥抱自然的宠物健康追踪流、智能全景地图与温度社区的交汇点。<br>告别繁杂的表格，在这里系统化体验生命的陪伴。</p>
+
+          <div id="dashboard" class="hero-dashboard-container">
+            <template v-if="isLoggedIn">
+              <div class="user-dashboard-mini fly-in-up">
+                <div class="dash-card">
+                  <div class="dash-value text-sky-400">2</div>
+                  <div class="dash-label">名下宠物</div>
+                </div>
+                <div class="dash-divider"></div>
+                <div class="dash-card">
+                  <div class="dash-value text-green-500">12</div>
+                  <div class="dash-label">签到活动</div>
+                </div>
+                <div class="dash-divider"></div>
+                <div class="dash-card">
+                  <div class="dash-value text-amber-500">6</div>
+                  <div class="dash-label">社区瞬间</div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="auth-prompt-card fly-in-up">
+                <p>登录开启全域生态服务，同步您的关爱之旅。</p>
+                <div class="auth-actions">
+                  <button class="nature-button auth-primary-btn" @click="router.push('/login')">立刻登录</button>
+                  <button class="nature-button auth-secondary-btn" @click="router.push('/register')">加入我们</button>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div v-if="isLoggedIn" class="hero-actions-advanced fly-in-up" style="transition-delay: 0.2s;">
+            <button class="btn-premium-primary" @click="goToActivities">
+              进入服务中心 
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+            <button class="btn-premium-secondary" @click="goToCommunity">
+              发现社区
+            </button>
+          </div>
         </div>
       </div>
 
@@ -152,10 +191,9 @@
     </div>
 
     <!-- 4. 生态服务 -->
-    <section class="features-section">
+    <section id="services" class="features-section">
       <div class="features-header fly-in-up">
         <h2 class="nature-title section-title">专业生态服务</h2>
-
       </div>
 
       <div class="features-list">
@@ -248,7 +286,6 @@ const goToMap = () => {
   else router.push('/login')
 }
 
-// ==== 向下滑动进入动画 (IntersectionObserver) ====
 let observer = null
 
 onMounted(() => {
@@ -279,6 +316,140 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+
+
+/* =========== 新增主页微型图表板 =========== */
+.hero-dashboard-container {
+  margin-top: 24px;
+  width: 100%;
+}
+.user-dashboard-mini, .auth-prompt-card {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.05); /* Apple高级弥散感 */
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.dash-card {
+  flex: 1;
+  text-align: center;
+}
+.dash-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.dash-label {
+  font-size: 13px;
+  color: #4b5563;
+  font-weight: 600;
+}
+.dash-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(0,0,0,0.1);
+}
+.auth-prompt-card {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.auth-prompt-card p {
+  color: #374151;
+  font-size: 15px;
+  margin: 0;
+  font-weight: 600;
+}
+.auth-actions {
+  display: flex;
+  gap: 12px;
+}
+.auth-primary-btn {
+  background: #38bdf8;
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+.auth-secondary-btn {
+  background: rgba(255,255,255,0.7);
+  color: #374151;
+  padding: 8px 16px;
+  font-size: 14px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.05) inset;
+}
+.auth-primary-btn:hover { background: #0ea5e9; }
+.auth-secondary-btn:hover { background: #fff; }
+
+/* ===== 高级按钮组 ===== */
+.hero-actions-advanced {
+  display: flex;
+  gap: 16px;
+  margin-top: 28px;
+  align-items: center;
+}
+
+.btn-premium-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f97316; /* 活力日落橙 */
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 12px 28px;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
+}
+.btn-premium-primary svg {
+  margin-left: 8px;
+  transition: transform 0.3s ease;
+}
+.btn-premium-primary:hover {
+  background-color: #ea580c; /* 深砖橙 */
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+}
+.btn-premium-primary:hover svg {
+  transform: translateX(4px);
+}
+
+.btn-premium-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: #2b4c3b;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 12px 28px;
+  border-radius: 9999px;
+  border: 1px solid #2b4c3b;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.btn-premium-secondary:hover {
+  background-color: rgba(43, 76, 59, 0.05);
+}
+
+.text-sky-400 { color: #38bdf8; }
+.text-green-500 { color: #22c55e; }
+.text-amber-500 { 
+  color: #f97316; /* 替换为活力血橙 */
+  text-shadow: 0 4px 14px rgba(249, 115, 22, 0.2); 
+}
+.mt-4 { margin-top: 16px; }
+/* ==== 向下滑动进入动画 (IntersectionObserver) ==== */
+
+
 /* ===== 基础排版与宏观色调设定 ===== */
 .home-view {
   background-color: #fafaf9;
@@ -358,7 +529,9 @@ onUnmounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 70% 30%, rgba(254, 252, 211, 0.4) 0%, rgba(250, 250, 249, 0) 60%);
+  background: 
+    radial-gradient(circle at 70% 30%, rgba(254, 252, 211, 0.4) 0%, rgba(250, 250, 249, 0) 60%),
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.08) 0%, rgba(250, 250, 249, 0) 50%); /* 日落暖光点缀 */
   z-index: 0;
 }
 
@@ -443,8 +616,9 @@ onUnmounted(() => {
 }
 
 .hero-tag-dot {
-  opacity: 0.5;
-  font-size: 12px;
+  opacity: 1;
+  color: #f97316; /* 橙色指示点 */
+  font-size: 14px;
 }
 
 .main-title {
