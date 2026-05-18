@@ -13,6 +13,7 @@ import petcare.example.community_backend.dto.HBaseArchiveRecord;
 import petcare.example.community_backend.util.GzipUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -125,7 +126,7 @@ public class CommunityHBaseColdStorageService {
                         record.getMomentId(),
                         archiveData.getComments() != null ? archiveData.getComments().size() : 0,
                         archiveData.getLikes() != null ? archiveData.getLikes().size() : 0,
-                        json.getBytes().length,
+                        json.getBytes(StandardCharsets.UTF_8).length,
                         compressedData.length);
             }
 
