@@ -7,17 +7,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import petcare.example.community_backend.dto.MomentCreateRequestDTO;
 import petcare.example.community_backend.dto.MomentResponseDTO;
 import petcare.example.community_backend.mapper.MomentMapper;
-import petcare.example.community_backend.model.PetMoment;
 import petcare.example.community_backend.service.MomentService;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;

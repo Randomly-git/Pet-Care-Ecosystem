@@ -21,7 +21,7 @@
           :key="moment.id"
           :moment="moment"
           :current-user-id="currentUserId"
-          :current-user-display-name="currentUserDisplayName"
+          :current-user-display-name="displayName"
           @like-updated="handleLikeUpdated"
           @comment-added="handleCommentAdded"
           @moment-deleted="handleMomentDeleted"
@@ -79,7 +79,7 @@ export default {
   },
   emits: ['moment-updated'],
   setup(props, { emit }) {
-    const currentUserDisplayName = computed(() => props.currentUserDisplayName || '')
+    const displayName = computed(() => props.currentUserDisplayName || '')
     const moments = ref([])
     const loading = ref(false)
     const loadingMore = ref(false)
@@ -181,8 +181,7 @@ export default {
       loadingMore,
       hasMore,
       loadMore,
-      currentUserId: () => props.currentUserId,
-      currentUserDisplayName,
+      displayName,
       handleLikeUpdated,
       handleCommentAdded,
       handleMomentDeleted,

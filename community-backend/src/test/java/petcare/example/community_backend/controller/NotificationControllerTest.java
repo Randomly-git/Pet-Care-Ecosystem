@@ -10,7 +10,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import petcare.example.community_backend.dto.NotificationDTO;
 import petcare.example.community_backend.model.Notification;
 import petcare.example.community_backend.service.NotificationService;
 

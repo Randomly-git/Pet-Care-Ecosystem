@@ -2077,9 +2077,9 @@ const previewMedia = (media) => {
 
 // 处理编辑对话框中的媒体文件移除
 const removeMediaFromEdit = (mediaId) => {
-  const index = editForm.mediaFiles.findIndex(m => m.mediaId === mediaId)
+  const index = editForm.value.mediaFiles.findIndex(m => m.mediaId === mediaId)
   if (index > -1) {
-    editForm.mediaFiles.splice(index, 1)
+    editForm.value.mediaFiles.splice(index, 1)
   }
 }
 
