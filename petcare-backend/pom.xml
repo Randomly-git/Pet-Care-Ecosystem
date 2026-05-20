@@ -126,9 +126,11 @@
         </dependency>
 
         <!-- 只需要密码加密功能，不需要完整的Spring Security -->
+        <!-- 覆盖 BOM 版本以修复 CVE-2025-22228 (HIGH) - BCrypt 密码长度校验绕过 -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
+            <version>6.2.8</version>
         </dependency>
 
         <!-- 如果需要JSON处理 -->

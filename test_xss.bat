@@ -1,0 +1,1 @@
+curl.exe -s -X POST http://localhost:9000/api/v1/moments -H "Content-Type: application/json" -d "{\"userId\":1,\"content\":\"alert_xss_test\"}" -w "\nHTTP: %{http_code}"
