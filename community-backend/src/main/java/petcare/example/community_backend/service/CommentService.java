@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j; // 引入 Slf4j 日志
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**

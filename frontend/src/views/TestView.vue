@@ -51,10 +51,10 @@ const runAllTests = async () => {
     test.message = "等待测试..."
   })
   try {
-    updateTest(0, "success", `当前环境: ${import.meta.env.DEV ? "development" : "production"}`)
+    updateTest(0, "success", \`当前环境: \${import.meta.env.DEV ? "development" : "production"}\`)
     await testLocalStorage()
     await testMessage()
-    updateTest(3, "success", `API基础地址: ${API_CONFIG.BASE_URL}`)
+    updateTest(3, "success", \`API基础地址: \${API_CONFIG.BASE_URL}\`)
     await testAPIConnection()
   } catch (error) {
     console.error("测试运行出错:", error)
@@ -76,14 +76,14 @@ const testLocalStorage = async () => {
       updateTest(1, "error", "本地存储数据不匹配")
     }
   } catch (error) {
-    updateTest(1, "error", `本地存储错误: ${error.message}`)
+    updateTest(1, "error", \`本地存储错误: \${error.message}\`)
   }
 }
 
 const testMessage = async () => {
   try {
     const testMsg = document.createElement("div")
-    testMsg.style.cssText = `
+    testMsg.style.cssText = \`
       position: fixed;
       top: 20px;
       right: 20px;
@@ -93,7 +93,7 @@ const testMessage = async () => {
       border-radius: 8px;
       z-index: 9999;
       font-size: 14px;
-    `
+    \`
     testMsg.textContent = "✅ 消息系统测试成功"
     document.body.appendChild(testMsg)
     setTimeout(() => {
@@ -103,7 +103,7 @@ const testMessage = async () => {
     }, 2000)
     updateTest(2, "success", "消息提示系统正常")
   } catch (error) {
-    updateTest(2, "error", `消息系统错误: ${error.message}`)
+    updateTest(2, "error", \`消息系统错误: \${error.message}\`)
   }
 }
 
@@ -116,10 +116,10 @@ const testAPIConnection = async () => {
     if (response.ok || response.status === 404) {
       updateTest(4, "success", "API服务器连接正常")
     } else {
-      updateTest(4, "error", `API响应异常: ${response.status}`)
+      updateTest(4, "error", \`API响应异常: \${response.status}\`)
     }
   } catch (error) {
-    updateTest(4, "warning", `API连接失败: ${error.message} (可能是后端未启动)`)
+    updateTest(4, "warning", \`API连接失败: \${error.message} (可能是后端未启动)\`)
   }
 }
 

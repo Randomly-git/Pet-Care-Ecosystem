@@ -38,8 +38,8 @@ export {
   useActivities
 } from '@/composables/useApi'
 
-// 导出类型定义（TypeScript 类型导出，运行时无影响）
-export {
+// 导出类型定义
+export type {
   User,
   Pet,
   Activity,

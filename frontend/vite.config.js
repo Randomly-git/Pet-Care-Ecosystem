@@ -1,17 +1,13 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
-import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [
-      vue(),
-      vueDevTools()  // 启用 Vue DevTools（页面内嵌组件树调试面板）
-    ],
+    plugins: [vue()],
 
     resolve: {
       alias: {
