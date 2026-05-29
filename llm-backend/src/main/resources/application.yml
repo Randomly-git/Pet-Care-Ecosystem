@@ -13,6 +13,24 @@ spring:
       discovery:
         server-addr: ${nacos.host:localhost}:${nacos.port:8848}
 
+  # 数据库配置
+  datasource:
+    url: jdbc:mysql://${mysql.host:localhost}:${mysql.port:3306}/${mysql.database:pet_system}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
+    username: ${mysql.username:root}
+    password: ${mysql.password:password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
   # RabbitMQ 配置
   rabbitmq:
     host: ${rabbitmq.host:localhost}

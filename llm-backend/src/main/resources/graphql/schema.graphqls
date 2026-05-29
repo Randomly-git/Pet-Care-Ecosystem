@@ -1,38 +1,51 @@
 type Query {
-    # 将 userRequirement 添加为可选参数（去掉 ! 表示可选）
-    petHealthAnalysis(petId: ID!, userRequirement: String): PetHealthAnalysis
+    activityHealthAnalysis(petId: ID!, days: Int, userRequirement: String): AnalysisResult
+    identifyCatBreed(imageData: String!): BreedResult
+    aiAgent(petId: ID!, message: String!): AgentResult
 }
 
-type PetHealthAnalysis {
+# ========== 功能1: 活动健康分析 ==========
+
+type AnalysisResult {
     petId: ID!
-    name: String!
+    petName: String!
     breed: String!
     species: String!
-
-    # 健康状态记录
-    statusRecords: [StatusRecord]
-
-    # AI健康建议
-    healthAdvice: String!
+    analysis: String!
+    knowledgeSources: [KnowledgeSource!]
+    analysisType: String!
 }
 
-type StatusRecord {
-    statusName: String!
+type KnowledgeSource {
+    title: String!
+    content: String!
+    score: Float!
+}
+
+# ========== 功能2: 猫品种识别 ==========
+
+type BreedResult {
+    identifiedBreed: String!
     description: String
-    startDate: String
+    characteristics: String
+    confidence: Float!
+    rawAnalysis: String!
 }
 
-# 可以注释掉或删除Article和Link类型，但保持Schema兼容
-type Article {
-    title: String!
-    url: String!
-    snippet: String
-    source: String
+# ========== 功能3: AI 智能体 ==========
+
+type AgentResult {
+    petId: ID!
+    petName: String!
+    message: String!
+    toolCalls: [ToolCallLog!]
 }
 
-type Link {
-    title: String!
-    url: String!
+type ToolCallLog {
+    toolName: String!
+    arguments: String!
+    result: String!
+    success: Boolean!
 }
 
 scalar ID
