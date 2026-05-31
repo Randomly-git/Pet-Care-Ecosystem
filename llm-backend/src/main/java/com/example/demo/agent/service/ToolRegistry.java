@@ -19,13 +19,7 @@ public class ToolRegistry {
                 req("petId", "string", "宠物ID"),
                 req("activityName", "string", "活动名称，如散步、喂食主粮、洗澡"),
                 opt("description", "string", "活动描述，如'在小区散步30分钟'"),
-                opt("date", "string", "活动时间 yyyy-MM-dd HH:mm，默认当前"))),
-            tool("get_health_analysis", "获取AI对宠物近期活动的健康分析和建议", params(
-                req("petId", "string", "宠物ID"),
-                opt("days", "string", "分析天数默认30"),
-                opt("question", "string", "具体关心的问题"))),
-            tool("search_knowledge", "搜索宠物养护知识（品种特性、喂养指南、疾病预防等）", params(
-                req("query", "string", "搜索关键词，如'金毛掉毛怎么办'")))
+                opt("date", "string", "活动时间 yyyy-MM-dd HH:mm，默认当前")))
         );
     }
 
