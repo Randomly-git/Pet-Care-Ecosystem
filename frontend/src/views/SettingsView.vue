@@ -24,6 +24,31 @@
 
           <!-- Profile Section -->
           <div class="form-section">
+            <h3 class="section-title">账号安全</h3>
+            <div class="form-group">
+              <label>原密码</label>
+              <div class="input-wrapper">
+                <input type="password" v-model="passwordForm.old" class="apple-input" placeholder="输入当前密码" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>新密码</label>
+              <div class="input-wrapper">
+                <input type="password" v-model="passwordForm.new" class="apple-input" placeholder="输入新密码" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>确认新密码</label>
+              <div class="input-wrapper">
+                <input type="password" v-model="passwordForm.confirm" class="apple-input" placeholder="再次输入新密码" />
+              </div>
+            </div>
+          </div>
+          
+          <el-divider />
+
+          <!-- Profile Section -->
+          <div class="form-section">
             <h3 class="section-title">个人档案</h3>
             <div class="form-group">
               <label>昵称</label>
@@ -65,6 +90,11 @@ const loading = ref(false)
 const fileInput = ref(null)
 const previewAvatar = ref('')
 const formName = ref('')
+const passwordForm = ref({
+  old: '',
+  new: '',
+  confirm: ''
+})
 const currentName = computed(() => authStore.userName || '用户')
 const rawFile = ref(null)
 
@@ -96,6 +126,17 @@ const handleFileChange = (e) => {
 }
 
 const saveSettings = async () => {
+  if (passwordForm.value.new || passwordForm.value.old || passwordForm.value.confirm) {
+    if (!passwordForm.value.old || !passwordForm.value.new || !passwordForm.value.confirm) {
+      ElMessage.warning('请完整填写密码修改字段')
+      return
+    }
+    if (passwordForm.value.new !== passwordForm.value.confirm) {
+      ElMessage.warning('两次输入的新密码不一致')
+      return
+    }
+  }
+  
   if (!formName.value.trim()) {
     ElMessage.warning('昵称不能为空')
     return
@@ -112,6 +153,9 @@ const saveSettings = async () => {
       name: formName.value,
       avatar: previewAvatar.value
     })
+    
+    // Clear password form
+    passwordForm.value = { old: '', new: '', confirm: '' }
     
     // Set mock limiter to false after saving
     canChangeName.value = false

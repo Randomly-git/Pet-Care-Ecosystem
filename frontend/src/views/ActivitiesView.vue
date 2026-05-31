@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="activities-page">
     <AppHeader />
 
@@ -86,12 +86,33 @@
             </h3>
             <span class="report-badge">实时更新</span>
           </div>
-          <div class="ai-report-body">
-            <div class="report-status green">极度稳定 & 活跃</div>
-            <p class="report-text">基于近 7 日的打卡密度分析：主粮喂食规律度高达 <strong>95%</strong>，排泄状态(双便)无异常。建议本周末增加约 <strong>15%</strong> 的户外互动活动量以维持骨骼活性。</p>
-            <div class="report-metrics">
-              <div class="metric"><div class="metric-val">98/100</div><div class="metric-label">健康评分</div></div>
-              <div class="metric"><div class="metric-val">+2%</div><div class="metric-label">周活跃度</div></div>
+          <div class="ai-report-body" style="position: relative; min-height: 120px;">
+            <div v-if="aiReportLoading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; font-size: 13px;">
+              <el-icon class="is-loading" style="font-size: 24px; margin-bottom: 8px;"><Loading /></el-icon>
+              正在分析近期健康数据...
+            </div>
+            <div v-else-if="aiReportError" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #ef4444; font-size: 13px;">
+              <el-icon style="font-size: 24px; margin-bottom: 8px;"><Warning /></el-icon>
+              生成诊断报告失败，请稍后重试
+              <el-button link size="small" type="primary" @click="fetchAiReport" style="margin-top: 8px;">重试</el-button>
+            </div>
+            <template v-else-if="aiReportData">
+              <div class="report-status green">诊断类型：{{ aiReportData.analysisType === 'RAG' ? '深度评估 (基于文献库)' : '基础评估' }}</div>
+              <p class="report-text" style="white-space: pre-wrap;">{{ aiReportData.analysis }}</p>
+              
+              <div v-if="aiReportData.knowledgeSources && aiReportData.knowledgeSources.length > 0" style="margin-top: auto; padding-top: 12px; border-top: 1px dashed #e5e7eb;">
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📚 参考文献支持：</div>
+                <div v-for="(source, idx) in aiReportData.knowledgeSources.slice(0, 2)" :key="idx" style="font-size: 11px; color: #4b5563; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+                  <el-icon style="color: #6750A4"><Document /></el-icon> {{ source.title }} (置信度: {{(source.score * 100).toFixed(0)}}%)
+                </div>
+              </div>
+            </template>
+            <div v-else style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; font-size: 13px;">
+              <p style="margin-bottom: 12px; text-align: center;">基于宠物的近期活动、饮食与医疗记录，利用 Qwen 模型与知识库生成深度健康分析。</p>
+              <el-button type="primary" round @click="fetchAiReport" style="background-color: #6750A4; border-color: #6750A4; box-shadow: 0 4px 12px rgba(103, 80, 164, 0.3);">
+                <el-icon style="margin-right: 6px;"><MagicStick /></el-icon>
+                生成健康简报
+              </el-button>
             </div>
           </div>
         </div>
@@ -377,6 +398,12 @@
         <el-form-item label="活动描述" prop="description">
           <el-input v-model="addForm.description" type="textarea" :rows="4" placeholder="请输入活动描述..." />
         </el-form-item>
+        <el-form-item v-if="addForm.activityKindId === 6" label="用药量" prop="dosage">
+          <el-input v-model="addForm.dosage" placeholder="例如：2片、5ml、1支" />
+        </el-form-item>
+        <el-form-item v-if="addForm.activityKindId === 6" label="用药量" prop="dosage">
+          <el-input v-model="addForm.dosage" placeholder="例如：2片、5ml、1支" />
+        </el-form-item>
         <el-form-item label="上传媒体文件">
           <el-upload ref="activityUploadRef" :auto-upload="false" :on-change="handleActivityFileChange" :limit="5"
             :file-list="activityFileList" action="#" :accept="'image/*,video/*,.pdf,.doc,.docx'" multiple>
@@ -410,6 +437,9 @@
         </el-form-item>
         <el-form-item label="活动描述" prop="description">
           <el-input v-model="editForm.description" type="textarea" :rows="4" placeholder="请输入活动描述..." />
+        </el-form-item>
+        <el-form-item v-if="editForm.activityId === 6" label="用药量" prop="dosage">
+          <el-input v-model="editForm.dosage" placeholder="例如：2片、5ml、1支" />
         </el-form-item>
         <el-form-item label="上传媒体文件">
           <el-upload ref="editActivityUploadRef" :auto-upload="false" :on-change="handleEditActivityFileChange"
@@ -642,6 +672,37 @@ const isStatusSidebarCollapsed = ref(false) // 宠物状态侧边栏折叠状态
 const selectedActivityTypes = ref([1, 2, 3, 4, 5, 6, 7, 8, 9]) // 默认选择所有活动类型
 const dateRange = ref([])
 
+// AI Report variables
+const aiReportData = ref(null)
+const aiReportLoading = ref(false)
+const aiReportError = ref(false)
+
+const formatAiAnalysisText = (text) => {
+  if (!text) return ''
+  // Basic markdown bold to HTML
+  return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+}
+
+const fetchAiReport = async () => {
+  if (!selectedPetId.value) return
+  
+  aiReportLoading.value = true
+  aiReportError.value = false
+  
+  try {
+    const { getActivityHealthAnalysis } = await import('@/api/ai')
+    aiReportData.value = await getActivityHealthAnalysis(selectedPetId.value, 7, '')
+  } catch (error) {
+    console.error('Failed to fetch AI report:', error)
+    aiReportError.value = true
+    aiReportData.value = null
+  } finally {
+    aiReportLoading.value = false
+  }
+}
+
+
+
 // 存储每个宠物的总活动记录数（用于卡片显示）
 const petActivityStats = ref({})
 
@@ -703,7 +764,8 @@ const addForm = ref({
   activityKindId: null,
   activityId: null,
   activityDate: '',
-  description: ''
+  description: '',
+  dosage: ''
 })
 
 const editForm = ref({
@@ -713,7 +775,8 @@ const editForm = ref({
   activityId: null,
   activityDate: '',
   description: '',
-  mediaFiles: []
+  mediaFiles: [],
+  dosage: ''
 })
 
 // 活动记录媒体文件相关数据
@@ -891,26 +954,11 @@ const filteredRecords = computed(() => {
 
     // 按活动类型筛选
     if (selectedActivityTypes.value.length > 0) {
-      console.log('筛选前记录数量:', filtered.length)
-      console.log('选择的活动类型:', selectedActivityTypes.value)
-
       filtered = filtered.filter(record => {
-        // 确保类型一致：将activityKindId转为字符串比较
         const recordKindId = String(record.activityKindId)
         const shouldInclude = selectedActivityTypes.value.some(type => String(type) === recordKindId)
-
-        console.log('记录筛选结果:', {
-          recordId: record.activityRecordId,
-          recordActivityKindId: record.activityKindId,
-          recordActivityName: record.activityName,
-          shouldInclude,
-          selectedTypes: selectedActivityTypes.value
-        })
-
         return shouldInclude
       })
-
-      console.log('筛选后记录数量:', filtered.length)
     }
 
   return filtered.sort((a, b) => new Date(b.activityDate) - new Date(a.activityDate))
@@ -1117,8 +1165,6 @@ const submitCreateActivity = async () => {
       userId: currentUserId.value
     }
 
-    console.log('创建新活动:', activityData)
-
     // 调用API创建活动
     const newActivity = await createActivity(activityData)
 
@@ -1185,19 +1231,11 @@ const loadUserPets = async () => {
       userPets.value = Array.isArray(pets) ? pets : []
     }
 
-    console.log('加载到的宠物数据:', userPets.value)
-
     // 默认选中第一个宠物
-    console.log('loadUserPets: 检查是否需要设置默认选中的宠物')
-    console.log('loadUserPets: selectedPetId.value:', selectedPetId.value)
-    console.log('loadUserPets: userPets.value.length:', userPets.value.length)
-
     if (!selectedPetId.value && userPets.value.length > 0) {
       const firstPetId = userPets.value[0].petId || userPets.value[0].id
-      console.log('loadUserPets: 设置默认选中的宠物ID:', firstPetId)
       selectedPetId.value = firstPetId
       selectedPetIds.value = [firstPetId] // 同步初始化多选列表
-      console.log('loadUserPets: 设置后的selectedPetId.value:', selectedPetId.value)
     }
   } catch (error) {
     console.error('加载用户宠物失败:', error)
@@ -1222,8 +1260,6 @@ const loadUserActivities = async () => {
     } else {
       userActivities.value = []
     }
-
-    console.log('加载到的用户活动:', userActivities.value)
   } catch (error) {
     console.error('加载用户活动失败:', error)
     userActivities.value = []
@@ -1233,16 +1269,13 @@ const loadUserActivities = async () => {
 const loadActivityRecords = async () => {
   try {
     loading.value = true
-
-    console.log('loadActivityRecords: 开始加载活动记录')
-    console.log('loadActivityRecords: 选择的宠物ID:', selectedPetId.value)
-    console.log('loadActivityRecords: 日期范围:', dateRange.value)
+    fetchAiReport() // 获取AI简报数据
+    fetchAiReport() // 获取AI简报数据
 
     // 获取选中宠物的活动记录 (支持多选)
     const queryIds = selectedPetIds.value.length > 0 ? selectedPetIds.value : (selectedPetId.value ? [selectedPetId.value] : [])
 
     if (queryIds.length === 0) {
-      console.log('loadActivityRecords: 没有选择宠物，清空活动记录')
       activityRecords.value = []
       return
     }
@@ -1250,8 +1283,6 @@ const loadActivityRecords = async () => {
     const { getActivityRecordsByPetIds } = await import('@/api/activities')
     const { getRelatedMedia } = await import('@/api/media')
 
-    // 批量获取活动记录
-    console.log('loadActivityRecords: 开始调用API获取活动记录')
     // 构建查询参数
     const params = {
       page: 0,
@@ -1270,9 +1301,6 @@ const loadActivityRecords = async () => {
     
     // 合并逻辑：使用 queryIds 支持多选，结合 page/size/date 的精确 params
     const recordsResponse = await getActivityRecordsByPetIds(queryIds, params)
-
-    console.log('loadActivityRecords: API原始响应:', recordsResponse)
-    console.log('loadActivityRecords: 请求参数:', params)
 
     // 处理API响应格式 - 支持数组和Page对象两种格式
     let records = []
@@ -1295,16 +1323,12 @@ const loadActivityRecords = async () => {
       }
     }
 
-    console.log('loadActivityRecords: 解析后的活动记录:', records)
-
     // 为每个活动记录获取关联的媒体文件
-    console.log('loadActivityRecords: 开始获取媒体文件信息')
     const recordsWithMedia = await Promise.all(
       records.map(async (record) => {
         try {
           const mediaResponse = await getRelatedMedia('activity', record.activityRecordId || record.id)
           const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
-          console.log(`活动记录 ${record.activityRecordId || record.id} 的媒体文件:`, mediaFiles)
           return {
             ...record,
             mediaFiles: mediaFiles,
@@ -1312,7 +1336,6 @@ const loadActivityRecords = async () => {
             firstMediaUrl: mediaFiles.length > 0 ? mediaFiles[0].fileUrl : null
           }
         } catch (mediaError) {
-          console.error(`获取活动记录 ${record.activityRecordId || record.id} 的媒体文件失败:`, mediaError)
           return {
             ...record,
             mediaFiles: [],
@@ -1324,8 +1347,6 @@ const loadActivityRecords = async () => {
     )
 
     activityRecords.value = recordsWithMedia
-    console.log('loadActivityRecords: 处理后的活动记录（含媒体）:', activityRecords.value)
-    console.log('loadActivityRecords: 活动记录数量:', activityRecords.value.length)
   } catch (error) {
     console.error('加载活动记录失败:', error)
     activityRecords.value = []
@@ -1335,23 +1356,14 @@ const loadActivityRecords = async () => {
 }
 
 const refreshData = async () => {
-  console.log('refreshData: 开始刷新数据')
-
   // 1. 首先加载宠物数据，这样才能设置selectedPetId
   await loadUserPets()
-  console.log('refreshData: 宠物数据加载完成，selectedPetId:', selectedPetId.value)
-
   // 2. 加载用户活动数据
   await loadUserActivities()
-  console.log('refreshData: 用户活动数据加载完成')
-
   // 3. 然后加载活动记录（依赖selectedPetId）
   await loadActivityRecords()
-  console.log('refreshData: 活动记录加载完成')
-
   // 4. 最后加载宠物活动统计数据
   await loadPetActivityStats()
-  console.log('refreshData: 宠物活动统计数据加载完成')
 }
 
 // 打开添加记录对话框，自动设置当前时间
@@ -1397,6 +1409,11 @@ const submitAddForm = async () => {
 
     // 格式化日期为API要求的格式 yyyy-MM-dd HH:mm:ss
     const formattedDate = formatDateToLocal(addForm.value.activityDate)
+    
+    let finalDescription = addForm.value.description
+    if (addForm.value.activityKindId === 6 && addForm.value.dosage) {
+      finalDescription = `${finalDescription} 【用药量：${addForm.value.dosage}】`
+    }
 
     let recordData
     let result
@@ -1405,21 +1422,19 @@ const submitAddForm = async () => {
       // 直接使用活动种类ID创建记录（新的API方式）
       recordData = {
         activityKindId: addForm.value.activityKindId,
-        description: addForm.value.description,
+        description: finalDescription,
         date: formattedDate,
         userId: Number(currentUserId.value)
       }
-      console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用活动种类创建记录:`, recordData)
       result = await createActivityRecordByKind(petId, recordData)
     } else {
       // 使用具体活动ID创建记录（原有方式）
       recordData = {
         activityId: addForm.value.activityId,
-        description: addForm.value.description,
+        description: finalDescription,
         date: formattedDate,
         userId: Number(currentUserId.value)
       }
-      console.log(`为宠物 ${pet.name} (ID: ${petId}) 使用具体活动创建记录:`, recordData)
       result = await createActivityRecord(petId, recordData)
     }
 
@@ -1429,7 +1444,6 @@ const submitAddForm = async () => {
         if (fileItem.raw) {
           try {
             await uploadMedia(fileItem.raw, currentUserId.value, 'activity', result.activityRecordId)
-            console.log('媒体上传成功:', fileItem.name)
           } catch (uploadError) {
             console.error('媒体上传失败:', uploadError)
             ElMessage.warning(`文件 ${fileItem.name} 上传失败，但活动记录已创建`)
@@ -1447,7 +1461,8 @@ const submitAddForm = async () => {
       activityKindId: null,
       activityId: null,
       activityDate: '',
-      description: ''
+      description: '',
+      dosage: ''
     }
     activityFileList.value = []
 
@@ -1465,28 +1480,33 @@ const submitAddForm = async () => {
 
 const editRecord = (record) => {
   try {
-    console.log('editRecord: 编辑活动记录:', record)
-
     // 活动记录中已经包含了activityKindId，直接使用
     const activityKindId = record.activityKindId
 
     // 找到宠物名称
     const pet = getPetInfo(record.petId)
+    
+    let desc = record.activityDescription || record.description || ''
+    let dosage = ''
+    const dosageMatch = desc.match(/【用药量：(.*?)】/)
+    if (dosageMatch) {
+      dosage = dosageMatch[1]
+      desc = desc.replace(/【用药量：.*?】/, '').trim()
+    }
 
     // 填充编辑表单
-    // 日期选择器value-format已配置为返回正确格式，无需再转换
     editForm.value = {
       activityRecordId: record.activityRecordId || record.id,
       petId: record.petId,
       petName: pet.name || '未知宠物',
       activityId: activityKindId, // 直接使用活动记录中的activityKindId
       activityDate: record.activityDate || '',
-      description: record.activityDescription || record.description || '',
-      mediaFiles: record.mediaFiles || [] // 初始化媒体文件数组
+      description: desc,
+      mediaFiles: record.mediaFiles || [], // 初始化媒体文件数组
+      dosage: dosage
     }
 
     editActivityFileList.value = []
-    console.log('editRecord: 填充的编辑表单数据:', editForm.value)
     showEditDialog.value = true
   } catch (error) {
     console.error('编辑记录失败:', error)
@@ -1502,14 +1522,11 @@ const submitEditForm = async () => {
     submitting.value = true
 
     const selectedActivityKindId = editForm.value.activityId
-    console.log('submitEditForm: 选择的activityKindId:', selectedActivityKindId)
 
     // 根据活动种类ID找到对应的实际活动ID
     const matchingActivity = userActivities.value.find(activity =>
       activity.activityKindId === selectedActivityKindId
     )
-
-    console.log('submitEditForm: 找到的匹配活动:', matchingActivity)
 
     // 格式化日期为API要求的格式 yyyy-MM-dd HH:mm:ss
     const formattedDate = formatDateToLocal(editForm.value.activityDate)
@@ -1519,13 +1536,13 @@ const submitEditForm = async () => {
     const { uploadMedia } = await import('@/api/media')
 
     // 确保description字段不为空（API要求必需字段）
-    const description = editForm.value.description || '无描述'
-
-    console.log('submitEditForm: 使用的description:', description)
+    let description = editForm.value.description || '无'
+    if (editForm.value.activityId === 6 && editForm.value.dosage) {
+      description = `${description} 【用药量：${editForm.value.dosage}】`
+    }
 
     if (matchingActivity) {
       // 找到了具体的活动，使用现有的API
-      console.log('submitEditForm: 使用具体活动ID更新:', matchingActivity.activityId)
       await updateActivityRecord(editForm.value.activityRecordId, {
         newActivityId: matchingActivity.activityId,
         description: description,
@@ -2076,10 +2093,12 @@ const previewMedia = (media) => {
 }
 
 // 处理编辑对话框中的媒体文件移除
-const removeMediaFromEdit = (mediaId) => {
-  const index = editForm.mediaFiles.findIndex(m => m.mediaId === mediaId)
+const removeMediaFromEdit = (media) => {
+  const targetId = typeof media === 'object' ? media.mediaId : media
+  if (!editForm.value.mediaFiles) return
+  const index = editForm.value.mediaFiles.findIndex(m => m.mediaId === targetId)
   if (index > -1) {
-    editForm.mediaFiles.splice(index, 1)
+    editForm.value.mediaFiles.splice(index, 1)
   }
 }
 
@@ -2632,6 +2651,8 @@ watch([currentUserId], () => {
 .ai-report-body { flex: 1; display: flex; flex-direction: column; }
 .report-status { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
 .report-status.green { color: #22c55e; }
+.report-status.red { color: #ef4444; }
+.report-status.red { color: #ef4444; }
 .report-text { font-size: 13px; line-height: 1.6; color: #4b5563; margin: 0 0 16px 0; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 12px; }
 .report-metrics { display: flex; gap: 16px; margin-top: auto; }
 .metric { flex: 1; background: #f8fafc; padding: 12px; border-radius: 12px; text-align: center; }

@@ -40,7 +40,8 @@
       "Bash(node:*)",
       "Bash(cp:*)",
       "Bash(where mvn:*)",
-      "Bash(\"d:\\\\Tongji_Projects\\\\microservice\\\\Pet-Care-Ecosystem\\\\community-backend\\\\mvnw.cmd\" spring-boot:run)"
+      "Bash(\"d:\\\\Tongji_Projects\\\\microservice\\\\Pet-Care-Ecosystem\\\\community-backend\\\\mvnw.cmd\" spring-boot:run)",
+      "Bash(npx vite *)"
     ],
     "deny": [],
     "ask": []

@@ -8,19 +8,22 @@
       <div class="sunlight-bg"></div>
 
       <div class="hero-container">
-        <!-- 保留原始狗图片，但套用自然风阴影圆角和树叶遮罩 -->
         <div class="hero-image-wrapper fly-in-up">
           <img src="https://images.unsplash.com/photo-1639732624839-dd52e940b46c?q=80&w=1332&auto=format&fit=crop"
             alt="Happy Dog" class="hero-image" />
-          <!-- 藤蔓与树叶 SVG 叠加 -->
-          <div class="leaf-overlay leaf-1 animate-float-slow">
+          <!-- 宠物元素装饰 -->
+          <div class="pet-overlay pet-paw-1 animate-float-slow">
             <svg viewBox="0 0 100 100" fill="currentColor">
-              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+              <ellipse cx="35" cy="30" rx="12" ry="14" />
+              <ellipse cx="65" cy="30" rx="12" ry="14" />
+              <ellipse cx="28" cy="55" rx="11" ry="13" />
+              <ellipse cx="72" cy="55" rx="11" ry="13" />
+              <ellipse cx="50" cy="55" rx="20" ry="18" />
             </svg>
           </div>
-          <div class="leaf-overlay leaf-2 animate-float">
+          <div class="pet-overlay pet-heart-1 animate-float">
             <svg viewBox="0 0 100 100" fill="currentColor">
-              <path d="M50,10 Q30,40 50,90 Q70,40 50,10" />
+              <path d="M50,85 C20,55 0,35 10,20 C20,5 40,10 50,25 C60,10 80,5 90,20 C100,35 80,55 50,85Z" />
             </svg>
           </div>
         </div>
@@ -42,17 +45,17 @@
             <template v-if="isLoggedIn">
               <div class="user-dashboard-mini fly-in-up">
                 <div class="dash-card">
-                  <div class="dash-value text-sky-400">2</div>
+                  <div class="dash-value" style="color: #f97316;">2</div>
                   <div class="dash-label">名下宠物</div>
                 </div>
                 <div class="dash-divider"></div>
                 <div class="dash-card">
-                  <div class="dash-value text-green-500">12</div>
+                  <div class="dash-value" style="color: #f59e0b;">12</div>
                   <div class="dash-label">签到活动</div>
                 </div>
                 <div class="dash-divider"></div>
                 <div class="dash-card">
-                  <div class="dash-value text-amber-500">6</div>
+                  <div class="dash-value" style="color: #fb923c;">6</div>
                   <div class="dash-label">社区瞬间</div>
                 </div>
               </div>
@@ -70,7 +73,7 @@
 
           <div v-if="isLoggedIn" class="hero-actions-advanced fly-in-up" style="transition-delay: 0.2s;">
             <button class="btn-premium-primary" @click="goToActivities">
-              进入服务中心 
+              进入服务中心
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </button>
             <button class="btn-premium-secondary" @click="goToCommunity">
@@ -95,9 +98,13 @@
       <!-- 2. 日记与社区 (纯自然卡片) -->
       <section class="split-section">
         <div class="nature-card fly-in-up" @click="goToActivities">
-          <div class="card-leaf-decoration">
-            <svg viewBox="0 0 100 100" fill="currentColor" class="text-mint-green">
-              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+          <div class="card-pet-decoration">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <ellipse cx="50" cy="55" rx="22" ry="20" />
+              <ellipse cx="32" cy="30" rx="13" ry="15" />
+              <ellipse cx="68" cy="30" rx="13" ry="15" />
+              <ellipse cx="25" cy="58" rx="12" ry="14" />
+              <ellipse cx="75" cy="58" rx="12" ry="14" />
             </svg>
           </div>
           <div class="card-content">
@@ -108,9 +115,9 @@
         </div>
 
         <div class="nature-card fly-in-up" @click="goToCommunity" style="transition-delay: 0.15s;">
-          <div class="card-leaf-decoration right-leaf">
-            <svg viewBox="0 0 100 100" fill="currentColor" class="text-sky-blue">
-              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+          <div class="card-pet-decoration right-pet">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <path d="M50,80 C18,55 0,35 10,20 C20,5 40,10 50,25 C60,10 80,5 90,20 C100,35 82,55 50,80Z" />
             </svg>
           </div>
           <div class="card-content">
@@ -121,9 +128,10 @@
         </div>
 
         <div class="nature-card fly-in-up" @click="goToMap" style="transition-delay: 0.3s;">
-          <div class="card-leaf-decoration right-leaf">
-            <svg viewBox="0 0 100 100" fill="currentColor" class="text-amber-500" style="color: #f59e0b;">
-              <path d="M50,10 C50,10 20,50 20,70 A30,30 0 0,0 80,70 C80,50 50,10 50,10 Z" />
+          <div class="card-pet-decoration right-pet">
+            <svg viewBox="0 0 100 100" fill="currentColor">
+              <circle cx="50" cy="42" r="28" />
+              <path d="M30,78 L50,62 L70,78 L62,58 L50,42 L38,58 Z" />
             </svg>
           </div>
           <div class="card-content">
@@ -198,12 +206,15 @@
 
       <div class="features-list">
         <div class="feature-item fly-in-up">
-          <div class="feature-icon water-drop">
-            <svg viewBox="0 0 100 100" fill="currentColor">
-              <path d="M50,10 C50,10 20,50 20,70 A30,30 0 0,0 80,70 C80,50 50,10 50,10 Z" />
+          <div class="feature-icon">
+            <svg viewBox="0 0 100 100" fill="currentColor" style="color: #f97316;">
+              <ellipse cx="50" cy="55" rx="22" ry="20" />
+              <ellipse cx="32" cy="30" rx="13" ry="15" />
+              <ellipse cx="68" cy="30" rx="13" ry="15" />
+              <ellipse cx="25" cy="58" rx="12" ry="14" />
+              <ellipse cx="75" cy="58" rx="12" ry="14" />
             </svg>
           </div>
-          <!-- 增加一张展示图满足要求 -->
           <img src="https://images.unsplash.com/photo-1541364983171-a8ba01e95cfc?q=80&w=400&auto=format&fit=crop"
             class="feature-img" alt="Health">
           <h4 class="feature-name">健康守护</h4>
@@ -211,9 +222,9 @@
         </div>
 
         <div class="feature-item fly-in-up" style="transition-delay: 0.15s;">
-          <div class="feature-icon leaf-icon">
-            <svg viewBox="0 0 100 100" fill="currentColor">
-              <path d="M50,10 Q70,30 50,90 Q30,30 50,10" />
+          <div class="feature-icon">
+            <svg viewBox="0 0 100 100" fill="currentColor" style="color: #f59e0b;">
+              <path d="M50,80 C18,55 0,35 10,20 C20,5 40,10 50,25 C60,10 80,5 90,20 C100,35 82,55 50,80Z" />
             </svg>
           </div>
           <img src="https://images.unsplash.com/photo-1583337130417-3346a1be7dee?q=80&w=400&auto=format&fit=crop"
@@ -223,9 +234,10 @@
         </div>
 
         <div class="feature-item fly-in-up" style="transition-delay: 0.3s;">
-          <div class="feature-icon earth-icon">
-            <svg viewBox="0 0 100 100" fill="currentColor">
-              <circle cx="50" cy="50" r="40" />
+          <div class="feature-icon">
+            <svg viewBox="0 0 100 100" fill="currentColor" style="color: #fb923c;">
+              <circle cx="50" cy="42" r="28" />
+              <path d="M30,78 L50,62 L70,78 L62,58 L50,42 L38,58 Z" />
             </svg>
           </div>
           <img src="https://images.unsplash.com/photo-1581888227599-779811939961?q=80&w=400&auto=format&fit=crop"
@@ -236,23 +248,30 @@
       </div>
     </section>
 
-    <!-- 波浪形分隔线 (过滤至浅绿色区) -->
+    <!-- 波浪形分隔线 -->
     <div class="wave-divider bottom-wave about-wave" style="background:#fafaf9">
       <svg viewBox="0 0 1440 60" preserveAspectRatio="none">
-        <path fill="#f0fdf4" fill-opacity="1"
+        <path fill="#fff7ed" fill-opacity="1"
           d="M0,32L80,26.7C160,21,320,11,480,16C640,21,800,43,960,42.7C1120,43,1280,21,1360,10.7L1440,0L1440,60L1360,60C1280,60,1120,60,960,60C800,60,640,60,480,60C320,60,160,60,80,60L0,60Z">
         </path>
       </svg>
     </div>
 
-    <!-- 5. 结尾标语 -->
+    <!-- 5. 关于我们 (Glassmorphism) -->
     <section class="about-section">
       <div class="about-container fly-in-up">
-        <h2 class="nature-title quote-title">"每一次用心的陪伴，<br>都是对生命最好的馈赠。"</h2>
-        <p class="nature-text quote-desc">
-          打造系统化、无干扰的宠物科技空间，<br>
-          回归健康、自由、充满呼吸感的生活绿洲。
-        </p>
+        <h2 class="glass-title">关于我们</h2>
+        <p class="glass-subtitle">同济大学软件学院</p>
+        <div class="team-cards">
+          <div class="glass-card" v-for="(member, index) in teamMembers" :key="index">
+            <div class="glass-avatar">
+              <img :src="`https://github.com/${member.github}.png`" :alt="member.github" @error="handleImageError" />
+            </div>
+            <h3 class="member-name">@{{ member.github }}</h3>
+            <p class="member-role">Pet Care Ecosystem</p>
+            <div class="neon-line"></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -268,8 +287,21 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 
 const router = useRouter()
+
+const teamMembers = [
+  { github: 'randomly-git' },
+  { github: 'FutuXer' },
+  { github: 'Jeery1' },
+  { github: 'lieyanzhuifeng' }
+]
+
+const handleImageError = (e) => {
+  e.target.src = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+}
 const authStore = useAuthStore()
 const isLoggedIn = computed(() => authStore.isAuthenticated)
+
+
 
 const goToActivities = () => {
   if (isLoggedIn.value) router.push('/activities')
@@ -371,20 +403,45 @@ onUnmounted(() => {
   gap: 12px;
 }
 .auth-primary-btn {
-  background: #38bdf8;
+  background: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #f59e0b 100%);
   color: #fff;
-  padding: 8px 16px;
-  font-size: 14px;
+  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.25);
+  transition: all 0.25s ease;
 }
 .auth-secondary-btn {
-  background: rgba(255,255,255,0.7);
-  color: #374151;
-  padding: 8px 16px;
-  font-size: 14px;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.05) inset;
+  position: relative;
+  background: transparent;
+  color: #c2410c;
+  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.25s ease;
 }
-.auth-primary-btn:hover { background: #0ea5e9; }
-.auth-secondary-btn:hover { background: #fff; }
+.auth-secondary-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 1.5px;
+  background: linear-gradient(135deg, #f97316, #f59e0b, #fb923c);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.auth-primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.35);
+}
+.auth-secondary-btn:hover {
+  background: rgba(249, 115, 22, 0.06);
+  transform: translateY(-1px);
+}
 
 /* ===== 高级按钮组 ===== */
 .hero-actions-advanced {
@@ -427,24 +484,24 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background-color: transparent;
-  color: #2b4c3b;
+  color: #c2410c;
   font-size: 16px;
   font-weight: 500;
   padding: 12px 28px;
   border-radius: 9999px;
-  border: 1px solid #2b4c3b;
+  border: 1px solid #c2410c;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 .btn-premium-secondary:hover {
-  background-color: rgba(43, 76, 59, 0.05);
+  background-color: rgba(249, 115, 22, 0.06);
 }
 
-.text-sky-400 { color: #38bdf8; }
-.text-green-500 { color: #22c55e; }
-.text-amber-500 { 
-  color: #f97316; /* 替换为活力血橙 */
-  text-shadow: 0 4px 14px rgba(249, 115, 22, 0.2); 
+.text-sky-400 { color: #f97316; }
+.text-green-500 { color: #f59e0b; }
+.text-amber-500 {
+  color: #fb923c;
+  text-shadow: 0 4px 14px rgba(249, 115, 22, 0.2);
 }
 .mt-4 { margin-top: 16px; }
 /* ==== 向下滑动进入动画 (IntersectionObserver) ==== */
@@ -459,7 +516,7 @@ onUnmounted(() => {
 
 .nature-title {
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  color: #14532d;
+  color: #431407;
   font-weight: 600;
   letter-spacing: 0.05em;
 }
@@ -529,9 +586,10 @@ onUnmounted(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: 
-    radial-gradient(circle at 70% 30%, rgba(254, 252, 211, 0.4) 0%, rgba(250, 250, 249, 0) 60%),
-    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.08) 0%, rgba(250, 250, 249, 0) 50%); /* 日落暖光点缀 */
+  background:
+    radial-gradient(circle at 70% 30%, rgba(255, 237, 213, 0.5) 0%, rgba(250, 250, 249, 0) 60%),
+    radial-gradient(circle at 30% 70%, rgba(251, 191, 36, 0.10) 0%, rgba(250, 250, 249, 0) 50%),
+    radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.06) 0%, rgba(250, 250, 249, 0) 40%);
   z-index: 0;
 }
 
@@ -550,7 +608,7 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   border-radius: 2rem;
-  box-shadow: 0 20px 40px -10px rgba(22, 163, 74, 0.15);
+  box-shadow: 0 20px 40px -10px rgba(249, 115, 22, 0.12);
   background: white;
   padding: 16px;
   transform: rotate(2deg);
@@ -570,26 +628,27 @@ onUnmounted(() => {
   display: block;
 }
 
-.leaf-overlay {
+.pet-overlay {
   position: absolute;
   z-index: 3;
+  opacity: 0.12;
 }
 
-.leaf-1 {
-  width: 80px;
-  height: 80px;
-  bottom: -30px;
-  left: -30px;
-  color: #15803d;
+.pet-paw-1 {
+  width: 70px;
+  height: 70px;
+  bottom: -25px;
+  left: -25px;
+  color: #f97316;
   transform-origin: center right;
 }
 
-.leaf-2 {
-  width: 60px;
-  height: 60px;
-  top: -20px;
-  right: -20px;
-  color: #22c55e;
+.pet-heart-1 {
+  width: 55px;
+  height: 55px;
+  top: -18px;
+  right: -18px;
+  color: #fb923c;
   transform-origin: bottom left;
 }
 
@@ -608,8 +667,8 @@ onUnmounted(() => {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: #15803d;
-  background: rgba(22, 163, 74, 0.08);
+  color: #c2410c;
+  background: rgba(249, 115, 22, 0.08);
   padding: 8px 16px;
   border-radius: 999px;
   text-transform: uppercase;
@@ -617,7 +676,7 @@ onUnmounted(() => {
 
 .hero-tag-dot {
   opacity: 1;
-  color: #f97316; /* 橙色指示点 */
+  color: #f97316;
   font-size: 14px;
 }
 
@@ -636,7 +695,7 @@ onUnmounted(() => {
 }
 
 .primary-btn {
-  background-color: #16a34a;
+  background-color: #f97316;
   color: white;
   border: none;
   border-radius: 9999px;
@@ -644,14 +703,14 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 10px 20px -5px rgba(22, 163, 74, 0.3);
+  box-shadow: 0 10px 20px -5px rgba(249, 115, 22, 0.3);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .primary-btn:hover {
-  background-color: #15803d;
+  background-color: #ea580c;
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 14px 24px -5px rgba(22, 163, 74, 0.4);
+  box-shadow: 0 14px 24px -5px rgba(249, 115, 22, 0.4);
 }
 
 /* ===== 卡片区块 ===== */
@@ -669,14 +728,13 @@ onUnmounted(() => {
   flex: 1;
   min-width: 300px;
   position: relative;
-  background-color: #f0fdf4;
+  background-color: #fff7ed;
   border-radius: 24px;
   padding: 48px 40px;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.05);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.05);
   transition: box-shadow 0.25s, transform 0.8s, background-color 0.25s;
-  /* 保留飞入时的 transform 复合 */
 }
 
 .nature-card:nth-child(2) {
@@ -688,32 +746,32 @@ onUnmounted(() => {
 /* Hover需处理与 fly-in-visible 的 translateY(0) 叠加 */
 .nature-card.fly-in-visible:hover {
   transform: translateY(-8px);
-  box-shadow: 0 20px 25px -5px rgba(22, 163, 74, 0.1), 0 8px 10px -6px rgba(22, 163, 74, 0.04);
+  box-shadow: 0 20px 25px -5px rgba(249, 115, 22, 0.1), 0 8px 10px -6px rgba(249, 115, 22, 0.04);
 }
 
-.card-leaf-decoration {
+.card-pet-decoration {
   position: absolute;
   top: 0;
   right: 0;
   width: 120px;
   height: 120px;
   opacity: 0.08;
-  color: #16a34a;
+  color: #f97316;
   transform: translate(20%, -20%) rotate(15deg);
   transition: all 0.5s ease;
 }
 
-.nature-card:hover .card-leaf-decoration {
+.nature-card:hover .card-pet-decoration {
   opacity: 0.15;
   transform: translate(15%, -15%) rotate(5deg) scale(1.1);
 }
 
 .text-mint-green {
-  color: #84cc16;
+  color: #f59e0b;
 }
 
 .text-sky-blue {
-  color: #0ea5e9;
+  color: #f97316;
 }
 
 .card-content {
@@ -733,7 +791,7 @@ onUnmounted(() => {
 
 .nature-link {
   font-size: 17px;
-  color: #15803d;
+  color: #f97316;
   font-weight: 500;
   font-style: italic;
   display: inline-flex;
@@ -865,18 +923,6 @@ onUnmounted(() => {
   opacity: 0.85;
 }
 
-.water-drop {
-  color: #0ea5e9;
-}
-
-.leaf-icon {
-  color: #16a34a;
-}
-
-.earth-icon {
-  color: #92400e;
-}
-
 .feature-img {
   width: 100%;
   height: 220px;
@@ -889,7 +935,7 @@ onUnmounted(() => {
 .feature-name {
   font-size: 22px;
   font-weight: 600;
-  color: #14532d;
+  color: #431407;
   margin-bottom: 12px;
 }
 
@@ -901,7 +947,7 @@ onUnmounted(() => {
 
 /* ===== 结尾标语 ===== */
 .about-section {
-  background-color: #f0fdf4;
+  background-color: #fff7ed;
   padding: 100px 20px;
   text-align: center;
 }
@@ -915,14 +961,14 @@ onUnmounted(() => {
   font-size: 40px;
   line-height: 1.5;
   margin-bottom: 32px;
-  color: #15803d;
+  color: #c2410c;
 }
 
 .quote-desc {
   font-size: 18px;
 }
 
-/* 植物动效 */
+/* 浮动动效 */
 @keyframes float {
 
   0%,
