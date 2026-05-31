@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.Base64;
 
 @Slf4j
 @Service
@@ -17,7 +19,9 @@ public class LlmService {
     private final RestTemplate normalRestTemplate;
     private final ObjectMapper objectMapper;
 
-    private static final String QWEN_API_KEY = "sk-972a298500904e809a415aa9f153caac";
+    @Value("${qwen.api-key}")
+    private String qwenApiKey;
+
     private static final String QWEN_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
 
     public LlmService(
@@ -83,6 +87,17 @@ public class LlmService {
         List<Map<String, Object>> content = new ArrayList<>();
         content.add(Map.of("type", "image_url", "image_url", Map.of("url", imageUrl)));
         content.add(Map.of("type", "text", "text", textPrompt));
+        return callVision(content);
+    }
+
+    public String callQwenVisionRaw(byte[] imageBytes, String textPrompt) {
+        String base64 = Base64.getEncoder().encodeToString(imageBytes);
+        String dataUri = "data:image/png;base64," + base64;
+        QwenResponse resp = callQwenVision(textPrompt, dataUri);
+        return resp.getContent() != null ? resp.getContent().trim() : "未知";
+    }
+
+    private QwenResponse callVision(List<Map<String, Object>> content) {
         Map<String, Object> request = new HashMap<>();
         request.put("model", "qwen-vl-max");
         request.put("messages", List.of(Map.of("role", "user", "content", content)));
@@ -106,7 +121,7 @@ public class LlmService {
 
     private JsonNode doPost(Map<String, Object> requestBody) {
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.set("Authorization", "Bearer " + QWEN_API_KEY);
+        headers.set("Authorization", "Bearer " + qwenApiKey);
         headers.set("Content-Type", "application/json");
         org.springframework.http.HttpEntity<Map<String, Object>> entity =
                 new org.springframework.http.HttpEntity<>(requestBody, headers);

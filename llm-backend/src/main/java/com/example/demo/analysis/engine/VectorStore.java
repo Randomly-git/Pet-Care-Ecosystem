@@ -2,15 +2,16 @@ package com.example.demo.analysis.engine;
 
 import com.example.demo.analysis.entity.KnowledgeChunk;
 import com.example.demo.analysis.repository.KnowledgeChunkRepository;
+import com.example.demo.analysis.engine.RecursiveTextSplitter.Chunk;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -20,10 +21,22 @@ public class VectorStore {
 
     private final KnowledgeChunkRepository repository;
     private final EmbeddingService embeddingService;
+    private final PdfLoader pdfLoader;
+    private final RecursiveTextSplitter textSplitter;
+    private final ObjectMapper objectMapper;
 
-    public VectorStore(KnowledgeChunkRepository repository, EmbeddingService embeddingService) {
+    private static final String BACKUP_FILE = "knowledge_base.json";
+
+    public VectorStore(KnowledgeChunkRepository repository,
+                       EmbeddingService embeddingService,
+                       PdfLoader pdfLoader,
+                       RecursiveTextSplitter textSplitter,
+                       ObjectMapper objectMapper) {
         this.repository = repository;
         this.embeddingService = embeddingService;
+        this.pdfLoader = pdfLoader;
+        this.textSplitter = textSplitter;
+        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -32,37 +45,41 @@ public class VectorStore {
             log.info("知识库已有数据（{}条），跳过初始化", repository.count());
             return;
         }
-        log.info("从CSV加载知识库...");
-        try (BufferedReader br = new BufferedReader(
-                new InputStreamReader(new ClassPathResource("knowledge/pet_care.csv").getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            boolean header = true;
-            int count = 0;
-            while ((line = br.readLine()) != null) {
-                if (header) { header = false; continue; }
-                String[] parts = parseCsvLine(line);
-                if (parts.length >= 3) {
-                    addEntry(parts[0].trim(), parts[1].trim(), parts[2].trim());
-                    count++;
-                }
-            }
-            log.info("知识库初始化完成，共{}条", count);
-        } catch (Exception e) {
-            log.error("读取CSV知识库失败", e);
-        }
-    }
 
-    private String[] parseCsvLine(String line) {
-        List<String> fields = new ArrayList<>();
-        StringBuilder cur = new StringBuilder();
-        boolean inQuote = false;
-        for (char c : line.toCharArray()) {
-            if (c == '"') { inQuote = !inQuote; }
-            else if (c == ',' && !inQuote) { fields.add(cur.toString()); cur = new StringBuilder(); }
-            else { cur.append(c); }
+        // ① 优先从备份文件加载
+        if (loadFromBackup()) return;
+
+        // ② 从 PDF 构建
+        List<PdfDocument> docs = pdfLoader.load("knowledge/");
+        if (docs.isEmpty()) {
+            log.warn("knowledge/ 目录为空或无PDF，知识库为空");
+            return;
         }
-        fields.add(cur.toString());
-        return fields.toArray(new String[0]);
+
+        List<Chunk> chunks = textSplitter.split(docs);
+        List<ChunkEntry> entries = new ArrayList<>();
+
+        for (Chunk chunk : chunks) {
+            float[] vec = embeddingService.embed(chunk.getContent());
+            KnowledgeChunk kc = new KnowledgeChunk();
+            kc.setTitle(chunk.getTitle());
+            kc.setContent(chunk.getContent());
+            kc.setContentHash(Integer.toHexString(chunk.getContent().hashCode()));
+            kc.setEmbedding(embeddingService.floatToBytes(vec));
+            kc.setCategory(chunk.getCategory());
+            repository.save(kc);
+
+            ChunkEntry entry = new ChunkEntry();
+            entry.title = chunk.getTitle();
+            entry.category = chunk.getCategory();
+            entry.content = chunk.getContent();
+            entry.embedding = vec;
+            entries.add(entry);
+        }
+
+        // ③ 导出备份文件
+        saveBackup(entries);
+        log.info("知识库初始化完成：{}条知识（来自{}页PDF，{}个分块）", chunks.size(), docs.size(), chunks.size());
     }
 
     public List<SearchResult> search(String query, int topK) {
@@ -76,6 +93,40 @@ public class VectorStore {
                 .collect(Collectors.toList());
     }
 
+    public long count() { return repository.count(); }
+
+    private boolean loadFromBackup() {
+        File file = new File(BACKUP_FILE);
+        if (!file.exists()) return false;
+
+        try {
+            List<ChunkEntry> entries = objectMapper.readValue(file, new TypeReference<List<ChunkEntry>>() {});
+            for (ChunkEntry e : entries) {
+                KnowledgeChunk kc = new KnowledgeChunk();
+                kc.setTitle(e.title);
+                kc.setContent(e.content);
+                kc.setContentHash(Integer.toHexString(e.content.hashCode()));
+                kc.setEmbedding(embeddingService.floatToBytes(e.embedding));
+                kc.setCategory(e.category);
+                repository.save(kc);
+            }
+            log.info("从备份文件恢复知识库：{}条", entries.size());
+            return true;
+        } catch (IOException e) {
+            log.warn("读取备份文件失败，将重新构建", e);
+            return false;
+        }
+    }
+
+    private void saveBackup(List<ChunkEntry> entries) {
+        try {
+            objectMapper.writeValue(new File(BACKUP_FILE), entries);
+            log.info("知识库已导出到 {}", new File(BACKUP_FILE).getAbsolutePath());
+        } catch (IOException e) {
+            log.warn("导出知识库备份失败", e);
+        }
+    }
+
     private double cosineSimilarity(float[] a, float[] b) {
         int len = Math.min(a.length, b.length);
         double dot = 0, na = 0, nb = 0;
@@ -84,22 +135,17 @@ public class VectorStore {
         return d == 0 ? 0 : dot / d;
     }
 
-    private void addEntry(String title, String category, String content) {
-        float[] v = embeddingService.embed(content);
-        KnowledgeChunk c = new KnowledgeChunk();
-        c.setTitle(title);
-        c.setContent(content);
-        c.setContentHash(Integer.toHexString(content.hashCode()));
-        c.setEmbedding(embeddingService.floatToBytes(v));
-        c.setCategory(category);
-        repository.save(c);
-    }
-
-    public long count() { return repository.count(); }
-
     @Data
     public static class SearchResult {
         private final KnowledgeChunk chunk;
         private final double score;
+    }
+
+    @Data
+    private static class ChunkEntry {
+        private String title;
+        private String category;
+        private String content;
+        private float[] embedding;
     }
 }

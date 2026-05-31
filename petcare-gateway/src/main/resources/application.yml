@@ -40,6 +40,11 @@ spring:
           predicates:
             - Path=/graphql/**, /api/graphql/**
 
+        - id: llm-backend-rest-route
+          uri: lb://llm-backend
+          predicates:
+            - Path=/api/cat/**
+
         - id: statistics-backend-route
           uri: lb://statistics-backend
           predicates:
