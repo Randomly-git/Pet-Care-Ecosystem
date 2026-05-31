@@ -18,8 +18,8 @@ public class CatBreedTest {
     void testIdentifyCatBreed() {
         System.out.println("\n========== 测试: 猫品种识别 ==========");
 
-        // 使用一张公开的猫图
-        String imageUrl = "https://cdn2.thecatapi.com/images/MTYwODA4MQ.jpg";
+        // 使用一张公开的猫图（Wikimedia 来源，Qwen 服务端可访问）
+        String imageUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/800px-Cat03.jpg";
 
         BreedResult result = breedResolver.identifyCatBreed(imageUrl);
 

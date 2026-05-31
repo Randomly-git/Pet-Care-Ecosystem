@@ -51,7 +51,7 @@ public class ToolExecutor {
         String start = (String) args.getOrDefault("startDate",
                 LocalDateTime.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE));
         String url = String.format(
-                "http://petcare-backend/api/activities/records/pet/%s?startDate=%s&endDate=%s&page=%s&size=%s",
+                "http://petcare-backend/api/activities/records/pet/%s?startDate=%sT00:00:00&endDate=%sT23:59:59&page=%s&size=%s",
                 petId, start, end, args.getOrDefault("page", "0"), args.getOrDefault("size", "20"));
         return wrapGet(url, null);
     }
@@ -59,8 +59,17 @@ public class ToolExecutor {
     private Result createRecord(String petId, Map<String, Object> args) {
         String activityName = (String) args.get("activityName");
         String description = (String) args.getOrDefault("description", "");
-        String date = (String) args.getOrDefault("date",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        String rawDate = (String) args.getOrDefault("date", "");
+        String date;
+        if (rawDate.contains("-") && rawDate.contains(":")) {
+            date = rawDate.replace(" ", "T");
+            if (date.chars().filter(c -> c == ':').count() == 1) date += ":00";
+        } else if (!rawDate.isEmpty()) {
+            date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "T" + rawDate;
+            if (date.chars().filter(c -> c == ':').count() == 1) date += ":00";
+        } else {
+            date = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        }
 
         Map<String, Object> petInfo = getPetInfo(petId).data();
         Object userId = petInfo.get("userId");
