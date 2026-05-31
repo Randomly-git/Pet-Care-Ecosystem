@@ -511,7 +511,8 @@ defineExpose({
 
 .status-items {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -523,11 +524,13 @@ defineExpose({
   background: #f9fafb;
   border-radius: 8px;
   transition: all 0.2s ease;
+  flex: 1 1 calc(33.333% - 0.75rem);
+  min-width: 140px;
 }
 
 .status-item:hover {
   background: #f3f4f6;
-  transform: translateX(4px);
+  transform: translateY(-2px);
 }
 
 .status-icon {

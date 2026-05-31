@@ -2653,7 +2653,7 @@ watch([currentUserId], () => {
 .report-status.green { color: #22c55e; }
 .report-status.red { color: #ef4444; }
 .report-status.red { color: #ef4444; }
-.report-text { font-size: 13px; line-height: 1.6; color: #4b5563; margin: 0 0 16px 0; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 12px; }
+.report-text { font-size: 13px; line-height: 1.6; color: #4b5563; margin: 0 0 16px 0; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 12px; max-height: 180px; overflow-y: auto; }
 .report-metrics { display: flex; gap: 16px; margin-top: auto; }
 .metric { flex: 1; background: #f8fafc; padding: 12px; border-radius: 12px; text-align: center; }
 .metric-val { font-size: 18px; font-weight: 700; color: #1d1d1f; margin-bottom: 2px; }

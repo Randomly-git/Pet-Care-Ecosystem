@@ -257,9 +257,14 @@
       </svg>
     </div>
 
-    <!-- 5. 关于我们 (Glassmorphism) -->
+    <!-- 5. 关于我们 (Advanced Glassmorphism) -->
     <section class="about-section" id="about">
-      <div class="about-container fly-in-up">
+      <!-- Background Blobs -->
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+
+      <div class="team-container fly-in-up">
         <h2 class="glass-title">关于我们</h2>
         <p class="glass-subtitle">同济大学软件学院</p>
         <div class="team-cards">
@@ -269,7 +274,6 @@
             </div>
             <h3 class="member-name">@{{ member.github }}</h3>
             <p class="member-role">Pet Care Ecosystem</p>
-            <div class="neon-line"></div>
           </div>
         </div>
       </div>
