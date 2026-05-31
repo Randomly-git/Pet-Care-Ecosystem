@@ -218,7 +218,7 @@ const menuItems = ref([
   },
   { 
     id: 'about',
-    path: '/about', 
+    path: '/#about', 
     label: '关于我们',
     subItems: []
   }

@@ -258,7 +258,7 @@
     </div>
 
     <!-- 5. 关于我们 (Glassmorphism) -->
-    <section class="about-section">
+    <section class="about-section" id="about">
       <div class="about-container fly-in-up">
         <h2 class="glass-title">关于我们</h2>
         <p class="glass-subtitle">同济大学软件学院</p>

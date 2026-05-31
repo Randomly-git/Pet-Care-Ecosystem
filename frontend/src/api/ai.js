@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 // 使用统一的 axios 实例或者创建一个新的
 const aiClient = axios.create({
   baseURL: '', // Vite 配置了 /graphql 直接代理到网关
-  timeout: 30000, // AI 请求可能需要较长时间
+  timeout: 90000, // AI 请求可能需要较长时间（加长至90s以防Qwen生成过长）
   headers: {
     'Content-Type': 'application/json'
   }

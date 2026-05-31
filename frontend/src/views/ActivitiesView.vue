@@ -1269,8 +1269,8 @@ const loadUserActivities = async () => {
 const loadActivityRecords = async () => {
   try {
     loading.value = true
-    fetchAiReport() // 获取AI简报数据
-    fetchAiReport() // 获取AI简报数据
+
+
 
     // 获取选中宠物的活动记录 (支持多选)
     const queryIds = selectedPetIds.value.length > 0 ? selectedPetIds.value : (selectedPetId.value ? [selectedPetId.value] : [])
