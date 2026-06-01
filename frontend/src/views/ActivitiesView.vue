@@ -210,10 +210,7 @@
               </div>
             </div>
 
-            <!-- 宠物状态卡片组件 -->
-            <div class="pet-detail-status">
-              <PetStatusCard :pet-id="selectedPetId" :pet-info="getPetInfo(selectedPetId)" />
-            </div>
+
 
             <!-- 最近活动 mini 时间线 -->
             <div class="pet-detail-recent">
@@ -240,6 +237,10 @@
 
       <!-- ===== 3. 时间轴 + 筛选 + 记录区 ===== -->
       <div class="timeline-area">
+        <!-- 宠物状态卡片组件 (Moved for horizontal layout) -->
+        <div class="pet-detail-status" v-if="selectedPetId">
+          <PetStatusCard :pet-id="selectedPetId" :pet-info="getPetInfo(selectedPetId)" />
+        </div>
 
         <!-- 活动跨度视图 (横向日历时间轴) -->
         <div class="md3-card">

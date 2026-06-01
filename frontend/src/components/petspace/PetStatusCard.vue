@@ -443,14 +443,16 @@ defineExpose({
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 1.5rem;
   width: 100%;
-  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
 }
 
 .pet-avatar-section {
   text-align: center;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 1rem;
+  border-right: 1px solid #e2e8f0;
+  padding-right: 2rem;
+  flex-shrink: 0;
 }
 
 .pet-avatar-wrapper {
@@ -478,7 +480,7 @@ defineExpose({
 }
 
 .status-list {
-  width: 100%;
+  flex: 1;
 }
 
 .status-header {

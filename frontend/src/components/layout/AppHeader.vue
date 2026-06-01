@@ -96,7 +96,7 @@
           <div
             class="nav-link"
             :class="{ 'nav-link--active': $route.path === item.path }"
-            @click="router.push(item.path)"
+            @click="handleNavClick(item)"
           >
             {{ item.label }}
           </div>
@@ -131,10 +131,30 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
+
+const handleNavClick = (item) => {
+  if (item.path && item.path.includes('#')) {
+    const hash = item.path.substring(item.path.indexOf('#'))
+    const targetPath = item.path.split('#')[0] || '/'
+    
+    if (route.path === targetPath) {
+      const el = document.querySelector(hash)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' })
+      }
+      router.push(item.path)
+    } else {
+      router.push(item.path)
+    }
+  } else {
+    router.push(item.path)
+  }
+}
 const authStore = useAuthStore()
 
 const searchQuery = ref('')
