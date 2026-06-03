@@ -78,6 +78,7 @@ const visible = ref(props.modelValue)
 const inputText = ref('')
 const loading = ref(false)
 const messagesRef = ref(null)
+const conversationId = ref(null)
 
 const messages = ref([
   {
@@ -91,6 +92,7 @@ watch(() => props.modelValue, (newVal) => {
 })
 
 const handleClose = (done) => {
+  conversationId.value = null
   emit('update:modelValue', false)
   done()
 }
@@ -123,7 +125,10 @@ const sendMessage = async () => {
   scrollToBottom()
 
   try {
-    const res = await aiAgentChat(props.petId, text)
+    const res = await aiAgentChat(props.petId, text, conversationId.value)
+    
+    // Save conversationId for next round (null means conversation ended)
+    conversationId.value = res.conversationId
     
     // Add AI message
     messages.value.push({
@@ -135,6 +140,11 @@ const sendMessage = async () => {
     // Check if activity was created
     if (res.toolCalls && res.toolCalls.some(t => t.toolName === 'create_activity_record' && t.success)) {
       emit('record-created')
+    }
+    
+    // Auto-close drawer when conversation ends
+    if (!res.conversationId && res.toolCalls && res.toolCalls.length > 0) {
+      setTimeout(() => { visible.value = false; emit('update:modelValue', false) }, 2000)
     }
   } catch (error) {
     messages.value.push({

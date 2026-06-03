@@ -676,6 +676,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as statusApi from '@/api/status'
 import { getPetStatusSummary } from '@/api/llm'
+import { identifyCatBreed } from '@/api/ai'
 
 const authStore = useAuthStore()
 

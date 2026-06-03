@@ -112,15 +112,17 @@ export const identifyCatBreed = async (imageFile) => {
  * AI Agent Chat
  * @param {string|number} petId
  * @param {string} message
+ * @param {string|null} conversationId
  * @returns {Promise<Object>}
  */
-export const aiAgentChat = async (petId, message) => {
+export const aiAgentChat = async (petId, message, conversationId = null) => {
   const query = `
-    query aiAgent($petId: ID!, $message: String!) {
-      aiAgent(petId: $petId, message: $message) {
+    query aiAgent($petId: ID!, $message: String!, $conversationId: String) {
+      aiAgent(petId: $petId, message: $message, conversationId: $conversationId) {
         petId
         petName
         message
+        conversationId
         toolCalls {
           toolName
           arguments
@@ -132,7 +134,8 @@ export const aiAgentChat = async (petId, message) => {
 
   const variables = {
     petId: String(petId),
-    message: message
+    message: message,
+    conversationId: conversationId
   }
 
   try {

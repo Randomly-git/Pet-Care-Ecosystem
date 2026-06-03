@@ -13,55 +13,33 @@ import apiClient from './index'
  */
 export const getPetStatusSummary = async (petId, userRequirement = null) => {
   try {
-    // GraphQL 查询
-    let query
-    if (userRequirement && userRequirement.trim()) {
-      query = `
-        {
-          petHealthAnalysis(petId: "${petId}", userRequirement: "${userRequirement.replace(/"/g, '\\"')}") {
-            petId
-            name
-            breed
-            species
-            healthAdvice
-            statusRecords {
-              statusName
-              description
-              startDate
-            }
-          }
+    const query = `
+      query activityHealthAnalysis($petId: ID!, $days: Int, $userRequirement: String) {
+        activityHealthAnalysis(petId: $petId, days: $days, userRequirement: $userRequirement) {
+          petId
+          petName
+          breed
+          species
+          analysis
+          analysisType
         }
-      `
-      console.log('发送个性化AI分析请求，petId:', petId, 'userRequirement:', userRequirement)
-    } else {
-      query = `
-        {
-          petHealthAnalysis(petId: "${petId}") {
-            petId
-            name
-            breed
-            species
-            healthAdvice
-            statusRecords {
-              statusName
-              description
-              startDate
-            }
-          }
-        }
-      `
-      console.log('发送通用AI分析请求，petId:', petId, '无userRequirement')
+      }
+    `
+
+    const variables = {
+      petId: String(petId),
+      days: 30,
+      userRequirement: userRequirement && userRequirement.trim() ? userRequirement : null
     }
 
-    // 使用完整的URL绕过 baseURL
+    console.log('发送AI分析请求，petId:', petId, 'userRequirement:', userRequirement)
+
     const response = await apiClient({
       url: '/graphql',
       method: 'POST',
-      data: { query },
-      // 使用 baseURL: '' 来覆盖默认的 '/api'
+      data: { query, variables },
       baseURL: '',
-      timeout: 120000,  // AI分析可能需要较长时间，设置120秒超时
-      // 禁用缓存，确保每次请求都是新的
+      timeout: 120000,
       headers: {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache'
@@ -69,19 +47,21 @@ export const getPetStatusSummary = async (petId, userRequirement = null) => {
     })
 
     console.log('AI分析API响应:', response)
-    console.log('响应数据结构:', response ? {
-      hasData: !!response.data,
-      hasPetHealthAnalysis: !!(response.data && response.data.petHealthAnalysis),
-      petHealthAnalysisKeys: response.data && response.data.petHealthAnalysis ? Object.keys(response.data.petHealthAnalysis) : null
-    } : 'null')
 
-    // 返回 GraphQL 的 data 部分
-    if (response && response.data && response.data.petHealthAnalysis) {
-      console.log('返回petHealthAnalysis数据:', response.data.petHealthAnalysis)
-      return response.data.petHealthAnalysis
+    if (response && response.data && response.data.activityHealthAnalysis) {
+      const data = response.data.activityHealthAnalysis
+      // 映射字段以兼容前端已有代码 (healthAdvice -> analysis)
+      return {
+        petId: data.petId,
+        name: data.petName,
+        breed: data.breed,
+        species: data.species,
+        healthAdvice: data.analysis,
+        analysisType: data.analysisType
+      }
     }
 
-    console.log('未找到petHealthAnalysis数据，返回完整响应')
+    console.log('未找到activityHealthAnalysis数据，返回完整响应')
     return response
   } catch (error) {
     console.error('获取AI状态总结失败:', error)
@@ -99,7 +79,6 @@ export const getQuickStatusSummary = async (petId, userRequirement = null) => {
   try {
     const result = await getPetStatusSummary(petId, userRequirement)
 
-    // 提取健康建议作为纯文本返回
     if (result && result.healthAdvice) {
       return {
         data: {
@@ -125,7 +104,6 @@ export const getQuickStatusSummary = async (petId, userRequirement = null) => {
  */
 export const askAI = async (question) => {
   try {
-    // 预留对话功能，后续可通过 GraphQL 扩展
     const response = await apiClient({
       url: '/graphql',
       method: 'POST',
@@ -141,7 +119,6 @@ export const askAI = async (question) => {
   }
 }
 
-// 默认导出
 export default {
   getPetStatusSummary,
   getQuickStatusSummary,
