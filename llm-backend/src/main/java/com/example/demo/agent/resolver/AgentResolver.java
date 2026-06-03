@@ -16,8 +16,8 @@ public class AgentResolver implements GraphQLQueryResolver {
         this.agentService = agentService;
     }
 
-    public AgentResult aiAgent(String petId, String message) {
-        log.info("aiAgent: petId={}, message={}", petId, message);
-        return agentService.process(petId, message);
+    public AgentResult aiAgent(String petId, String message, String conversationId) {
+        log.info("aiAgent: petId={}, message={}, conversationId={}", petId, message, conversationId);
+        return agentService.process(petId, message, conversationId);
     }
 }

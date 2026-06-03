@@ -1,7 +1,7 @@
 type Query {
     activityHealthAnalysis(petId: ID!, days: Int, userRequirement: String): AnalysisResult
     identifyCatBreed(imageData: String!): BreedResult
-    aiAgent(petId: ID!, message: String!): AgentResult
+    aiAgent(petId: ID!, message: String!, conversationId: String): AgentResult
 }
 
 # ========== 功能1: 活动健康分析 ==========
@@ -38,6 +38,7 @@ type AgentResult {
     petId: ID!
     petName: String!
     message: String!
+    conversationId: String
     toolCalls: [ToolCallLog!]
 }
 

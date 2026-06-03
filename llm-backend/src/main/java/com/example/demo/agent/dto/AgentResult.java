@@ -8,6 +8,7 @@ public class AgentResult {
     private String petId;
     private String petName;
     private String message;
+    private String conversationId;
     private List<ToolCallLog> toolCalls;
 
     @Data
