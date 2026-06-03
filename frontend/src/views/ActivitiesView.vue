@@ -634,6 +634,24 @@
     </el-dialog>
 
     <AppFooter />
+
+    <!-- AI Agent Chat Drawer -->
+    <AiAgentChat
+      v-model="showAiAgent"
+      :pet-id="selectedPetId"
+      @record-created="loadActivityRecords"
+    />
+
+    <!-- AI Agent FAB -->
+    <el-button
+      type="primary"
+      class="ai-fab"
+      circle
+      size="large"
+      @click="showAiAgent = true"
+    >
+      <el-icon :size="24"><ChatDotRound /></el-icon>
+    </el-button>
   </div>
 </template>
 
@@ -645,6 +663,7 @@ import apiService from '@/api/modules'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import PetStatusCard from '@/components/petspace/PetStatusCard.vue'
+import AiAgentChat from '@/components/petspace/AiAgentChat.vue'
 import {
   Plus,
   Refresh,
@@ -652,7 +671,8 @@ import {
   EditPen,
   Fold,
   Expand,
-  MoreFilled
+  MoreFilled,
+  ChatDotRound
 } from '@element-plus/icons-vue'
 import * as statusApi from '@/api/status'
 import { getPetStatusSummary } from '@/api/llm'
