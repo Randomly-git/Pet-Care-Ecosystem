@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -58,6 +59,10 @@ public class ToolExecutor {
 
     private Result createRecord(String petId, Map<String, Object> args) {
         String activityName = (String) args.get("activityName");
+        if (activityName == null || activityName.isBlank()) {
+            return new Result(Map.of("error", "请指定活动名称"));
+        }
+        activityName = activityName.trim();
         String description = (String) args.getOrDefault("description", "");
         String rawDate = (String) args.getOrDefault("date", "");
         String date;
@@ -79,25 +84,52 @@ public class ToolExecutor {
         try {
             JsonNode acts = lb.getForObject(actUrl, JsonNode.class);
             if (acts != null && acts.isArray()) {
+                // 1. 尝试精确匹配
+                for (JsonNode a : acts) {
+                    if (a.get("activityName").asText().equals(activityName)) {
+                        return executeCreateRecord(petId, a.get("activityId").asText(),
+                                description, date, String.valueOf(userId));
+                    }
+                }
+                // 2. 尝试模糊匹配，收集所有匹配项
+                List<JsonNode> matches = new ArrayList<>();
                 for (JsonNode a : acts) {
                     String name = a.get("activityName").asText();
                     if (name.contains(activityName) || activityName.contains(name)) {
-                        String aid = a.get("activityId").asText();
-                        String createUrl = String.format(
-                                "http://petcare-backend/api/activities/records/pet/%s?activityId=%s&description=%s&date=%s&userId=%s",
-                                petId, aid, URLEncoder.encode(description, StandardCharsets.UTF_8),
-                                URLEncoder.encode(date, StandardCharsets.UTF_8), userId);
-                        JsonNode r = lb.postForObject(createUrl, null, JsonNode.class);
-                        return new Result(r != null
-                                ? Map.of("success", true, "result", r.toString())
-                                : Map.of("error", "创建失败"));
+                        matches.add(a);
                     }
+                }
+                if (matches.size() == 1) {
+                    JsonNode a = matches.get(0);
+                    return executeCreateRecord(petId, a.get("activityId").asText(),
+                            description, date, String.valueOf(userId));
+                } else if (matches.size() > 1) {
+                    String names = matches.stream()
+                            .map(a -> a.get("activityName").asText())
+                            .collect(Collectors.joining("、"));
+                    return new Result(Map.of("error", "找到多个匹配的活动（" + names + "），请指定具体名称"));
                 }
             }
         } catch (Exception e) {
             return new Result(Map.of("error", "创建活动记录失败: " + e.getMessage()));
         }
-        return new Result(Map.of("error", "未找到匹配的活动'" + activityName + "'，请先在宠物设置中添加该活动"));
+        return new Result(Map.of("error", "未找到匹配的活动'" + activityName + "'，可用活动：请在宠物设置中添加"));
+    }
+
+    private Result executeCreateRecord(String petId, String activityId, String description,
+                                        String date, String userId) {
+        try {
+            String createUrl = String.format(
+                    "http://petcare-backend/api/activities/records/pet/%s?activityId=%s&description=%s&date=%s&userId=%s",
+                    petId, activityId, URLEncoder.encode(description, StandardCharsets.UTF_8),
+                    URLEncoder.encode(date, StandardCharsets.UTF_8), URLEncoder.encode(userId, StandardCharsets.UTF_8));
+            JsonNode r = lb.postForObject(createUrl, null, JsonNode.class);
+            return new Result(r != null
+                    ? Map.of("success", true, "result", r.toString())
+                    : Map.of("error", "创建失败"));
+        } catch (Exception e) {
+            return new Result(Map.of("error", "创建失败: " + e.getMessage()));
+        }
     }
 
     private Result searchKnowledge(Map<String, Object> args) {
