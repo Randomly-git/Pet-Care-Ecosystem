@@ -393,6 +393,7 @@ export const getActivityRecordsByPetIdsHot = async (petIds, searchParams = {}) =
       request({
         url: `/activities/records/pet/${petId}`,
         method: 'GET',
+        timeout: 8000,   // hotOnly 请求 8 秒超时（防止后端未部署时卡死）
         params: {
           page: searchParams.page || 0,
           size: searchParams.size || 100,
@@ -431,7 +432,7 @@ export const getActivityRecordsByPetIds = async (petIds, searchParams = {}) => {
       request({
         url: `/activities/records/pet/${petId}`,
         method: 'GET',
-        timeout: 8000,   // ★ hotOnly请求限制8秒超时，防止后端不支持时卡30秒
+        timeout: 15000,  // 冷数据补齐允许 15 秒（需要 HBase 查询）
         params: {
           page: searchParams.page || 0,
           size: searchParams.size || 100,

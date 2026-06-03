@@ -66,14 +66,16 @@ public class ToolExecutor {
         String description = (String) args.getOrDefault("description", "");
         String rawDate = (String) args.getOrDefault("date", "");
         String date;
-        if (rawDate.contains("-") && rawDate.contains(":")) {
-            date = rawDate.replace(" ", "T");
+        if (rawDate.contains("T") && (rawDate.contains("-") || rawDate.contains(":"))) {
+            // 完整格式：2026-06-03T17:00 或 2026-06-03T17:00:00
+            date = rawDate.contains("T") ? rawDate : rawDate.replace(" ", "T");
             if (date.chars().filter(c -> c == ':').count() == 1) date += ":00";
         } else if (!rawDate.isEmpty()) {
+            // 只有时间：17:00 → 补上今天的日期
             date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + "T" + rawDate;
             if (date.chars().filter(c -> c == ':').count() == 1) date += ":00";
         } else {
-            date = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
         }
 
         Map<String, Object> petInfo = getPetInfo(petId).data();
@@ -119,11 +121,26 @@ public class ToolExecutor {
     private Result executeCreateRecord(String petId, String activityId, String description,
                                         String date, String userId) {
         try {
+            // 后端 POST /api/activities/records/pet/{petId} 
+            // 需要 Form Data: activityId, userId, description, date
             String createUrl = String.format(
-                    "http://petcare-backend/api/activities/records/pet/%s?activityId=%s&description=%s&date=%s&userId=%s",
-                    petId, activityId, URLEncoder.encode(description, StandardCharsets.UTF_8),
-                    URLEncoder.encode(date, StandardCharsets.UTF_8), URLEncoder.encode(userId, StandardCharsets.UTF_8));
-            JsonNode r = lb.postForObject(createUrl, null, JsonNode.class);
+                    "http://petcare-backend/api/activities/records/pet/%s", petId);
+
+            // 使用 LinkedMultiValueMap 构建表单数据（纯文本，不编码）
+            org.springframework.util.LinkedMultiValueMap<String, Object> form =
+                    new org.springframework.util.LinkedMultiValueMap<>();
+            form.add("activityId", activityId);
+            form.add("userId", userId);
+            form.add("description", description);
+            form.add("date", date);  // 格式: yyyy-MM-ddTHH:mm:ss
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+
+            org.springframework.http.HttpEntity<org.springframework.util.MultiValueMap<String, Object>> entity =
+                    new org.springframework.http.HttpEntity<>(form, headers);
+
+            JsonNode r = lb.postForObject(createUrl, entity, JsonNode.class);
             return new Result(r != null
                     ? Map.of("success", true, "result", r.toString())
                     : Map.of("error", "创建失败"));

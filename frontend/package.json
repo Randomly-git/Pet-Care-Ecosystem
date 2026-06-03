@@ -27,6 +27,7 @@
     "eslint-plugin-vue": "^10.9.1",
     "terser": "^5.44.1",
     "vite": "^5.2.0",
+    "vite-plugin-vue-devtools": "^7.7.0",
     "vue-eslint-parser": "^10.4.1"
   }
 }
