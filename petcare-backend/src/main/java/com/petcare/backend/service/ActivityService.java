@@ -45,6 +45,14 @@ public interface ActivityService {
                                                   Long activityKindId,// 可为空
                                                   Pageable pageable);
 
+    // 1a. 新增：热数据优先模式 - hotOnly=true 仅查MySQL，跳过HBase冷数据合并
+    Page<ActivityRecordDTO> searchActivityRecords(Long petId,
+                                                  LocalDateTime startDate,
+                                                  LocalDateTime endDate,
+                                                  Long activityKindId,
+                                                  Pageable pageable,
+                                                  boolean hotOnly);
+
     // 2. 删除活动记录（软删除 or 直接删？这里选择硬删除）
     boolean deleteActivityRecord(Long activityRecordId);
 

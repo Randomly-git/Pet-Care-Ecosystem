@@ -379,6 +379,42 @@ export const getActivitiesByUserId = async (userId) => {
 }
 
 /**
+ * 批量获取活动记录 — 热数据优先模式
+ * 在请求参数中添加 hotOnly=true，后端只返回 MySQL 热数据，
+ * 跳过 HBase 冷数据合并，实现首屏快速加载
+ */
+export const getActivityRecordsByPetIdsHot = async (petIds, searchParams = {}) => {
+  try {
+    if (!Array.isArray(petIds) || petIds.length === 0) {
+      throw new Error('宠物ID数组不能为空')
+    }
+
+    const promises = petIds.map(petId =>
+      request({
+        url: `/activities/records/pet/${petId}`,
+        method: 'GET',
+        params: {
+          page: searchParams.page || 0,
+          size: searchParams.size || 100,
+          sort: searchParams.sort || 'activityDate,desc',
+          startDate: searchParams.startDate,
+          endDate: searchParams.endDate,
+          activityKindId: searchParams.activityKindId,
+          hotOnly: true  // 关键：告诉后端只查热数据
+        }
+      })
+    )
+
+    const responses = await Promise.all(promises)
+
+    return responses
+  } catch (error) {
+    console.error('批量获取活动记录(热数据)失败:', error)
+    throw error
+  }
+}
+
+/**
  * 批量获取活动记录
  * @param {Array} petIds - 宠物ID数组
  * @param {Object} searchParams - 搜索参数
@@ -395,13 +431,15 @@ export const getActivityRecordsByPetIds = async (petIds, searchParams = {}) => {
       request({
         url: `/activities/records/pet/${petId}`,
         method: 'GET',
+        timeout: 8000,   // ★ hotOnly请求限制8秒超时，防止后端不支持时卡30秒
         params: {
           page: searchParams.page || 0,
           size: searchParams.size || 100,
           sort: searchParams.sort || 'activityDate,desc',
           startDate: searchParams.startDate,
           endDate: searchParams.endDate,
-          activityKindId: searchParams.activityKindId
+          activityKindId: searchParams.activityKindId,
+          hotOnly: searchParams.hotOnly || false
         }
       })
     )
@@ -574,6 +612,7 @@ export default {
   deleteActivityRecord,
   getActivitiesByUserId,
   getActivityRecordsByPetIds,
+  getActivityRecordsByPetIdsHot,
   getActivityStats,
   queryActivityRecords,
   activityValidator

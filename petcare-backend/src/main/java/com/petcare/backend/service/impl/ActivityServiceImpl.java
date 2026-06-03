@@ -173,15 +173,26 @@ public class ActivityServiceImpl implements ActivityService {
                 .collect(Collectors.toList());
     }
 
+    // 保留旧方法签名（无 hotOnly），委托给新方法，默认 hotOnly=false 保持向后兼容
     @Override
     public Page<ActivityRecordDTO> searchActivityRecords(Long petId,
                                                          LocalDateTime startDate,
                                                          LocalDateTime endDate,
                                                          Long activityKindId,
                                                          Pageable pageable) {
+        return searchActivityRecords(petId, startDate, endDate, activityKindId, pageable, false);
+    }
 
-        log.info("【冷热分离分页查询】petId={}, startDate={}, endDate={}, page={}, size={}",
-                petId, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
+    @Override
+    public Page<ActivityRecordDTO> searchActivityRecords(Long petId,
+                                                         LocalDateTime startDate,
+                                                         LocalDateTime endDate,
+                                                         Long activityKindId,
+                                                         Pageable pageable,
+                                                         boolean hotOnly) {
+
+        log.info("【冷热分离分页查询】petId={}, startDate={}, endDate={}, page={}, size={}, hotOnly={}",
+                petId, startDate, endDate, pageable.getPageNumber(), pageable.getPageSize(), hotOnly);
 
         // 1. 先查 MySQL 热数据
         Page<ActivityRecordDTO> mysqlPage = activityRecordRepository.findActivityRecordsWithDetails(
@@ -190,8 +201,15 @@ public class ActivityServiceImpl implements ActivityService {
         log.debug("【冷热分离】MySQL查询结果: totalElements={}, contentSize={}",
                 mysqlPage.getTotalElements(), mysqlPage.getContent().size());
 
-        // 2. 检查是否需要补充冷数据
-        //    条件：MySQL返回数量 < pageSize，说明可能还有冷数据
+        // === 热数据优先模式 ===
+        // hotOnly=true 时，不等待 HBase 冷数据查询，直接返回 MySQL 结果
+        // 前端可以在后台异步请求冷数据补齐，或等用户下一次刷新时获取完整数据
+        if (hotOnly) {
+            log.info("【热数据优先模式】跳过HBase冷数据合并，直接返回热数据");
+            return mysqlPage;
+        }
+
+        // 2. 检查是否需要补充冷数据（仅在 hotOnly=false 时执行）
         int pageSize = pageable.getPageSize();
         List<ActivityRecordDTO> hotRecords = mysqlPage.getContent();
 

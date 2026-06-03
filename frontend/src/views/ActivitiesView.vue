@@ -656,7 +656,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import apiService from '@/api/modules'
@@ -704,8 +704,8 @@ const handleAiRecognize = async (file) => {
   try {
     const res = await identifyCatBreed(file.raw)
     if (res.breed && res.breed !== '未知') {
-      petForm.type = 'cat'
-      petForm.breed = res.breed
+      petForm.value.type = 'cat'
+      petForm.value.breed = res.breed
       ElMessage.success(`AI 识别成功：${res.breed}`)
     } else {
       ElMessage.warning('未能识别出品种')
@@ -1380,93 +1380,136 @@ const handleIgnoreAbnormal = async (recordId) => {
   }
 }
 
-const loadActivityRecords = async () => {
-  try {
-    loading.value = true
-
-
-
-    // 获取选中宠物的活动记录 (支持多选)
-    const queryIds = selectedPetIds.value.length > 0 ? selectedPetIds.value : (selectedPetId.value ? [selectedPetId.value] : [])
-
-    if (queryIds.length === 0) {
-      activityRecords.value = []
-      return
+/**
+ * 统一解析活动记录API响应
+ * 支持 Spring Page对象、直接数组、ApiResponse包装
+ */
+const parseRecordsResponse = (res) => {
+  if (!res) return []
+  if (Array.isArray(res)) {
+    if (res.length > 0 && (res[0].content || res[0].data)) {
+      const all = []
+      for (const item of res) {
+        if (item.content && Array.isArray(item.content)) all.push(...item.content)
+        else if (item.data) {
+          if (item.data.content && Array.isArray(item.data.content)) all.push(...item.data.content)
+          else if (Array.isArray(item.data)) all.push(...item.data)
+        }
+      }
+      return all
     }
+    return res
+  }
+  if (res.content && Array.isArray(res.content)) return res.content
+  if (res.data) {
+    if (res.data.content && Array.isArray(res.data.content)) return res.data.content
+    if (Array.isArray(res.data)) return res.data
+  }
+  return []
+}
 
-    const { getActivityRecordsByPetIds } = await import('@/api/activities')
+const loadActivityRecords = async () => {
+  const queryIds = selectedPetIds.value.length > 0 ? selectedPetIds.value : (selectedPetId.value ? [selectedPetId.value] : [])
+  if (queryIds.length === 0) {
+    activityRecords.value = []
+    loading.value = false
+    return
+  }
+  loading.value = true
+
+  try {
+    const { getActivityRecordsByPetIdsHot } = await import('@/api/activities')
     const { getRelatedMedia } = await import('@/api/media')
 
-    // 构建查询参数
-    const params = {
-      page: 0,
-      size: 100
-    }
-    
-    // 只有当有日期选择时才添加日期参数
-    if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
-      const startDate = new Date(dateRange.value[0])
-      params.startDate = startDate.toISOString()
-      const endDate = new Date(dateRange.value[1])
-      // 设置为当天的最后一刻
-      endDate.setHours(23, 59, 59, 999)
-      params.endDate = endDate.toISOString()
-    }
-    
-    // 合并逻辑：使用 queryIds 支持多选，结合 page/size/date 的精确 params
-    const recordsResponse = await getActivityRecordsByPetIds(queryIds, params)
-
-    // 处理API响应格式 - 支持数组和Page对象两种格式
+    // 优先尝试 hotOnly=true，返回所有 MySQL 热数据（<1s）
     let records = []
-    if (recordsResponse) {
-      // 方式1: Spring Page对象格式 (有content属性)
-      if (recordsResponse.content && Array.isArray(recordsResponse.content)) {
-        records = recordsResponse.content
-      }
-      // 方式2: 直接数组格式
-      else if (Array.isArray(recordsResponse)) {
-        records = recordsResponse
-      }
-      // 方式3: 有data属性的响应
-      else if (recordsResponse.data) {
-        if (recordsResponse.data.content && Array.isArray(recordsResponse.data.content)) {
-          records = recordsResponse.data.content
-        } else if (Array.isArray(recordsResponse.data)) {
-          records = recordsResponse.data
-        }
-      }
+    try {
+      const hotResponse = await getActivityRecordsByPetIdsHot(queryIds, { page: 0, size: 100 })
+      records = parseRecordsResponse(hotResponse)
+    } catch (hotError) {
+      console.log('⚠️ hotOnly请求失败，降级为空列表展示', hotError.message)
+      records = []
     }
 
-    // 为每个活动记录获取关联的媒体文件
-    const recordsWithMedia = await Promise.all(
-      records.map(async (record) => {
+    const withMedia = await Promise.all(
+      records.map(async (r) => {
         try {
-          const mediaResponse = await getRelatedMedia('activity', record.activityRecordId || record.id)
-          const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
-          return {
-            ...record,
-            mediaFiles: mediaFiles,
-            mediaCount: mediaFiles.length,
-            firstMediaUrl: mediaFiles.length > 0 ? mediaFiles[0].fileUrl : null
-          }
-        } catch (mediaError) {
-          return {
-            ...record,
-            mediaFiles: [],
-            mediaCount: 0,
-            firstMediaUrl: null
-          }
-        }
+          const mr = await getRelatedMedia('activity', r.activityRecordId || r.id)
+          const mf = (mr && mr.data) ? mr.data : []
+          return { ...r, mediaFiles: mf, mediaCount: mf.length, firstMediaUrl: mf.length > 0 ? mf[0].fileUrl : null }
+        } catch { return { ...r, mediaFiles: [], mediaCount: 0, firstMediaUrl: null } }
       })
     )
+    activityRecords.value = withMedia.sort((a, b) => new Date(b.activityDate || 0) - new Date(a.activityDate || 0))
+    loading.value = false
+    console.log(`🔥 热数据: ${records.length} 条`)
 
-    activityRecords.value = recordsWithMedia
+    // 后台补齐冷数据（不阻塞UI）
+    setTimeout(async () => {
+      try {
+        const { getActivityRecordsByPetIds } = await import('@/api/activities')
+        const full = await getActivityRecordsByPetIds(queryIds, { page: 0, size: 100, hotOnly: false })
+        const fullRecords = parseRecordsResponse(full)
+        if (fullRecords.length === 0) return
+        const withMedia = await Promise.all(
+          fullRecords.map(async (r) => {
+            try {
+              const mr = await getRelatedMedia('activity', r.activityRecordId || r.id)
+              const mf = (mr && mr.data) ? mr.data : []
+              return { ...r, mediaFiles: mf, mediaCount: mf.length, firstMediaUrl: mf.length > 0 ? mf[0].fileUrl : null }
+            } catch { return { ...r, mediaFiles: [], mediaCount: 0, firstMediaUrl: null } }
+          })
+        )
+        activityRecords.value = withMedia.sort((a, b) => new Date(b.activityDate || 0) - new Date(a.activityDate || 0))
+        console.log(`🌡️ 冷数据已补齐: ${withMedia.length} 条`)
+      } catch (e) { /* 静默 */ }
+    }, 500)
   } catch (error) {
     console.error('加载活动记录失败:', error)
     activityRecords.value = []
-  } finally {
     loading.value = false
   }
+}
+
+/**
+ * 后台触发冷数据补齐（不阻塞UI）
+ * 请求完成后直接写回 activityRecords，用户无需任何操作即可看到完整数据
+ */
+const triggerColdDataComplement = (queryIds, params) => {
+  setTimeout(async () => {
+    try {
+      const { getActivityRecordsByPetIds } = await import('@/api/activities')
+      const { getRelatedMedia } = await import('@/api/media')
+      // 不带 hotOnly，后端执行完整冷热合并
+      const fullResponse = await getActivityRecordsByPetIds(queryIds, { ...params, page: 0, size: 100 })
+      const fullRecords = parseRecordsResponse(fullResponse)
+      if (fullRecords.length > 0) {
+        // 为冷数据加载媒体文件
+        const recordsWithMedia = await Promise.all(
+          fullRecords.map(async (record) => {
+            try {
+              const mediaResponse = await getRelatedMedia('activity', record.activityRecordId || record.id)
+              const mediaFiles = (mediaResponse && mediaResponse.data) ? mediaResponse.data : []
+              return { ...record, mediaFiles, mediaCount: mediaFiles.length, firstMediaUrl: mediaFiles.length > 0 ? mediaFiles[0].fileUrl : null }
+            } catch (mediaError) {
+              return { ...record, mediaFiles: [], mediaCount: 0, firstMediaUrl: null }
+            }
+          })
+        )
+        // 按日期排序
+        recordsWithMedia.sort((a, b) => {
+          const dateA = a.activityDate || a.date || 0
+          const dateB = b.activityDate || b.date || 0
+          return new Date(dateB) - new Date(dateA)
+        })
+        // ★ 关键：把完整数据写回前端的响应式变量，Vue自动重渲染
+        activityRecords.value = recordsWithMedia
+        console.log(`🌡️ 冷数据补齐完成，界面已自动更新为 ${recordsWithMedia.length} 条完整记录`)
+      }
+    } catch (e) {
+      console.warn('🌡️ 冷数据后台补齐请求失败')
+    }
+  }, 300) // 主渲染完成后发起
 }
 
 const refreshData = async () => {
@@ -1781,10 +1824,11 @@ const loadPetActivityStats = async () => {
     // 获取用户所有宠物的ID
     const allPetIds = userPets.value.map(pet => pet.petId || pet.id)
 
-    // 获取所有宠物的所有活动记录（不限时间范围）
+    // 获取所有宠物的所有活动记录（不限时间范围，仅热数据统计，快速返回）
     const allRecordsResponse = await getActivityRecordsByPetIds(allPetIds, {
-      startDate: null, // 不限制开始时间
-      endDate: null    // 不限制结束时间
+      startDate: null,
+      endDate: null,
+      hotOnly: true   // ★ 统计只需要热数据，不用等冷数据补齐
     })
 
     // 处理响应数据
@@ -2261,7 +2305,55 @@ const handleActivityUploadError = (error) => {
 // 生命周期
 onMounted(async () => {
   await refreshData()
+  // 订阅 WebSocket，监听冷数据就绪通知，收到后自动重渲染
+  subscribeColdDataRefresh()
 })
+
+// 页面卸载时断开 WebSocket
+onUnmounted(() => {
+  disconnectColdDataRefresh()
+})
+
+/**
+ * WebSocket 冷数据刷新相关
+ * 后端在冷热数据合并完成后通过 WebSocket 推送 /topic/cold-data-ready
+ * 前端收到后自动热重渲染当前页面
+ */
+let stompClient = null
+let subscription = null
+const wsConnected = ref(false)
+
+const subscribeColdDataRefresh = () => {
+  import('@/utils/websocket').then(mod => {
+    mod.connectWebSocket((client) => {
+      stompClient = client
+      wsConnected.value = true
+      subscription = mod.subscribe('/topic/cold-data-ready', (data) => {
+        console.log('🌡️ 收到冷数据就绪通知，重新渲染')
+        // ★ 防抖重新加载：5秒内只触发一次
+        reloadFullDataOnce()
+      })
+    })
+  }).catch(() => {
+    console.log('🌡️ WebSocket 不可用')
+  })
+}
+
+let _reloadTimer = null
+const reloadFullDataOnce = () => {
+  if (_reloadTimer) return
+  _reloadTimer = setTimeout(() => {
+    _reloadTimer = null
+    loadActivityRecords()
+  }, 5000)
+}
+
+const disconnectColdDataRefresh = () => {
+  if (subscription) {
+    try { subscription.unsubscribe() } catch(e) {}
+    subscription = null
+  }
+}
 
 // 活动类型筛选方法
 const handleActivityTypeFilter = () => {

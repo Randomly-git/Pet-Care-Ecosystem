@@ -1,0 +1,33 @@
+﻿node.exe : 
+所在位置 行:1 字符: 1
++ & "E:\nodejs/node.exe" "E:\nodejs/node_modules/npm/bin/npx-cli.js" es ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Oops! Something went wrong! :(
+
+ESLint: 10.4.0
+
+Error: Cannot find module 'vue-eslint-parser'
+Require stack:
+- E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plugin-vu
+e\dist\utils\index.js
+- E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plugin-vu
+e\dist\rules\array-bracket-newline.js
+- E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plugin-vu
+e\dist\plugin.js
+- E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plugin-vu
+e\dist\index.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1420:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1058:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1063:22)
+    at Module._load (node:internal/modules/cjs/loader:1226:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24)
+    at Module.require (node:internal/modules/cjs/loader:1503:12)
+    at require (node:internal/modules/helpers:152:16)
+    at E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plug
+in-vue\dist\utils\index.js:72:49
+    at E:\Documents\GitHub\Pet-Care-Ecosystem\frontend\node_modules\eslint-plug
+in-vue\dist\_virtual\_rolldown\runtime.js:8:48

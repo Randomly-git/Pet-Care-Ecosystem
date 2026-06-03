@@ -117,21 +117,25 @@ public class ActivityController {
         return ResponseEntity.ok(activityKinds);
     }
 
-    @Operation(summary = "搜索活动记录（分页）", description = "根据宠物、时间范围和种类筛选打卡记录，支持分页，结果包含媒体文件链接")
+    @Operation(summary = "搜索活动记录（分页）- 支持热数据优先模式", description = "根据宠物、时间范围和种类筛选打卡记录，支持分页，结果包含媒体文件链接。设置 hotOnly=true 时只返回热数据（MySQL），不等待HBase冷数据补齐，用于首屏快速加载。")
     @GetMapping("/records/pet/{petId}")
     public ResponseEntity<Page<ActivityRecordDTO>> searchActivityRecords(
             @Parameter(description = "宠物ID") @PathVariable Long petId,
             @Parameter(description = "开始时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @Parameter(description = "结束时间") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @Parameter(description = "活动种类ID") @RequestParam(required = false) Long activityKindId,
-            @Parameter(description = "分页参数(page, size, sort)") Pageable pageable) { // 注入分页对象
+            @Parameter(description = "分页参数(page, size, sort)") Pageable pageable,
+            @Parameter(description = "仅热数据模式：为true时只从MySQL查询，跳过HBase冷数据合并，用于首屏快速加载")
+            @RequestParam(required = false, defaultValue = "false") boolean hotOnly) {
 
-        log.info("分页搜索宠物ID: {} 的活动记录，页码: {}, 每页大小: {}",
-                petId, pageable.getPageNumber(), pageable.getPageSize());
+        log.info("分页搜索宠物ID: {} 的活动记录，页码: {}, 每页大小: {}, hotOnly={}",
+                petId, pageable.getPageNumber(), pageable.getPageSize(), hotOnly);
 
-        // 1. 调用 Service 获取分页数据
+        // 1. 调用 Service 获取分页数据（传入 hotOnly 参数）
         Page<ActivityRecordDTO> recordPage = activityService.searchActivityRecords(
-                petId, startDate, endDate, activityKindId, pageable);
+                petId, startDate, endDate, activityKindId, pageable, hotOnly);
+
+        // == 媒体文件加载逻辑保持不变 ==
 
         // 2. 批量处理媒体文件（建议：如果记录较多，此处循环调用 Feign 可能会有性能瓶颈）
         if (recordPage.hasContent()) {
