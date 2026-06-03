@@ -85,6 +85,75 @@ export const getActivityHealthAnalysis = async (petId, days = 7, userRequirement
   }
 }
 
+
+/**
+ * Identify Cat Breed
+ * @param {File} imageFile 
+ * @returns {Promise<Object>}
+ */
+export const identifyCatBreed = async (imageFile) => {
+  const formData = new FormData()
+  formData.append('image', imageFile)
+  
+  try {
+    const response = await aiClient.post('/api/cat/identify', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response
+  } catch (error) {
+    console.error('Failed to identify cat breed:', error)
+    throw error
+  }
+}
+
+/**
+ * AI Agent Chat
+ * @param {string|number} petId
+ * @param {string} message
+ * @returns {Promise<Object>}
+ */
+export const aiAgentChat = async (petId, message) => {
+  const query = `
+    query aiAgent($petId: ID!, $message: String!) {
+      aiAgent(petId: $petId, message: $message) {
+        petId
+        petName
+        message
+        toolCalls {
+          toolName
+          arguments
+          success
+        }
+      }
+    }
+  `
+
+  const variables = {
+    petId: String(petId),
+    message: message
+  }
+
+  try {
+    const response = await aiClient.post('/graphql', {
+      query,
+      variables
+    })
+    
+    if (response.errors) {
+      throw new Error(response.errors[0].message || 'Agent request failed')
+    }
+    
+    return response.data.aiAgent
+  } catch (error) {
+    console.error('Agent chat failed:', error)
+    throw error
+  }
+}
+
 export default {
-  getActivityHealthAnalysis
+  getActivityHealthAnalysis,
+  identifyCatBreed,
+  aiAgentChat
 }

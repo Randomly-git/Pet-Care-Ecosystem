@@ -242,6 +242,32 @@
           <PetStatusCard :pet-id="selectedPetId" :pet-info="getPetInfo(selectedPetId)" />
         </div>
 
+        
+        <!-- === AI Abnormal Health Alerts === -->
+        <div class="abnormal-alerts-container" v-if="abnormalRecords.length > 0">
+          <el-alert
+            v-for="alert in abnormalRecords"
+            :key="alert.activityRecordId"
+            type="error"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 12px; border: 1px solid #fde2e2; border-radius: 8px;"
+          >
+            <template #title>
+              <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                <strong style="font-size: 15px;">健康预警 ({{ alert.bertResultName }})</strong>
+                <el-button size="small" type="danger" plain @click="handleIgnoreAbnormal(alert.activityRecordId)">我知道了</el-button>
+              </div>
+            </template>
+            <template #default>
+              <p style="margin: 4px 0 0 0; color: #606266;">
+                触发记录：{{ alert.activityName }} ({{ alert.activityDate }}) <br/>
+                详情描述：{{ alert.activityDescription }}
+              </p>
+            </template>
+          </el-alert>
+        </div>
+        
         <!-- 活动跨度视图 (横向日历时间轴) -->
         <div class="md3-card">
           <div class="scrubber-header">
@@ -473,6 +499,20 @@
     <!-- 添加宠物对话框 -->
     <el-dialog v-model="showAddPetDialog" title="添加宠物" width="500px" :close-on-click-modal="false">
       <el-form ref="petFormRef" :model="petForm" :rules="petFormRules" label-width="100px">
+        <el-form-item label="照片识别">
+          <el-upload
+            class="avatar-uploader"
+            action="#"
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="handleAiRecognize"
+            accept="image/*"
+          >
+            <el-button type="primary" plain :loading="aiRecognizing" round>
+              <el-icon><MagicStick /></el-icon> 🪄 AI 智能识别猫咪品种
+            </el-button>
+          </el-upload>
+        </el-form-item>
         <el-form-item label="宠物名称" prop="name">
           <el-input v-model="petForm.name" placeholder="请输入宠物名称" />
         </el-form-item>
@@ -635,6 +675,27 @@ const submitting = ref(false)
 const showAddDialog = ref(false)
 const showEditDialog = ref(false)
 const showAddPetDialog = ref(false)
+
+const aiRecognizing = ref(false)
+
+const handleAiRecognize = async (file) => {
+  aiRecognizing.value = true
+  try {
+    const res = await identifyCatBreed(file.raw)
+    if (res.breed && res.breed !== '未知') {
+      petForm.type = 'cat'
+      petForm.breed = res.breed
+      ElMessage.success(`AI 识别成功：${res.breed}`)
+    } else {
+      ElMessage.warning('未能识别出品种')
+    }
+  } catch (error) {
+    ElMessage.error('识别失败，请重试')
+  } finally {
+    aiRecognizing.value = false
+  }
+}
+
 const submittingPet = ref(false)
 
 // AI状态总结相关
@@ -664,6 +725,9 @@ const newActivityForm = ref({
 
 const userPets = ref([])
 const activityRecords = ref([])
+const abnormalRecords = ref([])
+const showAiAgent = ref(false)
+const loadingAbnormal = ref(false)
 const userActivities = ref([])
 const allActivities = ref([])
 const selectedPetId = ref(null) // 当前选中的主操作宠物ID
@@ -1264,6 +1328,34 @@ const loadUserActivities = async () => {
   } catch (error) {
     console.error('加载用户活动失败:', error)
     userActivities.value = []
+  }
+}
+
+
+const fetchAbnormalRecords = async () => {
+  if (!selectedPetId.value) return
+  loadingAbnormal.value = true
+  try {
+    const res = await getAbnormalRecords(selectedPetId.value)
+    if (res.data && res.data.code === 20000) {
+      abnormalRecords.value = res.data.data || []
+    } else if (Array.isArray(res.data)) {
+      abnormalRecords.value = res.data
+    }
+  } catch (error) {
+    console.error('Failed to fetch abnormal records', error)
+  } finally {
+    loadingAbnormal.value = false
+  }
+}
+
+const handleIgnoreAbnormal = async (recordId) => {
+  try {
+    await ignoreAbnormalRecord(recordId)
+    ElMessage.success('已忽略该健康预警')
+    abnormalRecords.value = abnormalRecords.value.filter(r => r.activityRecordId !== recordId)
+  } catch (error) {
+    ElMessage.error('操作失败')
   }
 }
 
@@ -2660,4 +2752,19 @@ watch([currentUserId], () => {
 .metric-val { font-size: 18px; font-weight: 700; color: #1d1d1f; margin-bottom: 2px; }
 .metric-label { font-size: 11px; color: #64748b; }
 
+
+.ai-fab {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  width: 60px;
+  height: 60px;
+  box-shadow: 0 4px 16px rgba(103, 80, 164, 0.4);
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ai-fab:hover {
+  transform: scale(1.1) rotate(5deg);
+}
 </style>
