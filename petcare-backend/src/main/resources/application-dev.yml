@@ -5,6 +5,7 @@ server:
 
 spring:
   application:
+    # 该名称会注册到 Nacos；网关必须使用同名的 lb://petcare-backend 路由。
     name: petcare-backend
   config:
     import:
@@ -13,6 +14,7 @@ spring:
   cloud:
     nacos:
       discovery:
+        # Nacos 地址来自外部配置；服务启动后会自动注册随机端口对应的实例地址。
         server-addr: ${nacos.host:localhost}:${nacos.port:8848}
   datasource:
     url: jdbc:mysql://${mysql.host:localhost}:${mysql.port:3306}/${mysql.database:pet_system}?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
@@ -36,6 +38,7 @@ spring:
 
   # RabbitMQ 配置
   rabbitmq:
+    # Spring Boot 根据这里创建 RabbitMQ ConnectionFactory，RabbitMQ 是所有异步任务的传输层。
     host: ${rabbitmq.host:localhost}
     port: ${rabbitmq.port:5672}
     username: ${rabbitmq.username:guest}
@@ -43,9 +46,13 @@ spring:
     virtual-host: ${rabbitmq.virtual-host:/}
     listener:
       simple:
+        # 当前配置声明为手动确认；监听器若要使用该模式，必须显式调用 Acknowledgment.acknowledge()。
+        # 现有部分监听器未接收 Acknowledgment 参数，修改该模式前应先验证其确认行为。
         acknowledge-mode: manual
+        # 单个消费者最多预取 10 条未确认消息，避免一个实例一次占满全部任务。
         prefetch: 10
         retry:
+          # 消费方法抛异常时由 Spring AMQP 进行有限次数重试。
           enabled: true
           initial-interval: 3000
           max-attempts: 3
@@ -54,6 +61,7 @@ spring:
 
 # HBase 配置 (统一从 program-config.yml 读取，不要硬编码)
 hbase:
+  # HBase 是冷库：MySQL 保存热数据，迁移成功后再删除 MySQL 原记录。
   host: ${hbase.host:localhost}
   port: ${hbase.port:2181}
   zookeeper-property-clientPort: ${hbase.zookeeper-property-clientPort:2181}
@@ -67,12 +75,14 @@ hbase:
     test-while-idle: ${hbase.pool.test-while-idle:true}
   cold-data:
     activity-record:
+      # 超过该天数的活动记录进入冷迁移候选集。
       days-threshold: ${hbase.cold-data.activity-record.days-threshold:30}
       batch-size: ${hbase.cold-data.activity-record.batch-size:1000}
       migration-cron: ${hbase.cold-data.activity-record.migration-cron:0 0 2 * * ?}
 
 # Canal 配置
 canal:
+  # Canal 读取 MySQL binlog；下列参数决定连接位置、批量大小和订阅表过滤器。
   host: ${canal.host:localhost}
   port: ${canal.port:11111}
   destination: ${canal.destination:example}

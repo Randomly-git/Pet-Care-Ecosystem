@@ -52,11 +52,14 @@ public class CommunityColdStorageEventConsumer {
     @RabbitListener(queues = RabbitMQConfig.COLD_MIGRATION_QUEUE)
     @Transactional
     public void handleColdStorageEvent(CommunityColdStorageEvent event) {
+        // 该监听器消费社区冷数据队列；事件由 RabbitMQ JSON 转换器反序列化为 DTO。
         long startTime = System.currentTimeMillis();
         log.info("【MQ消费】收到冷存储事件: eventId={}, operationType={}, momentId={}, userId={}",
                 event.getEventId(), event.getOperationType(), event.getMomentId(), event.getUserId());
 
         try {
+            // 当前消费者只实现恢复和删除；发布端若发送 MIGRATE_TO_COLD，会落入 default 并被当作未知事件。
+            // 这意味着社区“迁入冷库”必须由定时任务直接执行，或后续补充对应的 handleMigrateToCold 分支。
             switch (event.getOperationType()) {
                 case RESTORE_FROM_COLD -> handleRestoreFromCold(event);
                 case DELETE_FROM_COLD -> handleDeleteFromCold(event);
@@ -72,6 +75,7 @@ public class CommunityColdStorageEventConsumer {
             long elapsed = System.currentTimeMillis() - startTime;
             log.error("【MQ消费】冷存储事件处理失败: eventId={}, operationType={}, momentId={}, 耗时={}ms, error={}",
                     event.getEventId(), event.getOperationType(), event.getMomentId(), elapsed, e.getMessage(), e);
+            // 抛出异常交给 Spring AMQP 的重试/DLQ策略，不能在这里吞掉异常。
             throw e;
         }
     }
@@ -96,14 +100,14 @@ public class CommunityColdStorageEventConsumer {
         log.info("【MQ消费】处理恢复请求: eventId={}, momentId={}, userId={}",
                 event.getEventId(), momentId, userId);
 
-        // 1. 检查 userId 是否存在
+        // 1. userId 是恢复权限和归属关系所需的关键字段，缺失时拒绝继续写入。
         if (userId == null) {
             log.error("【MQ消费】恢复事件中缺少 userId，无法恢复: eventId={}, momentId={}",
                     event.getEventId(), momentId);
             return;
         }
 
-        // 2. 检查 MySQL 中是否已恢复
+        // 2. 先查热库，保证重复投递不会重复创建动态主记录。
         if (momentRepository.existsById(momentId)) {
             log.info("【MQ消费】动态已在 MySQL 中，无需恢复: momentId={}", momentId);
             return;

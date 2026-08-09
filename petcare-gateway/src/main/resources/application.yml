@@ -7,20 +7,24 @@ spring:
       - optional:file:./program-config.yml  # 试试当前目录
       - optional:file:../program-config.yml # 试试上级目录
   application:
+    # 网关自身也注册到 Nacos；后端服务名称由下面的 lb:// 路由引用。
     name: petcare-gateway
   cloud:
     nacos:
       discovery:
+        # 网关通过该地址读取服务实例列表；后端实例可以使用随机端口。
         server-addr: ${nacos.host:localhost}:${nacos.port:8848} # 从全局 program-config.yml 读取，默认本地
     gateway:
       # 开启网关从注册中心发现服务的能力
       discovery:
         locator:
+          # 开启后可根据 Nacos 服务名生成发现路由；显式 routes 仍用于精确控制 API 路径。
           enabled: true
 
       # 路由配置
       routes:
         - id: petcare-backend-route
+          # lb:// 后面的名称必须与后端 spring.application.name 完全一致，网关据此选择实例。
           uri: lb://petcare-backend # lb 表示负载均衡，后面跟后端在 Nacos 里的服务名
           predicates:
             - Path=/api/activities/**, /api/auth/**, /api/fixed-activities/**, /api/pets/**, /api/reminders/**, /api/reserved-activities/**, /api/status/**, /api/v1/users/**
@@ -46,6 +50,7 @@ spring:
             - Path=/api/stats/activity/**
 
         - id: bert_ai_service-route
+          # Python 服务手工注册到 Nacos，因此名称也必须与 SERVICE_NAME 一致。
           uri: lb://bert_ai_service
           predicates:
             - Path=/predict

@@ -464,23 +464,25 @@ public class MediaService {
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(allEntries = true)
     public int batchUpdateRelatedId(List<Long> mediaIds, String relatedTypeStr, Long newRelatedId) {
+        // 这是数据库批处理：一次请求携带多个 mediaId，但不会把多个文件合并成一条 MQ 消息。
         if (mediaIds == null || mediaIds.isEmpty()) {
+            // 空列表无需访问数据库，直接返回零条更新。
             return 0;
         }
 
         RelatedType relatedType;
         try {
-            // 校验并转换 RelatedType
+            // 先校验枚举，避免无效字符串进入查询和事务流程。
             relatedType = RelatedType.valueOf(relatedTypeStr.toUpperCase());
         } catch (IllegalArgumentException e) {
             log.error("无效的关联类型: {}", relatedTypeStr);
             throw new IllegalArgumentException("无效的关联类型: " + relatedTypeStr);
         }
 
-        // 1. 批量查询待更新的 MediaFile 实体
+        // 1. findAllById 一次批量加载实体，避免逐个 mediaId 查询产生 N+1 次数据库访问。
         List<MediaFile> filesToUpdate = mediaRepository.findAllById(mediaIds);
 
-        // 2. 批量更新实体属性
+        // 2. 在内存中统一修改实体；事务提交时由 JPA 追踪这些变更。
         for (MediaFile mediaFile : filesToUpdate) {
             // 确保更新后的文件类型与请求的类型一致，避免错误关联
             if (mediaFile.getRelatedType() == relatedType) {
@@ -493,7 +495,7 @@ public class MediaService {
             }
         }
 
-        // 3. 批量保存更新后的实体
+        // 3. saveAll 批量提交关联关系；@CacheEvict 清理旧的媒体查询缓存。
         mediaRepository.saveAll(filesToUpdate);
 
         log.info("✅ 成功将 {} 个媒体文件关联到 RelatedType: {}, RelatedId: {}",

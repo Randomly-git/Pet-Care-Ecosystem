@@ -66,7 +66,9 @@ public class HBaseColdStorageService {
      * 格式: {pet_id}_{date}_{activity_record_id}
      */
     public String generateRowKey(Long petId, LocalDateTime activityDate, Long activityRecordId) {
+        // 日期放入 RowKey 形成分区前缀，使按宠物和日期范围扫描无需全表过滤。
         String dateStr = activityDate.format(DATE_FORMATTER);
+        // 固定宽度补零保证字典序与数值序一致，避免不同长度 ID 互相穿插。
         return String.format("%015d_%s_%015d", petId, dateStr, activityRecordId);
     }
 
@@ -80,7 +82,7 @@ public class HBaseColdStorageService {
         String rowKey = generateRowKey(dto.getPetId(), dto.getActivityDate(), dto.getActivityRecordId());
 
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
-            // 先检查是否已存在
+            // 先检查是否已存在：消息重试或定时任务补偿时不会重复写入同一冷数据。
             Get get = new Get(Bytes.toBytes(rowKey));
             get.addFamily(Bytes.toBytes(CF_D));
             Result existingResult = table.get(get);
@@ -91,7 +93,7 @@ public class HBaseColdStorageService {
                 return rowKey;
             }
 
-            // 构建 Put - 只存储核心业务字段
+            // 一个活动记录对应一个 HBase 行；只写冷库读取必需字段，降低存储体积。
             Put put = new Put(Bytes.toBytes(rowKey));
             put.addColumn(Bytes.toBytes(CF_D), COL_RECORD_ID,
                     Bytes.toBytes(String.valueOf(dto.getActivityRecordId())));
@@ -105,7 +107,7 @@ public class HBaseColdStorageService {
             put.addColumn(Bytes.toBytes(CF_D), COL_DATE,
                     Bytes.toBytes(dto.getActivityDate().format(DATETIME_FORMATTER)));
 
-            // 写入
+            // HBase Put 是幂等覆盖写；结合上面的 exists 检查实现业务层幂等。
             table.put(put);
             log.info("冷库写入成功: rowKey={}, recordId={}", rowKey, dto.getActivityRecordId());
 
@@ -121,6 +123,7 @@ public class HBaseColdStorageService {
      * 批量保存活动记录到冷库
      */
     public List<String> batchSaveToColdStorage(List<ActivityRecordDTO> dtos) {
+        // 批量入口避免每条记录单独建立表对象和网络请求。
         List<String> rowKeys = new ArrayList<>();
 
         if (dtos == null || dtos.isEmpty()) {
@@ -128,13 +131,14 @@ public class HBaseColdStorageService {
         }
 
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
+            // HBase 客户端支持一次提交多个 Put，减少 RPC 次数。
             List<Put> puts = new ArrayList<>();
 
             for (ActivityRecordDTO dto : dtos) {
                 String rowKey = generateRowKey(dto.getPetId(), dto.getActivityDate(), dto.getActivityRecordId());
                 rowKeys.add(rowKey);
 
-                // 构建 Put - 只存储核心业务字段
+                // 每个 DTO 仍对应一行 Put，批量只改变提交方式，不改变 RowKey 语义。
                 Put put = new Put(Bytes.toBytes(rowKey));
                 put.addColumn(Bytes.toBytes(CF_D), COL_RECORD_ID,
                         Bytes.toBytes(String.valueOf(dto.getActivityRecordId())));
@@ -151,6 +155,7 @@ public class HBaseColdStorageService {
                 puts.add(put);
             }
 
+            // 一次提交整批数据；失败时由调用方记录并重试该批次。
             table.put(puts);
             log.info("批量写入冷库成功: count={}", dtos.size());
 
@@ -208,10 +213,10 @@ public class HBaseColdStorageService {
             effectiveEndDate = LocalDateTime.now();
         }
 
-        // startRow: 从起始日期的第一条记录开始
+        // startRow 包含起始日期当天的最小记录 ID，作为扫描下界。
         String startRow = generateRowKey(petId, effectiveStartDate, 0L);
 
-        // endRow: 使用结束日期的下一天，确保包含结束日期的所有记录
+        // stopRow 使用结束日期的下一天，使结束日期当天的所有 record_id 都落在范围内。
         LocalDateTime nextDay = effectiveEndDate.plusDays(1);
         String endRow = generateRowKey(petId, nextDay, 0L);
 
@@ -219,6 +224,7 @@ public class HBaseColdStorageService {
 
         try (Table table = hbaseConnection.getTable(TableName.valueOf(getFullTableName()))) {
             Scan scan = new Scan();
+            // HBase 范围扫描按字典序读取；下界包含、上界包含的设置与“下一天”配合使用。
             scan.withStartRow(Bytes.toBytes(startRow), true);
             scan.withStopRow(Bytes.toBytes(endRow), true);
             scan.addFamily(Bytes.toBytes(CF_D));

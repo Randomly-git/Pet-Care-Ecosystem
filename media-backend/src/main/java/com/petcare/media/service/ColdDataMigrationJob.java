@@ -54,14 +54,16 @@ public class ColdDataMigrationJob {
     @Scheduled(cron = "0 0 2 * * ?", zone = "Asia/Shanghai")
     @Transactional
     public void migrateToColdStorage() {
+        // MediaBackendApplication 上的 @EnableScheduling 使本方法每天北京时间 02:00 被调用。
+        // 本方法只负责查询候选文件和发布 MQ，不直接调用 COS，避免定时线程被远程 API 阻塞。
         log.info("================= 冷数据归档任务开始 =================");
 
         int totalArchived = 0;
 
-        // 1. 归档用户私人数据（活动记录/状态记录）
+        // 私人媒体按上传时间超过 30 天归档，和社区媒体使用不同业务策略。
         totalArchived += archivePrivateData();
 
-        // 2. 归档社区动态数据
+        // 社区媒体按最后访问时间超过 7 天归档，体现访问热度而非创建时间。
         totalArchived += archiveCommunityData();
 
         log.info("================= 冷数据归档任务完成，共发送 {} 个归档任务到MQ =================", totalArchived);
@@ -88,14 +90,14 @@ public class ColdDataMigrationJob {
         int sendCount = 0;
         for (MediaFile file : filesToArchive) {
             try {
-                // 发送 MQ 消息，异步设置 COS 标签
+                // 一条文件一条 MQ 消息：应用层可以批量扫描，但消费者仍按文件独立重试。
                 mediaOperationPublisher.publishSetStorageClassEvent(
                         file.getMediaId(),
                         file.getFileUrl(),
                         "ARCHIVE"
                 );
 
-                // 更新数据库状态为 ARCHIVING（归档中）
+                // 先标记 Archiving，表示消息已发出但 COS 最终状态尚未确认。
                 file.setStatus("Archiving");
                 mediaRepository.save(file);
 
@@ -160,8 +162,10 @@ public class ColdDataMigrationJob {
      * 手动触发归档任务（用于测试或手动执行）
      */
     public int manualArchive() {
+        // 手动入口复用定时任务逻辑，便于测试和运维临时补跑。
         log.info("手动触发冷数据归档任务");
         migrateToColdStorage();
+        // 当前实现没有接收 migrateToColdStorage 的统计值，因此该返回值固定为 0；调用方不能据此判断实际数量。
         return 0;
     }
 }

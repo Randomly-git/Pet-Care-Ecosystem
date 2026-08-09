@@ -30,11 +30,13 @@ public class MediaOperationConsumer {
     @RabbitListener(queues = RabbitMQConfig.COLD_OPERATION_QUEUE)
     @Transactional
     public void handleMediaOperationEvent(MediaOperationEvent event) {
+        // RabbitListener 将队列消息反序列化为 MediaOperationEvent，并在独立消费者线程执行。
         long startTime = System.currentTimeMillis();
         log.info("【MQ消费】收到媒体操作事件: eventId={}, operationType={}, mediaId={}, fileUrl={}",
                 event.getEventId(), event.getOperationType(), event.getMediaId(), event.getFileUrl());
 
         try {
+            // 一个事件只处理一个文件，失败可以独立重试，不影响其他文件。
             switch (event.getOperationType()) {
                 case SET_STORAGE_CLASS -> handleSetStorageClass(event);
                 case RESTORE_ARCHIVED -> handleRestoreArchived(event);
@@ -51,7 +53,7 @@ public class MediaOperationConsumer {
             long elapsed = System.currentTimeMillis() - startTime;
             log.error("【MQ消费】媒体操作处理失败: eventId={}, operationType={}, mediaId={}, 耗时={}ms, error={}",
                     event.getEventId(), event.getOperationType(), event.getMediaId(), elapsed, e.getMessage(), e);
-            // 抛出异常触发重试
+            // 必须继续抛出异常；吞掉异常会让 Spring 误以为消费成功，消息无法重试或进入死信队列。
             throw e;
         }
     }
@@ -63,14 +65,14 @@ public class MediaOperationConsumer {
         log.info("【MQ消费】开始设置存储类型: eventId={}, mediaId={}, targetStorageClass={}",
                 event.getEventId(), event.getMediaId(), event.getTargetStorageClass());
 
-        // 1. 调用 COS API 设置标签
+        // 第一步修改 COS 存储标签，ARCHIVE 表示冷存储，其他目标表示恢复热存储。
         cosStorageService.setFileTagging(
                 event.getFileUrl(),
                 event.getTagKey(),
                 event.getTagValue()
         );
 
-        // 2. 更新数据库状态
+        // 第二步把 COS 的最终结果同步回 MySQL，状态机由 Archiving/Restoring 转为 Cold/Hot。
         MediaFile mediaFile = mediaRepository.findById(event.getMediaId()).orElse(null);
         if (mediaFile != null) {
             // 根据目标存储类型设置状态
@@ -119,7 +121,7 @@ public class MediaOperationConsumer {
                 event.getEventId(), event.getMediaId(), event.getFileUrl());
 
         try {
-            // 调用 COS API 删除文件
+            // 数据库记录已由 MediaService 提前删除；这里异步删除真实 COS 对象。
             cosStorageService.deleteFile(event.getFileUrl());
 
             log.info("【MQ消费】COS文件删除成功: eventId={}, mediaId={}, fileUrl={}",

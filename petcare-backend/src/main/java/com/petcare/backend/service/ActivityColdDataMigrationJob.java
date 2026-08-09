@@ -59,6 +59,8 @@ public class ActivityColdDataMigrationJob {
 
     @PostConstruct
     public void init() {
+        // @PostConstruct 只负责启动时打印最终配置，不负责触发迁移。
+        // 真正启用定时任务的是 SchedulingConfig 上的 @EnableScheduling。
         log.info("【定时任务初始化】ActivityRecord冷数据迁移任务已注册");
         log.info("【定时任务初始化】cron表达式: {}", migrationCron);
         log.info("【定时任务初始化】days-threshold: {}, batch-size: {}", daysThreshold, batchSize);
@@ -74,14 +76,18 @@ public class ActivityColdDataMigrationJob {
     @Scheduled(cron = "${hbase.cold-data.activity-record.migration-cron:0 0 2 * * ?}", zone = "Asia/Shanghai")
     @Transactional
     public void migrateToColdStorage() {
+        // 每天北京时间 02:00 执行；cron 可由 application-dev.yml 覆盖，便于测试和运维调整。
         log.info("================= ActivityRecord 冷数据迁移任务开始 =================");
 
+        // 计算冷热分界线：早于该时间且仍在 MySQL 的记录才进入迁移候选。
         LocalDateTime threshold = LocalDateTime.now().minusDays(daysThreshold);
 
         // 1. 处理新发现的待迁移记录（状态为 NONE）
+        // 第一阶段只扫描 NONE 记录并投递消息，不在定时线程直接执行 HBase 网络操作。
         int newPublished = scanAndPublishMigrationTasks(threshold);
 
         // 2. 处理之前卡住的记录（状态为 MIGRATING，可能是 MQ 消费失败）
+        // 第二阶段修复上次 MQ 消费失败留下的 MIGRATING 记录，形成最终一致性补偿。
         int stuckResolved = resolveStuckMigrations(threshold);
 
         log.info("================= ActivityRecord 冷数据迁移任务完成 =================");
@@ -103,7 +109,7 @@ public class ActivityColdDataMigrationJob {
         int pageNumber = 0;
 
         while (true) {
-            // 分页查询待迁移的记录（状态为 NONE）
+            // 分页读取，避免一次性加载全部历史记录造成内存和数据库压力。
             Page<ActivityRecord> page = activityRecordRepository
                     .findRecordsToMigrate(threshold, PageRequest.of(pageNumber, batchSize));
 
@@ -114,7 +120,7 @@ public class ActivityColdDataMigrationJob {
             for (ActivityRecord record : page.getContent()) {
                 Long recordId = record.getActivityRecordId();
 
-                // 1. 尝试原子性获取锁（乐观锁）
+                // 先用条件更新把 NONE 原子改为 MIGRATING，只有抢到这条记录的线程才能发消息。
                 int updated = activityRecordRepository.updateMigrationStatus(recordId, "NONE", "MIGRATING");
                 if (updated == 0) {
                     // 状态不是 NONE，可能被其他线程或上次任务处理，跳过
@@ -123,7 +129,7 @@ public class ActivityColdDataMigrationJob {
                 }
 
                 try {
-                    // 2. 发布迁移消息到 MQ
+                    // 状态先标记、消息后发送，避免多个调度实例重复投递同一记录。
                     coldStorageEventPublisher.publishMigrateToColdEvent(
                             recordId,
                             record.getPet() != null ? record.getPet().getPetId() : null,
@@ -136,7 +142,7 @@ public class ActivityColdDataMigrationJob {
                 } catch (Exception e) {
                     log.error("【新迁移】发送迁移任务失败，回滚状态: activityRecordId={}, error={}",
                             recordId, e.getMessage());
-                    // 回滚状态
+                    // Broker 发布失败时恢复 NONE，否则该记录会永久停留在 MIGRATING。
                     try {
                         activityRecordRepository.updateMigrationStatus(recordId, "MIGRATING", "NONE");
                     } catch (Exception rollbackEx) {
